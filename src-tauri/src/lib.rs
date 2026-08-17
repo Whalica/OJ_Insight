@@ -49,18 +49,21 @@ fn get_storage_info(state: State<'_, AppState>) -> StorageInfo {
 
 #[tauri::command]
 fn get_accounts(state: State<'_, AppState>) -> Result<Vec<AccountConfig>, String> {
-    db::get_accounts(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?)
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::get_accounts(&*conn)
 }
 
 #[tauri::command]
 fn save_account(state: State<'_, AppState>, platform: String, account: String, secret: String) -> Result<(), String> {
     if !PLATFORMS.contains(&platform.as_str()) { return Err("不支持的平台".into()); }
-    db::save_account(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?, &platform, &account, &secret)
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::save_account(&*conn, &platform, &account, &secret)
 }
 
 #[tauri::command]
 fn get_sync_statuses(state: State<'_, AppState>) -> Result<Vec<SyncStatus>, String> {
-    db::statuses(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?)
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::statuses(&*conn)
 }
 
 async fn sync_one_inner(state: &AppState, platform: &str, full: bool) -> Result<SyncResult, String> {
@@ -112,22 +115,26 @@ async fn sync_all(state: State<'_, AppState>) -> Result<Vec<SyncResult>, String>
 
 #[tauri::command]
 fn clear_platform_records(state: State<'_, AppState>, platform: String) -> Result<(), String> {
-    db::clear_platform(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?, &platform)
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::clear_platform(&*conn, &platform)
 }
 
 #[tauri::command]
 fn clear_all_records(state: State<'_, AppState>) -> Result<(), String> {
-    db::clear_all(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?)
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::clear_all(&*conn)
 }
 
 #[tauri::command]
 fn get_snapshot(state: State<'_, AppState>, platform: Option<String>, start_day: Option<String>, end_day: Option<String>, metric: String) -> Result<Snapshot, String> {
-    db::snapshot(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?, platform.as_deref(), start_day.as_deref(), end_day.as_deref(), &metric)
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::snapshot(&*conn, platform.as_deref(), start_day.as_deref(), end_day.as_deref(), &metric)
 }
 
 #[tauri::command]
 fn get_day_detail(state: State<'_, AppState>, day: String, platform: Option<String>) -> Result<DayDetail, String> {
-    db::day_detail(&state.db.lock().map_err(|_| "数据库锁异常".to_string())?, &day, platform.as_deref())
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::day_detail(&*conn, &day, platform.as_deref())
 }
 
 #[tauri::command]
