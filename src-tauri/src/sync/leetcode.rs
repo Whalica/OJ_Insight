@@ -2,19 +2,28 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::Datelike;
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, REFERER, USER_AGENT},
+    header::{
+        HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, REFERER, USER_AGENT,
+    },
     Client,
 };
 use serde_json::{json, Value};
 
-use crate::models::{AccountConfig, AggregateDay, DifficultyStat, RemoteData, SyncError};
 use super::{now_epoch, polite_sleep, post_json};
+use crate::models::{AccountConfig, AggregateDay, DifficultyStat, RemoteData, SyncError};
+
+#[derive(Clone, Copy, PartialEq)]
+enum SiteKind {
+    Global,
+    China,
+}
 
 struct LeetCodeSite {
     endpoint: &'static str,
     origin: &'static str,
     referer: &'static str,
     label: &'static str,
+    kind: SiteKind,
 }
 
 fn parse_account(raw: &str) -> (&str, LeetCodeSite) {
@@ -27,6 +36,7 @@ fn parse_account(raw: &str) -> (&str, LeetCodeSite) {
                 origin: "https://leetcode.cn",
                 referer: "https://leetcode.cn/",
                 label: "LeetCode CN",
+                kind: SiteKind::China,
             },
         )
     } else {
@@ -37,6 +47,7 @@ fn parse_account(raw: &str) -> (&str, LeetCodeSite) {
                 origin: "https://leetcode.com",
                 referer: "https://leetcode.com/",
                 label: "LeetCode",
+                kind: SiteKind::Global,
             },
         )
     }
@@ -52,24 +63,18 @@ fn headers(site: &LeetCodeSite) -> HeaderMap {
     );
     h.insert(ACCEPT, HeaderValue::from_static("application/json"));
     h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    if let Ok(v) = HeaderValue::from_str(site.origin) {
-        h.insert(ORIGIN, v);
-    }
-    if let Ok(v) = HeaderValue::from_str(site.referer) {
-        h.insert(REFERER, v);
-    }
+    h.insert(ORIGIN, HeaderValue::from_str(site.origin).unwrap());
+    h.insert(REFERER, HeaderValue::from_str(site.referer).unwrap());
+    h.insert(
+        HeaderName::from_static("x-requested-with"),
+        HeaderValue::from_static("XMLHttpRequest"),
+    );
     h
 }
 
-const QUERY: &str = r#"
-query userProfileCalendar($username: String!, $year: Int) {
-  matchedUser(username: $username) {
-    username
-    submitStatsGlobal { acSubmissionNum { difficulty count submissions } }
-    userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar }
-  }
-}
-"#;
+const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } }"#;
+const CN_CALENDAR_QUERY: &str = r#"query userProfileCalendar($userSlug: String!, $year: Int) { userCalendar(userSlug: $userSlug, year: $year) { activeYears streak totalActiveDays submissionCalendar } }"#;
+const CN_PROGRESS_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 
 pub async fn fetch(
     client: &Client,
@@ -81,52 +86,34 @@ pub async fn fetch(
     if user.is_empty() {
         return Err(SyncError::error("LeetCode 用户名为空"));
     }
-
-    let first = post_json(
-        client,
-        site.endpoint,
-        headers(&site),
-        json!({"query": QUERY, "variables": {"username": user, "year": Value::Null}}),
-    )
-    .await?;
-    let matched = first
-        .pointer("/data/matchedUser")
+    let current = chrono::Utc::now().year();
+    let first = calendar_request(client, user, current, &site).await?;
+    let calendar_node = calendar_node(&first, &site)
         .filter(|v| !v.is_null())
         .ok_or_else(|| {
             SyncError::error(format!(
-                "{} 用户不存在，或 GraphQL 未返回 matchedUser",
+                "{} 用户不存在，或 userCalendar 未返回数据",
                 site.label
             ))
         })?;
-
     let mut years = BTreeSet::new();
-    if let Some(a) = matched
-        .pointer("/userCalendar/activeYears")
-        .and_then(Value::as_array)
-    {
+    if let Some(a) = calendar_node.get("activeYears").and_then(Value::as_array) {
         for y in a {
             if let Some(n) = y.as_i64() {
                 years.insert(n as i32);
             }
         }
     }
-    years.insert(chrono::Utc::now().year());
-
+    years.insert(current);
     let mut calendar: BTreeMap<String, i64> = BTreeMap::new();
-    for (idx, year) in years.into_iter().enumerate() {
-        let payload = if idx == 0
-            && chrono::Utc::now().year() == year
-            && matched
-                .pointer("/userCalendar/submissionCalendar")
-                .is_some()
-        {
+    for year in years {
+        let payload = if year == current {
             first.clone()
         } else {
-            post_year(client, user, year, &site).await?
+            calendar_request(client, user, year, &site).await?
         };
-
-        if let Some(s) = payload
-            .pointer("/data/matchedUser/userCalendar/submissionCalendar")
+        if let Some(s) = calendar_node(&payload, &site)
+            .and_then(|v| v.get("submissionCalendar"))
             .and_then(Value::as_str)
         {
             if let Ok(map) = serde_json::from_str::<BTreeMap<String, i64>>(s) {
@@ -137,52 +124,26 @@ pub async fn fetch(
                 }
             }
         }
-        polite_sleep(180).await;
+        polite_sleep(160).await;
     }
-
-    let mut aggregates = Vec::new();
-    for (epoch, count) in calendar {
-        if let Ok(ts) = epoch.parse::<i64>() {
-            let day = crate::db::day_utc8(ts);
-            aggregates.push(AggregateDay {
-                day,
+    let aggregates = calendar
+        .into_iter()
+        .filter_map(|(epoch, count)| {
+            epoch.parse::<i64>().ok().map(|ts| AggregateDay {
+                day: crate::db::day_utc8(ts),
                 metric: "activity".into(),
                 count,
                 note: format!(
                     "{} submissionCalendar：提交活动计数，不等同于首次 AC",
                     site.label
                 ),
-            });
-        }
-    }
-
-    let mut solved_count = None;
-    let mut difficulty = Vec::new();
-    if let Some(arr) = matched
-        .pointer("/submitStatsGlobal/acSubmissionNum")
-        .and_then(Value::as_array)
-    {
-        for (i, row) in arr.iter().enumerate() {
-            let label = row
-                .get("difficulty")
-                .and_then(Value::as_str)
-                .unwrap_or("");
-            let count = row.get("count").and_then(Value::as_i64).unwrap_or(0);
-            if label == "All" {
-                solved_count = Some(count);
-            } else if !label.is_empty() {
-                difficulty.push(DifficultyStat {
-                    label: label.into(),
-                    count,
-                    order: i as i64,
-                });
-            }
-        }
-    }
-
+            })
+        })
+        .collect();
+    let (solved_count, difficulty) = profile_stats(client, user, &site, &first).await?;
     Ok(RemoteData {
         platform: "leetcode".into(),
-        account: if site.label == "LeetCode CN" {
+        account: if site.kind == SiteKind::China {
             format!("cn:{user}")
         } else {
             user.into()
@@ -193,7 +154,7 @@ pub async fn fetch(
         difficulty,
         activity_only: true,
         notes: vec![
-            format!("{} GraphQL userCalendar + submitStatsGlobal", site.label),
+            format!("{} 独立 GraphQL provider", site.label),
             "逐日 calendar 是提交活动，不提供完整历史逐题 AC 明细".into(),
         ],
         cursor_epoch: now_epoch(),
@@ -202,17 +163,67 @@ pub async fn fetch(
     })
 }
 
-async fn post_year(
+fn calendar_node<'a>(payload: &'a Value, site: &LeetCodeSite) -> Option<&'a Value> {
+    if site.kind == SiteKind::China {
+        payload.pointer("/data/userCalendar")
+    } else {
+        payload.pointer("/data/matchedUser/userCalendar")
+    }
+}
+
+async fn calendar_request(
     client: &Client,
     user: &str,
     year: i32,
     site: &LeetCodeSite,
 ) -> Result<Value, SyncError> {
-    post_json(
-        client,
-        site.endpoint,
-        headers(site),
-        json!({"query": QUERY, "variables": {"username": user, "year": year}}),
-    )
-    .await
+    let body = if site.kind == SiteKind::China {
+        json!({"operationName":"userProfileCalendar","query":CN_CALENDAR_QUERY,"variables":{"userSlug":user,"year":year}})
+    } else {
+        json!({"operationName":"userProfileCalendar","query":GLOBAL_QUERY,"variables":{"username":user,"year":year}})
+    };
+    post_json(client, site.endpoint, headers(site), body).await
+}
+
+async fn profile_stats(
+    client: &Client,
+    user: &str,
+    site: &LeetCodeSite,
+    first: &Value,
+) -> Result<(Option<i64>, Vec<DifficultyStat>), SyncError> {
+    let rows = if site.kind == SiteKind::China {
+        let value=post_json(client,site.endpoint,headers(site),json!({"operationName":"userProfileUserQuestionProgressV2","query":CN_PROGRESS_QUERY,"variables":{"userSlug":user}})).await?;
+        value
+            .pointer("/data/userProfileUserQuestionProgressV2/numAcceptedQuestions")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    } else {
+        first
+            .pointer("/data/matchedUser/submitStatsGlobal/acSubmissionNum")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let mut solved = None;
+    let mut difficulty = Vec::new();
+    let mut sum = 0;
+    for (i, row) in rows.iter().enumerate() {
+        let label = row.get("difficulty").and_then(Value::as_str).unwrap_or("");
+        let count = row.get("count").and_then(Value::as_i64).unwrap_or(0);
+        if label.eq_ignore_ascii_case("all") {
+            solved = Some(count);
+        } else if !label.is_empty() {
+            sum += count;
+            difficulty.push(DifficultyStat {
+                label: label.into(),
+                count,
+                order: i as i64,
+            });
+        }
+    }
+    if solved.is_none() && !difficulty.is_empty() {
+        solved = Some(sum);
+    }
+    Ok((solved, difficulty))
 }

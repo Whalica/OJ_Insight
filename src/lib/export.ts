@@ -20,17 +20,18 @@ const level = (n: number, max: number) => {
 };
 
 const colors = ['#1a1e24', '#183d2b', '#1f6b3a', '#2ea44f', '#55d976'];
+type ExportDay = { day: string; week: number; dow: number; count: number };
 
-function yearDays(year: number, points: Map<string, number>) {
+function yearDays(year: number, points: Map<string, number>, startDay?:string, endDay?:string) {
   const jan1 = new Date(Date.UTC(year, 0, 1));
   const dec31 = new Date(Date.UTC(year, 11, 31));
   const firstSunday = new Date(jan1);
   firstSunday.setUTCDate(jan1.getUTCDate() - jan1.getUTCDay());
-  const rows: Array<{ day: string; week: number; dow: number; count: number }> = [];
+  const rows: ExportDay[] = [];
   for (let d = new Date(firstSunday); d <= dec31; d.setUTCDate(d.getUTCDate() + 1)) {
     if (d.getUTCFullYear() > year) break;
     const day = d.toISOString().slice(0, 10);
-    if (d.getUTCFullYear() === year) {
+    if (d.getUTCFullYear() === year && (!startDay || day>=startDay) && (!endDay || day<=endDay)) {
       const diff = Math.floor((d.getTime() - firstSunday.getTime()) / 86400000);
       rows.push({ day, week: Math.floor(diff / 7), dow: d.getUTCDay(), count: points.get(day) || 0 });
     }
@@ -38,20 +39,34 @@ function yearDays(year: number, points: Map<string, number>) {
   return rows;
 }
 
-export async function exportHeatmap(title: string, daily: DailyPoint[], startYear: number, endYear: number, format: 'png' | 'svg') {
+function rangeDays(startDay:string,endDay:string,points:Map<string,number>) {
+  const start=new Date(`${startDay}T00:00:00Z`),end=new Date(`${endDay}T00:00:00Z`),firstSunday=new Date(start);
+  firstSunday.setUTCDate(start.getUTCDate()-start.getUTCDay());const rows:ExportDay[]=[];
+  for(let d=new Date(firstSunday);d<=end;d.setUTCDate(d.getUTCDate()+1)){
+    const day=d.toISOString().slice(0,10);if(day<startDay)continue;
+    const diff=Math.floor((d.getTime()-firstSunday.getTime())/86400000);rows.push({day,week:Math.floor(diff/7),dow:d.getUTCDay(),count:points.get(day)||0});
+  }
+  return rows;
+}
+
+export async function exportHeatmap(title: string, daily: DailyPoint[], startYear: number, endYear: number, format: 'png' | 'svg', startDay?:string, endDay?:string) {
   const map = new Map(daily.map((x) => [x.day, x.count]));
   const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+  const ranges:Array<{label:string;days:ExportDay[]}>=startDay&&endDay
+    ? [{label:`${startDay} — ${endDay}`,days:rangeDays(startDay,endDay,map)}]
+    : years.map(year=>({label:String(year),days:yearDays(year,map)}));
   const yearHeight = TOP + 7 * STEP + 34;
-  const width = LEFT + WEEKS * STEP + 30;
-  const height = 28 + years.length * yearHeight + 34;
+  const weeks=Math.max(WEEKS,...ranges.flatMap(r=>r.days.map(d=>d.week+1)));
+  const width = LEFT + weeks * STEP + 30;
+  const height = 28 + ranges.length * yearHeight + 34;
   const max = Math.max(1, ...daily.map((x) => x.count));
 
   const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]!));
   let body = `<rect width="100%" height="100%" fill="#0b0e12"/><text x="24" y="30" fill="#f1f4f7" font-size="18" font-family="Segoe UI,Arial">${esc(title)}</text>`;
-  years.forEach((year, yi) => {
+  ranges.forEach((range, yi) => {
     const oy = 28 + yi * yearHeight;
-    body += `<text x="24" y="${oy + 34}" fill="#9aa4af" font-size="13" font-family="Segoe UI,Arial">${year}</text>`;
-    for (const item of yearDays(year, map)) {
+    body += `<text x="24" y="${oy + 34}" fill="#9aa4af" font-size="13" font-family="Segoe UI,Arial">${range.label}</text>`;
+    for (const item of range.days) {
       const x = LEFT + item.week * STEP;
       const y = oy + TOP + item.dow * STEP;
       body += `<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" fill="${colors[level(item.count, max)]}"/>`;
@@ -61,7 +76,7 @@ export async function exportHeatmap(title: string, daily: DailyPoint[], startYea
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`;
   const storage = await invoke<{ exportDir: string }>('get_storage_info');
   const slash = storage.exportDir.endsWith('\\') || storage.exportDir.endsWith('/') ? '' : '\\';
-  const defaultPath = `${storage.exportDir}${slash}OJ-Insight-${startYear}-${endYear}.${format}`;
+  const defaultPath = `${storage.exportDir}${slash}OJ-Insight-${startDay&&endDay?'until-now':`${startYear}-${endYear}`}.${format}`;
   const path = await save({ defaultPath, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
   if (!path) return;
   if (format === 'svg') {

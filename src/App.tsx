@@ -1,39 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, Download, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, Github, RefreshCw, Save, Trash2 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Heatmap from './components/Heatmap';
 import StatCards from './components/StatCards';
 import DayDrawer from './components/DayDrawer';
 import { api } from './lib/api';
 import { exportHeatmap } from './lib/export';
-import { currentYear, formatDateTime } from './lib/date';
+import { currentYear, formatDateTime, today } from './lib/date';
 import { METRICS, PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
 import type { AccountConfig, DayDetail, Metric, Platform, Snapshot, SyncStatus } from './types';
 
-type Page = 'overview' | 'export' | 'data' | 'settings' | Platform;
+type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
+type TimeScope = number | 'until';
 
 const emptySnapshot: Snapshot = {
   stats: { solved: 0, accepted_submissions: 0, active_days: 0, longest_streak: 0, current_streak: 0, peak_day: null, peak_count: 0 },
+  career: { solved: 0, accepted_submissions: 0, active_days: 0, longest_streak: 0, current_streak: 0, peak_day: null, peak_count: 0 },
   daily: [], platforms: [], difficulty: [], recent: [], metric_available: true, warnings: [],
 };
 
 function yearRange(year: number) { return { start: `${year}-01-01`, end: `${year}-12-31` }; }
+function scopeRange(scope: TimeScope) {
+  if (scope !== 'until') return yearRange(scope);
+  const end = new Date(`${today()}T00:00:00Z`); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 364);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
 
 export default function App() {
   const [page, setPage] = useState<Page>('overview');
-  const [year, setYear] = useState(currentYear());
+  const [timeScope, setTimeScope] = useState<TimeScope>('until');
   const [metric, setMetric] = useState<Metric>('activity');
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [accounts, setAccounts] = useState<Record<string, AccountConfig>>({});
   const [statuses, setStatuses] = useState<SyncStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
   const [toast, setToast] = useState<string>('');
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
   const [dayLoading, setDayLoading] = useState(false);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
-  const range = useMemo(() => yearRange(year), [year]);
+  const range = useMemo(() => scopeRange(timeScope), [timeScope]);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3200); };
 
@@ -71,11 +79,18 @@ export default function App() {
   const syncAll = async () => {
     setSyncing('all');
     try {
-      const results = await api.syncAll();
-      notify(`同步完成：${results.filter((x) => x.status === 'ok').length}/${results.length}`);
+      const platforms = PLATFORM_ORDER;
+      let done=0,added=0,failed=0;setSyncProgress({done,total:platforms.length,added,failed});
+      for (const platform of platforms) {
+        if (accounts[platform]?.account?.trim()) {
+          try { const result=await api.syncPlatform(platform); added+=result.inserted; } catch { failed+=1; }
+        }
+        done+=1;setSyncProgress({done,total:platforms.length,added,failed});await loadStatuses();
+      }
+      notify(`同步检查完成：${done}/${done} · 新增 ${added} · 失败 ${failed}`);
       await Promise.all([loadSnapshot(), loadStatuses()]);
     } catch (e) { notify(String(e)); }
-    finally { setSyncing(null); }
+    finally { setSyncing(null); window.setTimeout(()=>setSyncProgress(null),2500); }
   };
 
   const openDay = async (day: string) => {
@@ -91,46 +106,53 @@ export default function App() {
       {page === 'settings' ? <SettingsPage accounts={accounts} onSaved={async () => { await loadAccounts(); notify('账号设置已保存'); }} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} /> :
-       <DashboardPage platform={selectedPlatform} year={year} setYear={setYear} metric={metric} setMetric={setMetric} snapshot={snapshot} loading={loading} syncing={syncing} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} />}
+       page === 'about' ? <AboutPage /> :
+       <DashboardPage platform={selectedPlatform} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} snapshot={snapshot} loading={loading} syncing={syncing} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onPlatform={(p)=>setPage(p)} />}
     </main>
     <DayDrawer detail={dayDetail} loading={dayLoading} onClose={() => setDayDetail(null)} />
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }
 
-function DashboardPage({ platform, year, setYear, metric, setMetric, snapshot, loading, syncing, onSync, onDay }: {
-  platform: Platform | null; year: number; setYear: (y: number) => void; metric: Metric; setMetric: (m: Metric) => void; snapshot: Snapshot; loading: boolean; syncing: string | null; onSync: () => void; onDay: (day: string) => void;
+function DashboardPage({ platform, timeScope, setTimeScope, range, metric, setMetric, snapshot, loading, syncing, syncProgress, onSync, onDay, onPlatform }: {
+  platform: Platform | null; timeScope: TimeScope; setTimeScope: (y: TimeScope) => void; range:{start:string;end:string}; metric: Metric; setMetric: (m: Metric) => void; snapshot: Snapshot; loading: boolean; syncing: string | null; syncProgress:{done:number;total:number;added:number;failed:number}|null; onSync: () => void; onDay: (day: string) => void; onPlatform:(p:Platform)=>void;
 }) {
   const title = platform ? PLATFORM_META[platform].name : '总览';
-  const years = Array.from({ length: currentYear() - 2009 }, (_, i) => 2010 + i);
+  const years = Array.from({ length: currentYear() - 2009 }, (_, i) => currentYear()-i);
+  const label=timeScope==='until'?'Until now':String(timeScope);
+  const move=(delta:number)=>{if(timeScope!=='until')setTimeScope(Math.min(currentYear(),Math.max(2010,timeScope+delta)));};
   return <>
-    <header className="topbar"><div><small>{platform ? 'PLATFORM ANALYTICS' : 'UNIFIED ANALYTICS'}</small><h1>{title}</h1><p>{platform ? '单平台活动、解题与难度数据' : '将多个 Online Judge 的训练轨迹汇总为一套统计。'}</p></div><button className="primary" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncing ? '同步中' : '同步'}</button></header>
+    <header className="topbar"><div><small>{platform ? 'PLATFORM ANALYTICS' : 'UNIFIED ANALYTICS'}</small><h1>{title}</h1><p>{platform ? '单平台 Career、时间范围、Activity 与难度数据' : '将多个 Online Judge 的训练轨迹汇总为一套统计。'}</p></div><button className="primary" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncProgress?`${syncProgress.done}/${syncProgress.total}`:syncing?'同步中':'同步'}</button></header>
+    {syncProgress&&<div className="sync-banner"><strong>Syncing {syncProgress.done} / {syncProgress.total}</strong><span>+ {syncProgress.added} new records · {syncProgress.failed} failed</span><i><b style={{width:`${syncProgress.total?syncProgress.done/syncProgress.total*100:0}%`}}/></i></div>}
     <div className="toolbar">
-      <label>年份<div className="select-wrap"><select value={year} onChange={(e) => setYear(Number(e.target.value))}>{years.map((y) => <option key={y}>{y}</option>)}</select><ChevronDown size={14} /></div></label>
-      <label>砖墙口径<div className="select-wrap"><select value={metric} onChange={(e) => setMetric(e.target.value as Metric)}>{METRICS.map((m) => <option value={m.value} key={m.value}>{m.label}</option>)}</select><ChevronDown size={14} /></div></label>
+      <label>时间范围<div className="year-control"><button onClick={()=>move(-1)} disabled={timeScope==='until'||timeScope<=2010}><ChevronLeft size={15}/></button><div className="select-wrap"><select value={timeScope} onChange={(e)=>setTimeScope(e.target.value==='until'?'until':Number(e.target.value))}><option value="until">Until now</option>{years.map(y=><option value={y} key={y}>{y}</option>)}</select><ChevronDown size={14}/></div><button onClick={()=>move(1)} disabled={timeScope==='until'||timeScope>=currentYear()}><ChevronRight size={15}/></button></div></label>
+      <label>Activity 口径<div className="select-wrap"><select value={metric} onChange={(e) => setMetric(e.target.value as Metric)}>{METRICS.map((m) => <option value={m.value} key={m.value}>{m.label}</option>)}</select><ChevronDown size={14} /></div></label>
       <span className="toolbar-note">日期统计基准：UTC+8</span>
     </div>
     {!snapshot.metric_available && <div className="warning"><AlertTriangle size={16} />当前平台没有该口径的逐日数据，已显示可用数据为空。</div>}
     {snapshot.warnings.map((w) => <div className="warning" key={w}><AlertTriangle size={16} />{w}</div>)}
-    <StatCards stats={snapshot.stats} />
-    <section className="panel heat-panel"><div className="panel-head"><div><small>ACTIVITY</small><h2>{year} 砖墙</h2></div>{loading && <span className="muted">读取中…</span>}</div><Heatmap year={year} daily={snapshot.daily} onDay={onDay} /></section>
+    <div className="section-title"><small>CAREER · 不随时间范围变化</small><h2>{platform?`${title} Career`:'Career'}</h2></div><StatCards stats={snapshot.career} />
+    <div className="section-title"><small>CURRENT RANGE</small><h2>{label}</h2></div><StatCards stats={snapshot.stats} />
+    <section className="panel heat-panel"><div className="panel-head"><div><small>ACTIVITY · {range.start} — {range.end}</small><h2>Activity · {label}</h2></div>{loading && <span className="muted">读取中…</span>}</div><Heatmap startDay={range.start} endDay={range.end} daily={snapshot.daily} onDay={onDay} /></section>
     <div className="two-col">
-      <section className="panel"><div className="panel-head"><div><small>PLATFORMS</small><h2>{platform ? '数据概况' : '平台分布'}</h2></div></div><PlatformTable rows={snapshot.platforms} /></section>
-      <section className="panel"><div className="panel-head"><div><small>DIFFICULTY</small><h2>难度分布</h2></div></div><DifficultyList data={snapshot.difficulty} /></section>
+      <section className="panel"><div className="panel-head"><div><small>PLATFORM SUMMARY</small><h2>{platform ? '数据概况' : 'Platform Summary'}</h2></div></div><PlatformTable rows={snapshot.platforms} onSelect={onPlatform} /></section>
+      <section className="panel"><div className="panel-head"><div><small>DIFFICULTY</small><h2>Difficulty Profile</h2></div></div><DifficultyProfile data={snapshot.difficulty} /></section>
     </div>
     <section className="panel"><div className="panel-head"><div><small>RECENT</small><h2>最近 AC</h2></div></div><RecentList items={snapshot.recent} /></section>
   </>;
 }
 
-function PlatformTable({ rows }: { rows: Snapshot['platforms'] }) {
+function PlatformTable({ rows,onSelect }: { rows: Snapshot['platforms'];onSelect:(p:Platform)=>void }) {
   if (!rows.length) return <div className="empty">还没有本地数据。先到「设置」填账号，然后同步。</div>;
-  return <div className="platform-table">{rows.map((x) => <div key={x.platform}><span className="oj-dot" style={{ background: PLATFORM_META[x.platform].accent }} /><strong>{PLATFORM_META[x.platform].name}</strong><span>{x.solved == null ? '—' : x.solved.toLocaleString()} solved</span><small>{x.active_days} active days</small></div>)}</div>;
+  return <div className="platform-table">{rows.map((x) => <button key={x.platform} onClick={()=>onSelect(x.platform)}><span className="oj-dot" style={{ background: PLATFORM_META[x.platform].accent }} /><strong>{PLATFORM_META[x.platform].name}</strong><span>{x.solved == null ? 'N/A' : `${x.solved.toLocaleString()} solved`}</span><small>{x.cached_records} cached · {x.status}</small></button>)}</div>;
 }
 
-function DifficultyList({ data }: { data: Snapshot['difficulty'] }) {
+function DifficultyProfile({ data }: { data: Snapshot['difficulty'] }) {
+  const available=PLATFORM_ORDER.filter(p=>data.some(x=>x.platform===p));const[first]=available;const[selected,setSelected]=useState<Platform|undefined>(first);
+  useEffect(()=>{if(!selected||!available.includes(selected))setSelected(first);},[first,selected,available.join('|')]);
   if (!data.length) return <div className="empty">当前范围没有可靠的难度数据。</div>;
-  const max = Math.max(...data.map((x) => x.count), 1);
-  return <div className="difficulty-list">{data.map((x, i) => <div key={`${x.platform}-${x.label}-${i}`}><div><span className="oj-mini">{PLATFORM_META[x.platform].short}</span><strong>{x.label}</strong><em>{x.count}</em></div><i><b style={{ width: `${x.count / max * 100}%`, background: PLATFORM_META[x.platform].accent }} /></i></div>)}</div>;
+  const shown=data.filter(x=>x.platform===(selected||first));const max=Math.max(...shown.map(x=>x.count),1);const total=shown.reduce((a,b)=>a+b.count,0);
+  return <><div className="difficulty-tabs">{available.map(p=><button className={p===(selected||first)?'active':''} onClick={()=>setSelected(p)} key={p}>{PLATFORM_META[p].short}</button>)}</div><div className="histogram">{shown.map((x,i)=><div key={`${x.platform}-${x.label}-${i}`} title={`${x.label}: ${x.count}`}><i style={{height:`${Math.max(5,x.count/max*100)}%`,background:PLATFORM_META[x.platform].accent}}/><span>{x.label}</span></div>)}</div><div className="difficulty-summary"><span>Rated solved <strong>{total}</strong></span><span>Peak <strong>{shown.reduce((a,b)=>a.count>b.count?a:b).label}</strong></span></div></>;
 }
 
 function RecentList({ items }: { items: Snapshot['recent'] }) {
@@ -146,19 +168,25 @@ function SettingsPage({ accounts, onSaved }: { accounts: Record<string, AccountC
     setForm(next);
   }, [accounts]);
   const saveAll = async () => { for (const p of PLATFORM_ORDER) await api.saveAccount(p, form[p]?.account || '', form[p]?.secret || ''); onSaved(); };
-  return <><header className="topbar"><div><small>SETTINGS</small><h1>账号设置</h1><p>账号与可选登录凭据仅保存在本机 SQLite 数据库中。</p></div><button className="primary" onClick={saveAll}><Save size={16} />保存</button></header><section className="panel account-panel">{PLATFORM_ORDER.map((p) => <div className="account-row" key={p}><div className="account-name"><span className="oj-dot" style={{ background: PLATFORM_META[p].accent }} /><div><strong>{PLATFORM_META[p].name}</strong><small>{PLATFORM_META[p].accountHint}</small></div></div><input value={form[p]?.account || ''} onChange={(e) => setForm({ ...form, [p]: { ...(form[p] || { secret: '' }), account: e.target.value } })} placeholder={PLATFORM_META[p].accountHint} />{p === 'qoj' ? <input type="password" value={form[p]?.secret || ''} onChange={(e) => setForm({ ...form, [p]: { ...(form[p] || { account: '' }), secret: e.target.value } })} placeholder={PLATFORM_META[p].secretHint} /> : <span className="account-spacer" />}</div>)}<div className="info-box"><strong>QOJ 登录说明</strong><p>QOJ 当前要求登录后才能查看完整提交列表。若要同步 QOJ 历史记录，可填写浏览器登录后的 <code>UOJSESSID=...</code> Cookie；留空时软件会明确标记为需要登录，不会把失败当成“0 条记录”。</p></div></section></>;
+  return <><header className="topbar"><div><small>SETTINGS</small><h1>账号设置</h1><p>账号与可选登录凭据仅保存在本机 SQLite 数据库中。</p></div><button className="primary" onClick={saveAll}><Save size={16} />保存</button></header><section className="panel account-panel">{PLATFORM_ORDER.map((p) => <div className="account-row" key={p}><div className="account-name"><span className="oj-dot" style={{ background: PLATFORM_META[p].accent }} /><div><strong>{PLATFORM_META[p].name}</strong><small>{PLATFORM_META[p].accountHint}</small></div></div><input value={form[p]?.account || ''} onChange={(e) => setForm({ ...form, [p]: { ...(form[p] || { secret: '' }), account: e.target.value } })} placeholder={PLATFORM_META[p].accountHint} />{p === 'qoj' ? <input type="password" value={form[p]?.secret || ''} onChange={(e) => setForm({ ...form, [p]: { ...(form[p] || { account: '' }), secret: e.target.value } })} placeholder={PLATFORM_META[p].secretHint} /> : <span className="account-spacer" />}</div>)}<div className="info-box"><strong>QOJ 登录说明</strong><p>可填写完整 <code>UOJSESSID=value</code>，也可只粘贴 Cookie 的 value，应用会自动补齐名称。日志会自动脱敏；未登录、过期、无提交与页面结构变化会分别提示。</p></div><div className="info-box"><strong>LeetCode 中国站</strong><p>国际站直接填用户名；中国站填写 <code>cn:用户名</code>。两站使用独立 GraphQL provider。</p></div></section></>;
 }
 
 function DataPage({ statuses, syncing, onSync, onSyncAll, onCleared, notify }: { statuses: SyncStatus[]; syncing: string | null; onSync: (p: Platform, full?: boolean) => void; onSyncAll: () => void; onCleared: () => void; notify: (s: string) => void }) {
   const by = new Map(statuses.map((x) => [x.platform, x]));
   const clearOne = async (p: Platform) => { if (!confirm(`清空 ${PLATFORM_META[p].name} 的全部本地记录？账号设置会保留。`)) return; await api.clearPlatform(p); notify('已清空'); onCleared(); };
   const clearAll = async () => { if (!confirm('清空所有 OJ 的本地记录？此操作不可撤销，账号设置会保留。')) return; await api.clearAll(); notify('所有本地记录已清空'); onCleared(); };
-  return <><header className="topbar"><div><small>DATA SOURCES</small><h1>同步与本地数据</h1><p>远端数据先进入 SQLite，日常使用优先读取本地缓存。</p></div><button className="primary" onClick={onSyncAll} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header><section className="panel source-list">{PLATFORM_ORDER.map((p) => { const s = by.get(p); const ok = s?.status === 'ok'; return <article key={p}><div className="source-id"><span className="oj-dot" style={{ background: PLATFORM_META[p].accent }} /><div><strong>{PLATFORM_META[p].name}</strong><small>{s?.account || '未配置账号'}</small></div></div><div className={`source-state ${s?.status || 'idle'}`}>{ok ? <Check size={15} /> : s?.status === 'error' || s?.status === 'auth_required' ? <AlertTriangle size={15} /> : null}<div><strong>{s?.status || 'idle'}</strong><small>{s?.message || '尚未同步'} · {formatDateTime(s?.last_success || null)}</small></div></div><div className="source-actions"><button onClick={() => onSync(p)} disabled={!!syncing}><RefreshCw size={14} />增量</button><button onClick={() => onSync(p, true)} disabled={!!syncing}>重建</button><button className="danger-ghost" onClick={() => clearOne(p)}><Trash2 size={14} />清空</button></div></article>; })}</section><section className="danger-zone"><div><strong>清空全部数据</strong><p>删除六个平台的提交缓存、砖墙统计和同步状态，账号设置保留。</p></div><button onClick={clearAll}><Trash2 size={15} />清空所有 OJ 记录</button></section></>;
+  return <><header className="topbar"><div><small>DATA SOURCES</small><h1>同步与本地数据</h1><p>缓存数据与本次同步结果彼此独立；单站失败不会删除旧数据。</p></div><button className="primary" onClick={onSyncAll} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header><section className="panel source-list">{PLATFORM_ORDER.map((p) => { const s = by.get(p); const ok = s?.status === 'ok'; return <article key={p}><div className="source-id"><span className="oj-dot" style={{ background: PLATFORM_META[p].accent }} /><div><strong>{PLATFORM_META[p].name}</strong><small>{s?.account || '未配置账号'} · {s?.cached_records||0} cached</small></div></div><div className={`source-state ${s?.status || 'idle'}`}>{ok ? <Check size={15} /> : s?.status === 'error' || s?.status === 'auth_required' ? <AlertTriangle size={15} /> : null}<div><strong>Latest sync · {s?.status || 'idle'}</strong><small>{s?.message || '尚未同步'} · Last successful {formatDateTime(s?.last_success || null)}</small></div></div><div className="source-actions"><button onClick={() => onSync(p)} disabled={!!syncing}><RefreshCw size={14} />增量</button><button onClick={() => onSync(p, true)} disabled={!!syncing}>重建</button><button className="danger-ghost" onClick={() => clearOne(p)}><Trash2 size={14} />清空</button></div></article>; })}</section><section className="danger-zone"><div><strong>清空全部数据</strong><p>删除六个平台的提交缓存、Activity 统计和同步状态，账号设置保留。</p></div><button onClick={clearAll}><Trash2 size={15} />清空所有 OJ 记录</button></section></>;
 }
 
 function ExportPage({ accounts, metric }: { accounts: Record<string, AccountConfig>; metric: Metric }) {
-  const [from, setFrom] = useState(currentYear() - 2); const [to, setTo] = useState(currentYear()); const [scope, setScope] = useState<'all' | Platform>('all'); const [format, setFormat] = useState<'png' | 'svg'>('png'); const [busy, setBusy] = useState(false);
+  const [from, setFrom] = useState(currentYear() - 2); const [to, setTo] = useState(currentYear()); const [until,setUntil]=useState(false); const [scope, setScope] = useState<'all' | Platform>('all'); const [format, setFormat] = useState<'png' | 'svg'>('png'); const [busy, setBusy] = useState(false);
   const years = Array.from({ length: currentYear() - 2009 }, (_, i) => 2010 + i);
-  const run = async () => { setBusy(true); try { const snap = await api.snapshot(scope === 'all' ? null : scope, `${from}-01-01`, `${to}-12-31`, metric); await exportHeatmap(`OJ Insight · ${scope === 'all' ? 'All OJs' : PLATFORM_META[scope].name} · ${from}–${to}`, snap.daily, from, to, format); } finally { setBusy(false); } };
-  return <><header className="topbar"><div><small>EXPORT STUDIO</small><h1>导出总图</h1><p>按指定年份区间导出统一砖墙，支持 PNG 与无损 SVG。</p></div></header><div className="export-layout"><section className="panel export-form"><label>范围<div className="range-row"><select value={from} onChange={(e) => setFrom(Number(e.target.value))}>{years.map((y) => <option key={y}>{y}</option>)}</select><span>—</span><select value={to} onChange={(e) => setTo(Number(e.target.value))}>{years.map((y) => <option key={y}>{y}</option>)}</select></div></label><label>平台<select value={scope} onChange={(e) => setScope(e.target.value as 'all' | Platform)}><option value="all">所有 OJ 合并</option>{PLATFORM_ORDER.map((p) => <option key={p} value={p} disabled={!accounts[p]?.account}>{PLATFORM_META[p].name}</option>)}</select></label><label>格式<div className="segmented"><button className={format === 'png' ? 'active' : ''} onClick={() => setFormat('png')}>PNG</button><button className={format === 'svg' ? 'active' : ''} onClick={() => setFormat('svg')}>SVG</button></div></label><button className="primary export-btn" onClick={run} disabled={busy || from > to}><Download size={16} />{busy ? '生成中…' : '选择保存位置并导出'}</button></section><section className="panel export-preview"><div className="mock-export"><div><strong>OJ Insight</strong><small>{from} — {to}</small></div><div className="mock-grid">{Array.from({ length: 160 }).map((_, i) => <i key={i} className={`level-${(i * 17 + i * i) % 5}`} />)}</div><span>{scope === 'all' ? 'All OJs' : PLATFORM_META[scope].name}</span></div></section></div></>;
+  const run = async () => { setBusy(true); try { const r=until?scopeRange('until'):{start:`${from}-01-01`,end:`${to}-12-31`}; const snap = await api.snapshot(scope === 'all' ? null : scope,r.start,r.end,metric); await exportHeatmap(`OJ Insight · ${scope === 'all' ? 'All OJs' : PLATFORM_META[scope].name} · ${until?'Until now':`${from}–${to}`}`, snap.daily, until?Number(r.start.slice(0,4)):from,until?Number(r.end.slice(0,4)):to, format,r.start,r.end); } finally { setBusy(false); } };
+  return <><header className="topbar"><div><small>EXPORT STUDIO</small><h1>Activity 导出</h1><p>指定年份区间或 Until now，支持 All OJs/单 OJ、PNG/SVG。</p></div></header><div className="export-layout"><section className="panel export-form"><label>范围<div className="segmented"><button className={!until?'active':''} onClick={()=>setUntil(false)}>年份区间</button><button className={until?'active':''} onClick={()=>setUntil(true)}>Until now</button></div></label>{!until&&<label>年份<div className="range-row"><select value={from} onChange={(e) => setFrom(Number(e.target.value))}>{years.map((y) => <option key={y}>{y}</option>)}</select><span>—</span><select value={to} onChange={(e) => setTo(Number(e.target.value))}>{years.map((y) => <option key={y}>{y}</option>)}</select></div></label>}<label>平台<select value={scope} onChange={(e) => setScope(e.target.value as 'all' | Platform)}><option value="all">所有 OJ 合并</option>{PLATFORM_ORDER.map((p) => <option key={p} value={p} disabled={!accounts[p]?.account}>{PLATFORM_META[p].name}</option>)}</select></label><label>格式<div className="segmented"><button className={format === 'png' ? 'active' : ''} onClick={() => setFormat('png')}>PNG</button><button className={format === 'svg' ? 'active' : ''} onClick={() => setFormat('svg')}>SVG</button></div></label><button className="primary export-btn" onClick={run} disabled={busy || (!until&&from > to)}><Download size={16} />{busy ? '生成中…' : '选择保存位置并导出'}</button></section><section className="panel export-preview"><div className="mock-export"><div><strong>OJ Insight · Activity</strong><small>{until?'Until now':`${from} — ${to}`}</small></div><div className="mock-grid">{Array.from({ length: 160 }).map((_, i) => <i key={i} className={`level-${(i * 17 + i * i) % 5}`} />)}</div><span>{scope === 'all' ? 'All OJs' : PLATFORM_META[scope].name}</span></div></section></div></>;
+}
+
+function AboutPage(){
+  const[update,setUpdate]=useState<Awaited<ReturnType<typeof api.checkForUpdates>>|null>(null);const[checking,setChecking]=useState(false);const[error,setError]=useState('');
+  const check=async()=>{setChecking(true);setError('');try{setUpdate(await api.checkForUpdates());}catch(e){setError(String(e));}finally{setChecking(false);}};
+  return <><header className="topbar"><div><small>ABOUT</small><h1>OJ Insight</h1><p>Unified Online Judge statistics & visualization.</p></div></header><section className="panel about-card"><div className="about-mark">OI</div><h2>OJ Insight</h2><p>Version 0.2.0</p>{update?<div className={update.updateAvailable?'update-state available':'update-state'}><strong>{update.updateAvailable?`New version available · v${update.latestVersion}`:"You're up to date"}</strong>{update.updateAvailable&&<button onClick={()=>api.openExternal(update.releaseUrl)}>View Release <ExternalLink size={14}/></button>}</div>:<button className="primary" onClick={check} disabled={checking}><RefreshCw size={15} className={checking?'spin':''}/>{checking?'Checking…':'Check for Updates'}</button>}{error&&<div className="warning"><AlertTriangle size={15}/>{error}</div>}<div className="about-links"><button onClick={()=>api.openExternal('https://github.com/Whalica/OJ_Insight')}><Github size={16}/>GitHub Repository<ExternalLink size={13}/></button><button onClick={()=>api.openExternal('https://github.com/Whalica/OJ_Insight/issues/new')}><AlertTriangle size={16}/>Report an Issue<ExternalLink size={13}/></button></div><small>Portable data: data/ · exports/ · webview/ · logs/</small></section></>;
 }

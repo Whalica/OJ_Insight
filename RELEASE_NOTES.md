@@ -1,3 +1,32 @@
+# OJ Insight 0.2.0 — Career & Activity
+
+## Providers
+
+- LeetCode 国际站与中国站拆成独立 GraphQL provider，修复 `leetcode.cn HTTP 400` 路径，并在失败时显示 operation/HTTP/响应摘要。
+- QOJ 支持完整 `UOJSESSID=value` 或只填 value 自动补齐。
+- QOJ 解析改为根据 submission/problem 链接与整行语义识别当前表格，不再依赖固定列号。
+- QOJ 分别报告未登录/过期、确实无提交、页面结构变化和网络错误。
+
+## Analytics & UI
+
+- 总览与单 OJ 都增加独立 Career 统计。
+- 当前年份/Until now 统计与 Career 分离。
+- 年份控件更新为 `< [ year ▼ ] >`；Until now 固定最近 365 天并以今天为 Activity 右边界。
+- UI 统一使用 Activity。
+- 新增/完善 Platform Summary、Recent Accepted、Data Sources 与逐站同步进度。
+- Difficulty Profile 改成分平台 histogram，保留平台自身难度体系。
+- 缓存记录、Last successful 与 Latest sync error 分开显示。
+
+## Desktop & release
+
+- 新增 About 页、GitHub Releases 更新检查、Repository 与 Report an Issue。
+- Release 使用 Windows GUI subsystem；应用功能不启动 console 子进程。
+- 新增根目录 `logs/`，同步日志自动脱敏 QOJ Cookie/Secret。
+- Activity 导出支持年份区间/Until now、All OJs/单 OJ、PNG/SVG。
+- 版本统一更新到 0.2.0。
+- 保留 Rust MutexGuard 显式解引用编译修复和 Actions checkout/setup-node v5。
+- tag workflow 可自动创建 GitHub Release 并上传 NSIS/MSI。
+
 # OJ Insight 0.1.1 — Portable Data Layout
 
 本次更新重点是把 OJ Insight 改成真正的**便携式数据布局**。

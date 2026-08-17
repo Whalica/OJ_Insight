@@ -1,8 +1,8 @@
-import { BarChart3, Database, Download, LayoutDashboard, Settings2 } from 'lucide-react';
+import { BarChart3, CircleHelp, Database, Download, LayoutDashboard, Settings2 } from 'lucide-react';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 
-type Page = 'overview' | 'export' | 'data' | 'settings' | Platform;
+type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
 export default function Sidebar({ page, onChange }: { page: Page; onChange: (page: Page) => void }) {
   return (
@@ -23,6 +23,7 @@ export default function Sidebar({ page, onChange }: { page: Page; onChange: (pag
         <button className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} />导出</button>
         <button className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} />数据源</button>
         <button className={page === 'settings' ? 'active' : ''} onClick={() => onChange('settings')}><Settings2 size={17} />设置</button>
+        <button className={page === 'about' ? 'active' : ''} onClick={() => onChange('about')}><CircleHelp size={17} />About</button>
       </nav>
       <div className="sidebar-foot"><BarChart3 size={14} /> Local-first · SQLite</div>
     </aside>

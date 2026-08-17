@@ -52,6 +52,15 @@ select, input { appearance: none; outline: none; border: 1px solid #29313b; back
 input { padding-right: 10px; }
 select:focus, input:focus { border-color: #3c6d4d; box-shadow: 0 0 0 2px rgba(88,210,129,.07); }
 .toolbar-note { margin-left: auto; color: #56616c; font-size: 10px; padding-bottom: 8px; }
+.year-control { display: flex; align-items: center; gap: 5px; }
+.year-control > button { width: 31px; height: 31px; border: 1px solid #29313b; background: #0f1319; border-radius: 7px; display: grid; place-items: center; cursor: pointer; }
+.year-control > button:disabled { opacity: .28; cursor: default; }
+.year-control select { min-width: 118px; text-align: center; }
+.section-title { margin: 11px 2px 9px; }
+.section-title small { color: #68737f; letter-spacing: 1.2px; font-size: 9px; font-weight: 800; }
+.section-title h2 { margin: 3px 0 0; font-size: 14px; }
+.sync-banner { border: 1px solid #28563a; background: #101a14; border-radius: 9px; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 5px 20px; margin-bottom: 12px; font-size: 10px; }
+.sync-banner span { color: #779484; }.sync-banner i { grid-column: 1/-1; height: 3px; background: #1b2920; border-radius: 9px; overflow: hidden; }.sync-banner b { display:block;height:100%;background:#56d47e;transition:width .2s; }
 .warning { border: 1px solid #675a29; background: #211d0f; color: #d9ca7e; border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; font-size: 11px; }
 .stats-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 .stat-card { border: 1px solid var(--line); background: linear-gradient(180deg, #11161c, #0f1318); border-radius: 10px; min-height: 108px; padding: 15px 16px; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -83,8 +92,8 @@ select:focus, input:focus { border-color: #3c6d4d; box-shadow: 0 0 0 2px rgba(88
 .heat-tooltip span { color: #8a95a0; }
 .two-col { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; margin-bottom: 12px; }
 .platform-table { display: grid; }
-.platform-table > div { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 9px; align-items: center; min-height: 37px; border-top: 1px solid #1c2229; font-size: 11px; }
-.platform-table > div:first-child { border-top: 0; }
+.platform-table > button { color:inherit;width:100%;border:0;background:transparent;display: grid; grid-template-columns: 12px 1fr auto auto; gap: 9px; align-items: center; min-height: 39px; border-top: 1px solid #1c2229; font-size: 11px; text-align:left;cursor:pointer; }
+.platform-table > button:hover { background:#13191f; }.platform-table > button:first-child { border-top: 0; }
 .platform-table strong { font-weight: 600; }
 .platform-table span:nth-of-type(2) { color: #aeb7bf; }
 .platform-table small { color: #616c77; }
@@ -95,6 +104,9 @@ select:focus, input:focus { border-color: #3c6d4d; box-shadow: 0 0 0 2px rgba(88
 .difficulty-list i { height: 3px; background: #1c2229; display: block; border-radius: 9px; overflow: hidden; }
 .difficulty-list b { display: block; height: 100%; opacity: .75; }
 .oj-mini { color: #67737e; font-size: 9px; }
+.difficulty-tabs { display:flex;gap:5px;margin-bottom:14px;overflow-x:auto; }.difficulty-tabs button { border:1px solid #29313b;background:#0f1319;color:#6f7a85;border-radius:6px;padding:5px 8px;font-size:9px;cursor:pointer; }.difficulty-tabs button.active { background:#18231c;color:#c2e8cd;border-color:#355c42; }
+.histogram { height:145px;display:flex;align-items:flex-end;gap:5px;border-bottom:1px solid #2a323a;padding:0 4px; }.histogram>div { flex:1;min-width:18px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px; }.histogram i { width:70%;min-width:8px;border-radius:3px 3px 0 0;opacity:.82; }.histogram span { color:#69747e;font-size:8px;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.difficulty-summary { display:flex;justify-content:space-between;color:#69747e;font-size:9px;padding-top:10px; }.difficulty-summary strong { color:#c7d0d7;margin-left:4px; }
 .recent-list { display: grid; }
 .recent-list a { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: 11px; align-items: center; min-height: 54px; border-top: 1px solid #1d232a; padding: 7px 2px; }
 .recent-list a:first-child { border-top: 0; }
@@ -165,6 +177,7 @@ select:focus, input:focus { border-color: #3c6d4d; box-shadow: 0 0 0 2px rgba(88
 .submission-main small { display: block; color: #53606b; font-size: 9px; margin-top: 4px; }
 .loading-block { color: #77838e; font-size: 11px; padding: 18px 0; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 100; border: 1px solid #38434d; background: #10151b; box-shadow: 0 10px 35px rgba(0,0,0,.4); color: #dce3e8; padding: 9px 13px; border-radius: 8px; font-size: 11px; max-width: 680px; }
+.about-card { max-width:620px;text-align:center;margin:55px auto 0;padding:38px; }.about-mark { width:58px;height:58px;border:1px solid #356346;background:#17251c;border-radius:15px;display:grid;place-items:center;margin:0 auto;color:#65d98a;font-weight:800;letter-spacing:1px; }.about-card h2 { margin:15px 0 4px;font-size:22px; }.about-card>p { margin:0 0 22px;color:#74808b;font-size:11px; }.about-card>.primary { margin:auto; }.update-state { border:1px solid #2d4c37;background:#111a14;color:#7edb9b;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;font-size:11px; }.update-state.available { border-color:#685b2e;background:#211d10;color:#e4cb72; }.update-state button { border:0;background:transparent;color:inherit;display:flex;gap:6px;align-items:center;cursor:pointer; }.about-links { display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:25px 0 19px;padding-top:22px;border-top:1px solid #222a32; }.about-links button { border:1px solid #2a333d;background:#11161c;color:#aab4bd;border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-size:10px; }.about-card>small { color:#56616c; }
 @media (max-width: 1180px) {
   .main { padding-left: 26px; padding-right: 26px; }
   .stats-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }

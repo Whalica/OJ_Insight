@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-pub const PLATFORMS: [&str; 6] = ["codeforces", "atcoder", "luogu", "nowcoder", "qoj", "leetcode"];
+pub const PLATFORMS: [&str; 6] = [
+    "codeforces",
+    "atcoder",
+    "luogu",
+    "nowcoder",
+    "qoj",
+    "leetcode",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountConfig {
@@ -59,10 +66,24 @@ pub struct SyncError {
 }
 
 impl SyncError {
-    pub fn error(message: impl Into<String>) -> Self { Self { status: "error".into(), message: message.into() } }
-    pub fn auth(message: impl Into<String>) -> Self { Self { status: "auth_required".into(), message: message.into() } }
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            status: "error".into(),
+            message: message.into(),
+        }
+    }
+    pub fn auth(message: impl Into<String>) -> Self {
+        Self {
+            status: "auth_required".into(),
+            message: message.into(),
+        }
+    }
 }
-impl std::fmt::Display for SyncError { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.message) } }
+impl std::fmt::Display for SyncError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
 impl std::error::Error for SyncError {}
 
 #[derive(Debug, Clone, Serialize)]
@@ -82,10 +103,14 @@ pub struct SyncStatus {
     pub message: String,
     pub last_attempt: Option<i64>,
     pub last_success: Option<i64>,
+    pub cached_records: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DailyPoint { pub day: String, pub count: i64 }
+pub struct DailyPoint {
+    pub day: String,
+    pub count: i64,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DifficultyBucket {
@@ -106,6 +131,8 @@ pub struct PlatformSummary {
     pub status: String,
     pub message: String,
     pub activity_only: bool,
+    pub cached_records: i64,
+    pub last_attempt: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -122,6 +149,7 @@ pub struct SnapshotStats {
 #[derive(Debug, Clone, Serialize)]
 pub struct Snapshot {
     pub stats: SnapshotStats,
+    pub career: SnapshotStats,
     pub daily: Vec<DailyPoint>,
     pub platforms: Vec<PlatformSummary>,
     pub difficulty: Vec<DifficultyBucket>,

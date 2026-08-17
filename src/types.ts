@@ -14,6 +14,7 @@ export interface SyncStatus {
   message: string;
   last_attempt: number | null;
   last_success: number | null;
+  cached_records: number;
 }
 
 export interface PlatformSummary {
@@ -26,6 +27,8 @@ export interface PlatformSummary {
   status: string;
   message: string;
   activity_only: boolean;
+  cached_records: number;
+  last_attempt: number | null;
 }
 
 export interface DailyPoint {
@@ -64,6 +67,7 @@ export interface SnapshotStats {
 
 export interface Snapshot {
   stats: SnapshotStats;
+  career: SnapshotStats;
   daily: DailyPoint[];
   platforms: PlatformSummary[];
   difficulty: DifficultyBucket[];
@@ -71,6 +75,8 @@ export interface Snapshot {
   metric_available: boolean;
   warnings: string[];
 }
+
+export interface UpdateInfo { currentVersion: string; latestVersion: string; releaseUrl: string; updateAvailable: boolean; }
 
 export interface DayDetail {
   day: string;
