@@ -10,6 +10,19 @@ Buildfix: 修复 LeetCode provider 中局部变量遮蔽 `calendar_node()` 函�
 - Difficulty Profile 恢复 Preview 的绿色紧凑 histogram 风格，并增加中位难度、峰值区间、最高难度和有难度题目摘要。
 - 关键功能标题、统计项、同步状态和 About 操作改为中文，英文仅保留为辅助装饰。
 
+## Buildfix 3
+
+- 修正 LeetCode CN schema 判断：标准 `/graphql/` 不支持国际站的 `matchedUser/userCalendar`。
+- 中国站日历改为在独立 `/graphql/noj-go/` schema 中尝试。
+- 若中国站当前不再公开 Activity 日历，同步不再整体失败：解题总数与难度照常更新，并保留已有日期缓存。
+- Data Sources 会以“同步成功 + Activity 暂不可用”明确展示降级状态。
+
+## Buildfix 4
+
+- 删除 LeetCode 中国站所有 `matchedUser/userCalendar` 请求，不再猜测中国站日历 schema。
+- 中国站只调用自己的用户进度接口，同步解题总数和 Easy / Medium / Hard；Activity 暂不可用不会再导致同步失败。
+- 保留已有中国站日期缓存，不用空结果覆盖历史数据。
+
 ## Providers
 
 - LeetCode 国际站与中国站拆成独立 GraphQL provider，修复 `leetcode.cn HTTP 400` 路径，并在失败时显示 operation/HTTP/响应摘要。

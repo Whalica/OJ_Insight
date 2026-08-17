@@ -99,8 +99,9 @@ cn:admiring-sutherlanduel
 
 v0.2.0 不再只替换域名：
 
-- `leetcode.com` 使用 `matchedUser(username)` provider；
-- `leetcode.cn` 使用 `userCalendar(userSlug)` 与 `userProfileUserQuestionProgressV2(userSlug)` provider。
+- `leetcode.com` 使用 `matchedUser(username)` 获取公开日历与统计；
+- `leetcode.cn` 使用当前公开的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard；
+- 中国站的标准 `/graphql/` schema 不提供国际站的 `matchedUser/userCalendar`。为避免接口 400 让整站同步失败，应用不会再向中国站发送国际站日历查询；解题总数与难度正常同步，已有日期缓存会保留，数据源状态会明确提示 Activity 暂不可用。
 
 GraphQL 错误会显示 operation、HTTP 状态与有限响应摘要，方便判断接口变化。
 
@@ -115,7 +116,7 @@ Career 永远基于本地已知的全部历史，不随年份/Until now 切换�
 - `Current Streak`：截至今天的连续活跃天数。
 - `Peak Day`：所选 Activity 口径下计数最高的一天。
 
-当前范围统计只计算选择的自然年或 Until now 窗口。洛谷、LeetCode 等仅提供活动日历的平台不会被伪造成逐题 AC 数据；不可用的统计会显示警告或 N/A。
+当前范围统计只计算选择的自然年或最近一年窗口。洛谷、LeetCode 等无法提供完整逐题数据的平台不会被伪造成逐题 AC 数据；不可用的统计会显示中文警告或“暂无”。
 
 ## Activity 四种口径
 
@@ -221,6 +222,7 @@ OJ Insight 尊重上游公开数据能力，不虚构统一精度：
 
 - CF / AtCoder / 牛客 / 已登录 QOJ：可保存逐题 AC 历史。
 - 洛谷：公开 `dailyCounts` 更稳定，部分数据只能用于 Activity。
-- LeetCode：`submissionCalendar` 表示提交活动；并不提供完整历史逐题首次 AC。
+- LeetCode 国际站：`submissionCalendar` 表示提交活动，并不提供完整历史逐题首次 AC。
+- LeetCode 中国站：公开 profile 可同步解题总数与难度；Activity 日历由独立 schema 尝试获取，不可用时安全降级并保留旧缓存。
 
 上游网站可能随时修改接口或限制访问。错误应表现为 Latest sync 失败，旧缓存仍可查看。

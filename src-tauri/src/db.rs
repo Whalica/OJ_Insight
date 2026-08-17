@@ -243,7 +243,15 @@ VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SET prob
         recompute_raw_daily(&tx, &remote.platform)?;
     }
     let now = Utc::now().timestamp();
-    tx.execute("INSERT INTO sync_state(platform,account,status,message,last_attempt,last_success,cursor_epoch) VALUES(?,?, 'ok', ?, ?, ?, ?) ON CONFLICT(platform) DO UPDATE SET account=excluded.account,status='ok',message=excluded.message,last_attempt=excluded.last_attempt,last_success=excluded.last_success,cursor_epoch=MAX(sync_state.cursor_epoch,excluded.cursor_epoch)", params![remote.platform,remote.account,format!("同步成功 · 新增 {inserted}，更新 {updated}"),now,now,remote.cursor_epoch]).map_err(|e| e.to_string())?;
+    let warning = remote
+        .notes
+        .iter()
+        .find_map(|note| note.strip_prefix("警告："));
+    let message = match warning {
+        Some(warning) => format!("同步成功 · 新增 {inserted}，更新 {updated} · {warning}"),
+        None => format!("同步成功 · 新增 {inserted}，更新 {updated}"),
+    };
+    tx.execute("INSERT INTO sync_state(platform,account,status,message,last_attempt,last_success,cursor_epoch) VALUES(?,?, 'ok', ?, ?, ?, ?) ON CONFLICT(platform) DO UPDATE SET account=excluded.account,status='ok',message=excluded.message,last_attempt=excluded.last_attempt,last_success=excluded.last_success,cursor_epoch=MAX(sync_state.cursor_epoch,excluded.cursor_epoch)", params![remote.platform,remote.account,message,now,now,remote.cursor_epoch]).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok((inserted, updated))
 }

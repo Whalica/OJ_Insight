@@ -73,9 +73,6 @@ fn headers(site: &LeetCodeSite) -> HeaderMap {
 }
 
 const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } }"#;
-// LeetCode CN exposes userCalendar below matchedUser, just like the global
-// schema. The CN-specific part is the profile progress operation below.
-const CN_CALENDAR_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } }"#;
 const CN_PROGRESS_QUERY: &str = r#"query userQuestionProgress($userSlug: String!) { userProfileUserQuestionProgress(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 const CN_PROGRESS_V2_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 
@@ -89,9 +86,55 @@ pub async fn fetch(
     if user.is_empty() {
         return Err(SyncError::error("LeetCode 用户名为空"));
     }
+    if site.kind == SiteKind::China {
+        let empty = Value::Null;
+        let (solved_count, difficulty) = profile_stats(client, user, &site, &empty).await?;
+        return Ok(RemoteData {
+            platform: "leetcode".into(),
+            account: format!("cn:{user}"),
+            submissions: vec![],
+            aggregates: vec![],
+            solved_count,
+            difficulty,
+            activity_only: true,
+            notes: vec![
+                "LeetCode 中国站公开个人资料使用独立 GraphQL schema".into(),
+                "中国站目前没有稳定可用的公开 Activity 日历接口；解题总数与难度正常同步，已有日期缓存不会被清空。".into(),
+            ],
+            cursor_epoch: now_epoch(),
+            replace_submissions: false,
+            replace_aggregates: false,
+        });
+    }
+
+    let (first, aggregates) = load_calendar(client, user, &site).await?;
+    let (solved_count, difficulty) = profile_stats(client, user, &site, &first).await?;
+    Ok(RemoteData {
+        platform: "leetcode".into(),
+        account: user.into(),
+        submissions: vec![],
+        aggregates,
+        solved_count,
+        difficulty,
+        activity_only: true,
+        notes: vec![
+            format!("{} 独立 GraphQL provider", site.label),
+            "逐日 calendar 是提交活动，不提供完整历史逐题 AC 明细".into(),
+        ],
+        cursor_epoch: now_epoch(),
+        replace_submissions: true,
+        replace_aggregates: true,
+    })
+}
+
+async fn load_calendar(
+    client: &Client,
+    user: &str,
+    site: &LeetCodeSite,
+) -> Result<(Value, Vec<AggregateDay>), SyncError> {
     let current = chrono::Utc::now().year();
-    let first = calendar_request(client, user, current, &site).await?;
-    let initial_calendar = calendar_node(&first, &site)
+    let first = calendar_request(client, user, current, site).await?;
+    let initial_calendar = calendar_node(&first)
         .filter(|v| !v.is_null())
         .ok_or_else(|| {
             SyncError::error(format!(
@@ -116,9 +159,9 @@ pub async fn fetch(
         let payload = if year == current {
             first.clone()
         } else {
-            calendar_request(client, user, year, &site).await?
+            calendar_request(client, user, year, site).await?
         };
-        if let Some(s) = calendar_node(&payload, &site)
+        if let Some(s) = calendar_node(&payload)
             .and_then(|v| v.get("submissionCalendar"))
             .and_then(Value::as_str)
         {
@@ -146,31 +189,10 @@ pub async fn fetch(
             })
         })
         .collect();
-    let (solved_count, difficulty) = profile_stats(client, user, &site, &first).await?;
-    Ok(RemoteData {
-        platform: "leetcode".into(),
-        account: if site.kind == SiteKind::China {
-            format!("cn:{user}")
-        } else {
-            user.into()
-        },
-        submissions: vec![],
-        aggregates,
-        solved_count,
-        difficulty,
-        activity_only: true,
-        notes: vec![
-            format!("{} 独立 GraphQL provider", site.label),
-            "逐日 calendar 是提交活动，不提供完整历史逐题 AC 明细".into(),
-        ],
-        cursor_epoch: now_epoch(),
-        replace_submissions: true,
-        replace_aggregates: true,
-    })
+    Ok((first, aggregates))
 }
 
-fn calendar_node<'a>(payload: &'a Value, site: &LeetCodeSite) -> Option<&'a Value> {
-    let _ = site;
+fn calendar_node(payload: &Value) -> Option<&Value> {
     payload.pointer("/data/matchedUser/userCalendar")
 }
 
@@ -180,11 +202,7 @@ async fn calendar_request(
     year: i32,
     site: &LeetCodeSite,
 ) -> Result<Value, SyncError> {
-    let body = if site.kind == SiteKind::China {
-        json!({"operationName":"userProfileCalendar","query":CN_CALENDAR_QUERY,"variables":{"username":user,"year":year}})
-    } else {
-        json!({"operationName":"userProfileCalendar","query":GLOBAL_QUERY,"variables":{"username":user,"year":year}})
-    };
+    let body = json!({"operationName":"userProfileCalendar","query":GLOBAL_QUERY,"variables":{"username":user,"year":year}});
     post_json(client, site.endpoint, headers(site), body).await
 }
 
