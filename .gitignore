@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src-tauri/target/
+.DS_Store
+*.log
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
