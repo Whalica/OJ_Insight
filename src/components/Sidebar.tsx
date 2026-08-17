@@ -23,7 +23,7 @@ export default function Sidebar({ page, onChange }: { page: Page; onChange: (pag
         <button className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} />导出</button>
         <button className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} />数据源</button>
         <button className={page === 'settings' ? 'active' : ''} onClick={() => onChange('settings')}><Settings2 size={17} />设置</button>
-        <button className={page === 'about' ? 'active' : ''} onClick={() => onChange('about')}><CircleHelp size={17} />About</button>
+        <button className={page === 'about' ? 'active' : ''} onClick={() => onChange('about')}><CircleHelp size={17} />关于</button>
       </nav>
       <div className="sidebar-foot"><BarChart3 size={14} /> Local-first · SQLite</div>
     </aside>

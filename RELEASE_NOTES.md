@@ -1,5 +1,15 @@
 # OJ Insight 0.2.0 — Career & Activity
 
+Buildfix: 修复 LeetCode provider 中局部变量遮蔽 `calendar_node()` 函数导致的 Rust E0618 编译错误。
+
+## Buildfix 2
+
+- 修复 LeetCode 中国站把 `userCalendar` 错误放在根 Query 导致的 HTTP 400，改用 `matchedUser.userCalendar`。
+- LeetCode CN 难度统计优先使用当前 `userProfileUserQuestionProgress`，并兼容 V2 operation。
+- 修复切换到 AtCoder / 洛谷单 OJ 页面时 Difficulty Profile 读取空分组导致的前端黑屏。
+- Difficulty Profile 恢复 Preview 的绿色紧凑 histogram 风格，并增加中位难度、峰值区间、最高难度和有难度题目摘要。
+- 关键功能标题、统计项、同步状态和 About 操作改为中文，英文仅保留为辅助装饰。
+
 ## Providers
 
 - LeetCode 国际站与中国站拆成独立 GraphQL provider，修复 `leetcode.cn HTTP 400` 路径，并在失败时显示 operation/HTTP/响应摘要。

@@ -73,8 +73,11 @@ fn headers(site: &LeetCodeSite) -> HeaderMap {
 }
 
 const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } }"#;
-const CN_CALENDAR_QUERY: &str = r#"query userProfileCalendar($userSlug: String!, $year: Int) { userCalendar(userSlug: $userSlug, year: $year) { activeYears streak totalActiveDays submissionCalendar } }"#;
-const CN_PROGRESS_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
+// LeetCode CN exposes userCalendar below matchedUser, just like the global
+// schema. The CN-specific part is the profile progress operation below.
+const CN_CALENDAR_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } }"#;
+const CN_PROGRESS_QUERY: &str = r#"query userQuestionProgress($userSlug: String!) { userProfileUserQuestionProgress(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
+const CN_PROGRESS_V2_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 
 pub async fn fetch(
     client: &Client,
@@ -167,11 +170,8 @@ pub async fn fetch(
 }
 
 fn calendar_node<'a>(payload: &'a Value, site: &LeetCodeSite) -> Option<&'a Value> {
-    if site.kind == SiteKind::China {
-        payload.pointer("/data/userCalendar")
-    } else {
-        payload.pointer("/data/matchedUser/userCalendar")
-    }
+    let _ = site;
+    payload.pointer("/data/matchedUser/userCalendar")
 }
 
 async fn calendar_request(
@@ -181,7 +181,7 @@ async fn calendar_request(
     site: &LeetCodeSite,
 ) -> Result<Value, SyncError> {
     let body = if site.kind == SiteKind::China {
-        json!({"operationName":"userProfileCalendar","query":CN_CALENDAR_QUERY,"variables":{"userSlug":user,"year":year}})
+        json!({"operationName":"userProfileCalendar","query":CN_CALENDAR_QUERY,"variables":{"username":user,"year":year}})
     } else {
         json!({"operationName":"userProfileCalendar","query":GLOBAL_QUERY,"variables":{"username":user,"year":year}})
     };
@@ -195,9 +195,26 @@ async fn profile_stats(
     first: &Value,
 ) -> Result<(Option<i64>, Vec<DifficultyStat>), SyncError> {
     let rows = if site.kind == SiteKind::China {
-        let value=post_json(client,site.endpoint,headers(site),json!({"operationName":"userProfileUserQuestionProgressV2","query":CN_PROGRESS_QUERY,"variables":{"userSlug":user}})).await?;
+        let v1 = json!({"operationName":"userQuestionProgress","query":CN_PROGRESS_QUERY,"variables":{"userSlug":user}});
+        let value = match post_json(client, site.endpoint, headers(site), v1).await {
+            Ok(value) => value,
+            Err(v1_error) => {
+                let v2 = json!({"operationName":"userProfileUserQuestionProgressV2","query":CN_PROGRESS_V2_QUERY,"variables":{"userSlug":user}});
+                post_json(client, site.endpoint, headers(site), v2)
+                    .await
+                    .map_err(|v2_error| {
+                        SyncError::error(format!(
+                            "LeetCode CN 难度统计请求失败（V1：{}；V2：{}）",
+                            v1_error.message, v2_error.message
+                        ))
+                    })?
+            }
+        };
         value
-            .pointer("/data/userProfileUserQuestionProgressV2/numAcceptedQuestions")
+            .pointer("/data/userProfileUserQuestionProgress/numAcceptedQuestions")
+            .or_else(|| {
+                value.pointer("/data/userProfileUserQuestionProgressV2/numAcceptedQuestions")
+            })
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default()
