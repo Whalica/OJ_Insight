@@ -88,7 +88,7 @@ pub async fn fetch(
     }
     let current = chrono::Utc::now().year();
     let first = calendar_request(client, user, current, &site).await?;
-    let calendar_node = calendar_node(&first, &site)
+    let initial_calendar = calendar_node(&first, &site)
         .filter(|v| !v.is_null())
         .ok_or_else(|| {
             SyncError::error(format!(
@@ -97,7 +97,10 @@ pub async fn fetch(
             ))
         })?;
     let mut years = BTreeSet::new();
-    if let Some(a) = calendar_node.get("activeYears").and_then(Value::as_array) {
+    if let Some(a) = initial_calendar
+        .get("activeYears")
+        .and_then(Value::as_array)
+    {
         for y in a {
             if let Some(n) = y.as_i64() {
                 years.insert(n as i32);
