@@ -71,11 +71,31 @@ fn log_event(state: &AppState, platform: &str, message: &str, secret: &str) {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn executable_root_dir() -> std::io::Result<PathBuf> {
     let exe = std::env::current_exe()?;
     exe.parent()
         .map(PathBuf::from)
         .ok_or_else(|| std::io::Error::other("无法定位 OJ Insight 可执行文件所在目录"))
+}
+
+/// Resolve the root directory that hosts `data/`, `exports/`, `logs/` and `webview/`.
+///
+/// Windows ships a portable folder layout, so data lives next to the exe.
+/// On macOS the executable sits inside a signed `.app` bundle that may be
+/// read-only and can be translocated by Gatekeeper to a randomized path, so
+/// persistent data goes to `~/Library/Application Support/<identifier>`
+/// instead of next to the binary.
+fn portable_root_dir(app: &tauri::AppHandle) -> std::io::Result<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        app.path().app_data_dir().map_err(std::io::Error::other)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        executable_root_dir()
+    }
 }
 
 #[tauri::command]
@@ -338,8 +358,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Portable-data layout: every piece of persistent application data lives
-            // next to the executable instead of %APPDATA% / LocalAppData.
-            let root_dir = executable_root_dir()?;
+            // in one root directory. On Windows that root sits next to the
+            // executable; on macOS it is the per-user Application Support folder
+            // because .app bundles are read-only and may be translocated.
+            let root_dir = portable_root_dir(app.handle())?;
             let data_dir = root_dir.join("data");
             let export_dir = root_dir.join("exports");
             let webview_dir = root_dir.join("webview");
@@ -366,7 +388,7 @@ pub fn run() {
                 log_dir,
             });
 
-            // The main WebView is created manually so WebView2 localStorage/cache also
+            // The main WebView is created manually so WebView localStorage/cache also
             // stays inside the application root instead of the system app-data folders.
             tauri::WebviewWindowBuilder::from_config(app.handle(), &app.config().app.windows[0])?
                 .data_directory(webview_dir)
