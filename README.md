@@ -2,7 +2,7 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.2.0 是一个 Windows 本地优先桌面面板，把 Codeforces、AtCoder、洛谷、牛客、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用统一的 Career、时间范围统计、Activity、平台概览和难度分布展示。
+OJ Insight v0.2.0 是一个 Windows / macOS 本地优先桌面面板，把 Codeforces、AtCoder、洛谷、牛客、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用统一的 Career、时间范围统计、Activity、平台概览和难度分布展示。
 
 ## 功能
 
@@ -17,11 +17,11 @@ OJ Insight v0.2.0 是一个 Windows 本地优先桌面面板，把 Codeforces、
 - 同步进度显示完成站点数、新增记录与失败站点数。
 - 指定年份区间或 Until now 的 Activity 导出；All OJs/单 OJ；PNG/SVG。
 - About 页提供版本、GitHub Releases 更新检查、仓库和 Issue 入口。
-- Release 使用 Windows GUI subsystem；启动、同步、检查更新、导出均不创建 console 子进程。
+- Windows Release 使用 GUI subsystem；macOS Release 使用原生 `.app`。启动、同步、检查更新、导出均不创建 console / shell 子进程。
 
-## 便携目录
+## 便携目录（Windows）
 
-所有持久数据都保存在 `OJ Insight.exe` 同级目录：
+Windows 版所有持久数据都保存在 `OJ Insight.exe` 同级目录：
 
 ```text
 OJ Insight/
@@ -41,9 +41,23 @@ OJ Insight/
 
 复制整个目录即可备份或迁移。目录必须可写，不建议把便携版放在普通用户不可写的 `Program Files`。
 
+## 数据目录（macOS）
+
+macOS 应用包是只读的，因此持久数据保存在用户应用支持目录：
+
+```text
+~/Library/Application Support/com.ojinsight.app/
+├─ data/oj-insight.sqlite3
+├─ exports/
+├─ logs/oj-insight.log
+└─ webview/
+```
+
+复制整个 `com.ojinsight.app` 目录即可备份或迁移。构建说明见 [BUILD_MACOS.md](BUILD_MACOS.md)。
+
 ## 第一次使用
 
-1. 将程序放到可写目录，例如 `D:\Tools\OJ Insight\`。
+1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；macOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`（或其他可写目录）。
 2. 打开「设置」，填写需要使用的平台账号并保存。
 3. 打开「数据源」，对新账号执行「重建」。
 4. 以后使用「增量」或「同步全部」。
@@ -155,7 +169,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 - All OJs 合并或单 OJ；
 - PNG 或 SVG。
 
-保存对话框默认打开 `exports/`。导出过程完全在应用/WebView 内完成，不启动 PowerShell、cmd 或其他 console 程序。
+保存对话框默认打开对应平台数据目录中的 `exports/`。导出过程完全在应用/WebView 内完成，不启动 PowerShell、cmd 或其他 console / shell 子进程。
 
 ## About 与更新检查
 
@@ -169,26 +183,31 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 
 ## 日志与故障排查
 
-诊断日志位于：
+诊断日志位于对应平台数据目录中的 `logs/oj-insight.log`：
 
-```text
-logs/oj-insight.log
-```
+- Windows：`OJ Insight.exe` 同级的 `logs/oj-insight.log`。
+- macOS：`~/Library/Application Support/com.ojinsight.app/logs/oj-insight.log`。
 
 日志记录同步开始、完成、insert/update 数与错误分类，不记录明文 QOJ Secret。若 QOJ 报「结构变化」，可在确认日志已脱敏后附上相关错误行提交 Issue；不要附带数据库。
 
 ## 源码开发
 
-要求：Node.js 22+、Rust stable、Windows Visual Studio C++ Build Tools、WebView2 Runtime。
+要求：Node.js 22+、Rust stable。
 
-```powershell
+- Windows：Visual Studio C++ Build Tools、WebView2 Runtime。
+- macOS：Xcode Command Line Tools（WKWebView 由系统提供）。
+
+```bash
 npm install
 npm run build
 cargo check --manifest-path src-tauri/Cargo.toml
 npm run tauri build
 ```
 
-开发模式数据仍位于当前可执行文件旁，通常是 `src-tauri/target/debug/{data,exports,logs,webview}`。
+开发模式数据位置：
+
+- Windows：当前可执行文件旁，通常是 `src-tauri/target/debug/{data,exports,logs,webview}`。
+- macOS：`~/Library/Application Support/com.ojinsight.app/`。
 
 ## GitHub Actions 与发布
 
@@ -199,7 +218,14 @@ npm run tauri build
 - Rust stable；
 - Tauri Windows NSIS/MSI 构建；
 - workflow_dispatch 的 artifact；
-- 推送 `v*` tag 时创建 GitHub Release 并上传安装包。
+- 推送 `v*` tag 时同样触发。
+
+`.github/workflows/macos-build.yml` 提供 macOS 对应构建：
+
+- macos-latest + Rust stable；
+- Tauri `app` + `dmg` 打包（bundle targets 已改为 `all`，按平台自动选择）；
+- 上传 DMG 与 `.app.zip` artifact；
+- workflow_dispatch、`v*` tag 与 Pull Request 均可触发构建。
 
 发布前确保下列版本一致：
 
@@ -209,12 +235,12 @@ npm run tauri build
 
 然后推送 tag：
 
-```powershell
+```bash
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口。
+Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS Release 直接使用 `.app` 应用包。
 
 ## 数据源边界
 

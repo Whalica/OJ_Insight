@@ -1,6 +1,8 @@
 node_modules/
 dist/
 src-tauri/target/
+src-tauri/gen/
+package-lock.json
 .DS_Store
 *.log
 *.sqlite3
