@@ -211,21 +211,11 @@ npm run tauri build
 
 ## GitHub Actions 与发布
 
-`.github/workflows/windows-build.yml` 保留：
-
-- `actions/checkout@v5`；
-- `actions/setup-node@v5` + Node 22；
-- Rust stable；
-- Tauri Windows NSIS/MSI 构建；
-- workflow_dispatch 的 artifact；
-- 推送 `v*` tag 时同样触发。
-
-`.github/workflows/macos-build.yml` 提供 macOS 对应构建：
-
-- macos-latest + Rust stable；
-- Tauri `app` + `dmg` 打包（bundle targets 已改为 `all`，按平台自动选择）；
-- 上传 DMG 与 `.app.zip` artifact；
-- workflow_dispatch、`v*` tag 与 Pull Request 均可触发构建。
+- `.github/workflows/windows-build.yml`：手动 `workflow_dispatch` 构建 Windows NSIS/MSI 并上传 artifact。
+- `.github/workflows/macos-build.yml`：手动 `workflow_dispatch` 或 Pull Request 触发 macOS `app` + `dmg` 构建，上传 DMG 与 `.app.zip` artifact。
+- `.github/workflows/release.yml`：推送 `v*` tag 时自动完成 Windows/macOS 构建，并创建/更新 GitHub Release，自动上传：
+  - Windows：`*.exe`、`*.msi`
+  - macOS：`*.dmg`、`OJ Insight.app.zip`
 
 发布前确保下列版本一致：
 
@@ -240,7 +230,9 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS Release 直接使用 `.app` 应用包。
+Release workflow 会自动创建 GitHub Release 并挂载安装包，无需再从 Actions Artifacts 手动下载上传。
+
+Windows Release 构建仍使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`；macOS Release 直接使用 `.app` 应用包。
 
 ## 数据源边界
 
