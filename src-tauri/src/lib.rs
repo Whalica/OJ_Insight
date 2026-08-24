@@ -71,7 +71,7 @@ fn log_event(state: &AppState, platform: &str, message: &str, secret: &str) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 fn executable_root_dir() -> std::io::Result<PathBuf> {
     let exe = std::env::current_exe()?;
     exe.parent()
@@ -82,16 +82,14 @@ fn executable_root_dir() -> std::io::Result<PathBuf> {
 /// Resolve the root directory that hosts `data/`, `exports/`, `logs/` and `webview/`.
 ///
 /// Windows ships a portable folder layout, so data lives next to the exe.
-/// On macOS the executable sits inside a signed `.app` bundle that may be
-/// read-only and can be translocated by Gatekeeper to a randomized path, so
-/// persistent data goes to `~/Library/Application Support/<identifier>`
-/// instead of next to the binary.
+/// macOS app bundles and Linux system install locations are not generally
+/// writable, so those platforms use Tauri's per-user application data path.
 fn portable_root_dir(app: &tauri::AppHandle) -> std::io::Result<PathBuf> {
-    #[cfg(target_os = "macos")]
+    #[cfg(not(target_os = "windows"))]
     {
         app.path().app_data_dir().map_err(std::io::Error::other)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         let _ = app;
         executable_root_dir()
@@ -426,8 +424,8 @@ pub fn run() {
         .setup(|app| {
             // Portable-data layout: every piece of persistent application data lives
             // in one root directory. On Windows that root sits next to the
-            // executable; on macOS it is the per-user Application Support folder
-            // because .app bundles are read-only and may be translocated.
+            // executable; macOS and Linux use their per-user application data
+            // directories because installed application locations may be read-only.
             let root_dir = portable_root_dir(app.handle())?;
             let data_dir = root_dir.join("data");
             let export_dir = root_dir.join("exports");
