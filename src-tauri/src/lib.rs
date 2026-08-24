@@ -135,6 +135,22 @@ fn save_account(
 }
 
 #[tauri::command]
+fn save_accounts(
+    state: State<'_, AppState>,
+    platform: String,
+    accounts: Vec<AccountConfig>,
+) -> Result<(), String> {
+    if !PLATFORMS.contains(&platform.as_str()) {
+        return Err("不支持的平台".into());
+    }
+    if accounts.iter().any(|entry| entry.platform != platform) {
+        return Err("账号列表的平台不一致".into());
+    }
+    let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::replace_accounts(&mut conn, &platform, &accounts)
+}
+
+#[tauri::command]
 fn get_sync_statuses(state: State<'_, AppState>) -> Result<Vec<SyncStatus>, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::statuses(&*conn)
@@ -145,62 +161,99 @@ async fn sync_one_inner(
     platform: &str,
     full: bool,
 ) -> Result<SyncResult, String> {
-    let (account, cursor) = {
+    let accounts = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-        let account = db::get_account(&conn, platform)?;
-        if account.account.trim().is_empty() {
-            return Err(format!("{} 尚未填写账号", platform));
-        }
-        let cursor = if full {
-            0
-        } else {
-            db::get_cursor(&conn, platform)?
-        };
-        db::mark_syncing(&conn, platform, &account.account)?;
-        (account, cursor)
+        db::get_accounts(&conn)?
+            .into_iter()
+            .filter(|entry| entry.platform == platform && !entry.account.trim().is_empty())
+            .collect::<Vec<_>>()
     };
-    log_event(
-        state,
-        platform,
-        if full {
-            "full rebuild started"
-        } else {
-            "incremental sync started"
-        },
-        &account.secret,
-    );
-    match sync::fetch_platform(&state.client, &account, full, cursor).await {
-        Ok(remote) => {
-            let (inserted, updated) = {
-                let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-                db::apply_remote(&mut conn, &remote)?
-            };
-            log_event(
-                state,
-                platform,
-                &format!("sync completed inserted={inserted} updated={updated}"),
-                &account.secret,
-            );
-            Ok(SyncResult {
-                platform: platform.into(),
-                inserted,
-                updated,
-                message: format!("同步成功 · 新增 {inserted}，更新 {updated}"),
-                status: "ok".into(),
-            })
-        }
-        Err(err) => {
+    if accounts.is_empty() {
+        return Err(format!("{} 尚未填写账号", platform));
+    }
+    let mut inserted = 0;
+    let mut updated = 0;
+    let mut succeeded = 0;
+    let mut failures = Vec::new();
+    for account in accounts {
+        let cursor = {
             let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-            let _ = db::mark_failed(&conn, platform, &account.account, &err.status, &err.message);
-            log_event(
-                state,
-                platform,
-                &format!("sync failed status={} message={}", err.status, err.message),
-                &account.secret,
-            );
-            Err(err.message)
+            let cursor = if full {
+                0
+            } else {
+                db::get_cursor(&conn, platform, &account.account)?
+            };
+            db::mark_syncing(&conn, platform, &account.account)?;
+            cursor
+        };
+        log_event(
+            state,
+            platform,
+            if full {
+                "full rebuild started"
+            } else {
+                "incremental sync started"
+            },
+            &account.secret,
+        );
+        match sync::fetch_platform(&state.client, &account, full, cursor).await {
+            Ok(mut remote) => {
+                // The configured identifier is the stable local account key. Some
+                // providers return a display name, which must not split one account.
+                remote.account = account.account.trim().to_string();
+                for submission in &mut remote.submissions {
+                    submission.account = remote.account.clone();
+                }
+                let counts = {
+                    let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+                    db::apply_remote(&mut conn, &remote)?
+                };
+                inserted += counts.0;
+                updated += counts.1;
+                succeeded += 1;
+                log_event(
+                    state,
+                    platform,
+                    &format!(
+                        "sync completed account={} inserted={} updated={}",
+                        account.account, counts.0, counts.1
+                    ),
+                    &account.secret,
+                );
+            }
+            Err(err) => {
+                let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+                let _ =
+                    db::mark_failed(&conn, platform, &account.account, &err.status, &err.message);
+                failures.push(format!("{}：{}", account.account, err.message));
+                log_event(
+                    state,
+                    platform,
+                    &format!("sync failed status={} message={}", err.status, err.message),
+                    &account.secret,
+                );
+            }
         }
     }
+    if succeeded == 0 {
+        return Err(failures.join("；"));
+    }
+    let suffix = if failures.is_empty() {
+        String::new()
+    } else {
+        format!(" · {} 个账号失败", failures.len())
+    };
+    Ok(SyncResult {
+        platform: platform.into(),
+        inserted,
+        updated,
+        message: format!("同步成功 · 新增 {inserted}，更新 {updated}{suffix}"),
+        status: if failures.is_empty() {
+            "ok".into()
+        } else {
+            "warning".into()
+        },
+    })
 }
 
 #[tauri::command]
@@ -217,7 +270,7 @@ async fn sync_platform(
 
 #[tauri::command]
 async fn sync_all(state: State<'_, AppState>) -> Result<Vec<SyncResult>, String> {
-    let configured = {
+    let mut configured = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
         db::get_accounts(&conn)?
             .into_iter()
@@ -225,6 +278,8 @@ async fn sync_all(state: State<'_, AppState>) -> Result<Vec<SyncResult>, String>
             .map(|a| a.platform)
             .collect::<Vec<_>>()
     };
+    configured.sort();
+    configured.dedup();
     let mut out = Vec::new();
     for p in configured {
         match sync_one_inner(&state, &p, false).await {
@@ -260,6 +315,8 @@ fn get_snapshot(
     start_day: Option<String>,
     end_day: Option<String>,
     metric: String,
+    account: Option<String>,
+    source: Option<String>,
 ) -> Result<Snapshot, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::snapshot(
@@ -268,6 +325,8 @@ fn get_snapshot(
         start_day.as_deref(),
         end_day.as_deref(),
         &metric,
+        account.as_deref(),
+        source.as_deref(),
     )
 }
 
@@ -276,9 +335,17 @@ fn get_day_detail(
     state: State<'_, AppState>,
     day: String,
     platform: Option<String>,
+    account: Option<String>,
+    source: Option<String>,
 ) -> Result<DayDetail, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-    db::day_detail(&*conn, &day, platform.as_deref())
+    db::day_detail(
+        &*conn,
+        &day,
+        platform.as_deref(),
+        account.as_deref(),
+        source.as_deref(),
+    )
 }
 
 #[tauri::command]
@@ -374,7 +441,7 @@ pub fn run() {
             let conn =
                 db::open(&data_dir.join("oj-insight.sqlite3")).map_err(std::io::Error::other)?;
             let client = Client::builder()
-                .user_agent("OJ-Insight/0.2.0")
+                .user_agent("OJ-Insight/0.3.0")
                 .timeout(std::time::Duration::from_secs(35))
                 .connect_timeout(std::time::Duration::from_secs(12))
                 .build()?;
@@ -400,6 +467,7 @@ pub fn run() {
             get_storage_info,
             get_accounts,
             save_account,
+            save_accounts,
             get_sync_statuses,
             sync_platform,
             sync_all,

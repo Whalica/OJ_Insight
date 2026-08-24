@@ -23,6 +23,7 @@ export interface PlatformSummary {
   solved: number | null;
   accepted_submissions: number;
   active_days: number;
+  today_count: number;
   last_success: number | null;
   status: string;
   message: string;
@@ -45,6 +46,8 @@ export interface DifficultyBucket {
 
 export interface SubmissionItem {
   platform: Platform;
+  account: string;
+  source: 'oj' | 'daily' | string;
   submission_id: string;
   problem_key: string;
   problem_id: string;
@@ -53,6 +56,13 @@ export interface SubmissionItem {
   epoch_second: number;
   language: string;
   difficulty: string | null;
+}
+
+export interface DifficultyDayPoint {
+  platform: Platform;
+  day: string;
+  label: string;
+  order: number;
 }
 
 export interface SnapshotStats {
@@ -71,6 +81,7 @@ export interface Snapshot {
   daily: DailyPoint[];
   platforms: PlatformSummary[];
   difficulty: DifficultyBucket[];
+  difficulty_daily: DifficultyDayPoint[];
   recent: SubmissionItem[];
   metric_available: boolean;
   warnings: string[];

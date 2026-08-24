@@ -19,6 +19,8 @@ pub struct AccountConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Submission {
     pub platform: String,
+    pub account: String,
+    pub source: String,
     pub submission_id: String,
     pub problem_key: String,
     pub problem_id: String,
@@ -113,6 +115,14 @@ pub struct DailyPoint {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct DifficultyDayPoint {
+    pub platform: String,
+    pub day: String,
+    pub label: String,
+    pub order: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DifficultyBucket {
     pub platform: String,
     pub label: String,
@@ -127,6 +137,7 @@ pub struct PlatformSummary {
     pub solved: Option<i64>,
     pub accepted_submissions: i64,
     pub active_days: i64,
+    pub today_count: i64,
     pub last_success: Option<i64>,
     pub status: String,
     pub message: String,
@@ -153,6 +164,7 @@ pub struct Snapshot {
     pub daily: Vec<DailyPoint>,
     pub platforms: Vec<PlatformSummary>,
     pub difficulty: Vec<DifficultyBucket>,
+    pub difficulty_daily: Vec<DifficultyDayPoint>,
     pub recent: Vec<Submission>,
     pub metric_available: bool,
     pub warnings: Vec<String>,

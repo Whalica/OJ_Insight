@@ -10,7 +10,9 @@ use reqwest::{
 use serde_json::{json, Value};
 
 use super::{now_epoch, polite_sleep, post_json};
-use crate::models::{AccountConfig, AggregateDay, DifficultyStat, RemoteData, SyncError};
+use crate::models::{
+    AccountConfig, AggregateDay, DifficultyStat, RemoteData, Submission, SyncError,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 enum SiteKind {
@@ -72,7 +74,7 @@ fn headers(site: &LeetCodeSite) -> HeaderMap {
     h
 }
 
-const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } }"#;
+const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } recentAcSubmissionList(username: $username, limit: 20) { id title titleSlug timestamp } }"#;
 const CN_PROGRESS_QUERY: &str = r#"query userQuestionProgress($userSlug: String!) { userProfileUserQuestionProgress(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 const CN_PROGRESS_V2_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 
@@ -109,10 +111,11 @@ pub async fn fetch(
 
     let (first, aggregates) = load_calendar(client, user, &site).await?;
     let (solved_count, difficulty) = profile_stats(client, user, &site, &first).await?;
+    let submissions = recent_submissions(user, &first);
     Ok(RemoteData {
         platform: "leetcode".into(),
         account: user.into(),
-        submissions: vec![],
+        submissions,
         aggregates,
         solved_count,
         difficulty,
@@ -122,9 +125,54 @@ pub async fn fetch(
             "逐日 calendar 是提交活动，不提供完整历史逐题 AC 明细".into(),
         ],
         cursor_epoch: now_epoch(),
-        replace_submissions: true,
+        replace_submissions: false,
         replace_aggregates: true,
     })
+}
+
+fn recent_submissions(user: &str, payload: &Value) -> Vec<Submission> {
+    payload
+        .pointer("/data/recentAcSubmissionList")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| {
+                    let slug = row.get("titleSlug").and_then(Value::as_str)?;
+                    let ts = row.get("timestamp").and_then(|value| {
+                        value
+                            .as_i64()
+                            .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+                    })?;
+                    let id = row
+                        .get("id")
+                        .and_then(|value| {
+                            value
+                                .as_str()
+                                .map(str::to_string)
+                                .or_else(|| value.as_i64().map(|x| x.to_string()))
+                        })
+                        .unwrap_or_else(|| format!("{user}-{ts}-{slug}"));
+                    Some(Submission {
+                        platform: "leetcode".into(),
+                        account: user.into(),
+                        source: "oj".into(),
+                        submission_id: id,
+                        problem_key: slug.into(),
+                        problem_id: slug.into(),
+                        problem_name: row
+                            .get("title")
+                            .and_then(Value::as_str)
+                            .unwrap_or(slug)
+                            .into(),
+                        problem_url: format!("https://leetcode.com/problems/{slug}/"),
+                        epoch_second: ts,
+                        language: String::new(),
+                        difficulty: None,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 async fn load_calendar(

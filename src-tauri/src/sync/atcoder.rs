@@ -56,7 +56,7 @@ pub async fn fetch(
     let mut from_second = if full {
         0
     } else {
-        cursor.saturating_sub(2).max(0)
+        cursor.saturating_sub(48 * 3600).max(0)
     };
     let mut out = Vec::new();
     let mut max_seen = cursor;
@@ -94,6 +94,8 @@ pub async fn fetch(
                 .map(|x| x.to_string());
             out.push(Submission {
                 platform: "atcoder".into(),
+                account: user.into(),
+                source: "oj".into(),
                 submission_id: s
                     .get("id")
                     .and_then(Value::as_i64)
@@ -141,7 +143,7 @@ pub async fn fetch(
         difficulty: vec![],
         activity_only: false,
         notes: vec!["AtCoder Problems submission API".into()],
-        cursor_epoch: max_seen.max(now_epoch().saturating_sub(2)),
+        cursor_epoch: max_seen.max(now_epoch().saturating_sub(48 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,
     })

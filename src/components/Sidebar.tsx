@@ -1,10 +1,10 @@
-import { BarChart3, CircleHelp, Database, Download, LayoutDashboard, Settings2 } from 'lucide-react';
+import { BarChart3, CircleHelp, Database, Download, Github, LayoutDashboard, Settings2 } from 'lucide-react';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 
 type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
-export default function Sidebar({ page, onChange }: { page: Page; onChange: (page: Page) => void }) {
+export default function Sidebar({ page, onChange, onIssue }: { page: Page; onChange: (page: Page) => void; onIssue: () => void }) {
   return (
     <aside className="sidebar">
       <div className="brand" onClick={() => onChange('overview')}>
@@ -24,6 +24,7 @@ export default function Sidebar({ page, onChange }: { page: Page; onChange: (pag
         <button className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} />数据源</button>
         <button className={page === 'settings' ? 'active' : ''} onClick={() => onChange('settings')}><Settings2 size={17} />设置</button>
         <button className={page === 'about' ? 'active' : ''} onClick={() => onChange('about')}><CircleHelp size={17} />关于</button>
+        <button onClick={onIssue}><Github size={17} />Issue 反馈</button>
       </nav>
       <div className="sidebar-foot"><BarChart3 size={14} /> Local-first · SQLite</div>
     </aside>

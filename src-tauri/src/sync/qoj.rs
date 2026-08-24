@@ -21,7 +21,11 @@ pub async fn fetch(
         ));
     }
     let mut out = Vec::new();
-    let cutoff = if full { 0 } else { cursor.saturating_sub(5) };
+    let cutoff = if full {
+        0
+    } else {
+        cursor.saturating_sub(48 * 3600)
+    };
     let mut max_seen = cursor;
     for page in 1..=5000 {
         let url = format!(
@@ -86,7 +90,7 @@ pub async fn fetch(
         difficulty: vec![],
         activity_only: false,
         notes: vec!["QOJ 完整提交列表当前需要登录；本地通过 UOJSESSID 读取".into()],
-        cursor_epoch: max_seen.max(now_epoch().saturating_sub(2)),
+        cursor_epoch: max_seen.max(now_epoch().saturating_sub(48 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,
     })
@@ -187,6 +191,8 @@ fn parse_rows(html: &str, user: &str) -> Vec<Submission> {
             .unwrap_or_default();
         out.push(Submission {
             platform: "qoj".into(),
+            account: user.into(),
+            source: "oj".into(),
             submission_id: id,
             problem_key: pid.clone(),
             problem_id: format!("#{pid}"),

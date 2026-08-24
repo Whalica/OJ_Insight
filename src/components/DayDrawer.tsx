@@ -1,5 +1,6 @@
 import { ExternalLink, X } from 'lucide-react';
 import { PLATFORM_META } from '../lib/platforms';
+import { difficultyColor } from '../lib/platforms';
 import type { DayDetail } from '../types';
 
 export default function DayDrawer({ detail, loading, onClose }: { detail: DayDetail | null; loading: boolean; onClose: () => void }) {
@@ -14,8 +15,8 @@ export default function DayDrawer({ detail, loading, onClose }: { detail: DayDet
           {detail.items.length === 0 && detail.aggregates.length === 0 && <div className="empty">这一天没有可显示的记录。</div>}
           {detail.items.map((item) => <article key={`${item.platform}-${item.submission_id}`}>
             <span className="oj-badge" style={{ borderColor: PLATFORM_META[item.platform].accent, color: PLATFORM_META[item.platform].accent }}>{PLATFORM_META[item.platform].short}</span>
-            <div className="submission-main"><strong>{item.problem_id || item.problem_name}</strong><span>{item.problem_name}</span><small>{new Date(item.epoch_second * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}{item.difficulty ? ` · ${item.difficulty}` : ''}{item.language ? ` · ${item.language}` : ''}</small></div>
-            {item.problem_url && <a href={item.problem_url} target="_blank" rel="noreferrer"><ExternalLink size={16} /></a>}
+            <div className="submission-main"><strong>{item.problem_id || item.problem_name}</strong><span>{item.problem_name}</span><small>{new Date(item.epoch_second * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}{item.language ? ` · ${item.language}` : ''}{item.account ? ` · ${item.account}` : ''}</small>{item.difficulty && <em><i style={{ background: difficultyColor(item.platform, item.difficulty) }} />{item.difficulty}</em>}</div>
+            {item.problem_url && <a className="drawer-problem-button" href={item.problem_url} target="_blank" rel="noreferrer">前往题目<ExternalLink size={14} /></a>}
           </article>)}
         </div>
       </>}

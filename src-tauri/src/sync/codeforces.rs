@@ -18,7 +18,11 @@ pub async fn fetch(
     let page_size = 10_000_i64;
     let mut out = Vec::new();
     let mut max_seen = cursor;
-    let stop_cursor = if full { 0 } else { cursor.saturating_sub(5) };
+    let stop_cursor = if full {
+        0
+    } else {
+        cursor.saturating_sub(24 * 3600)
+    };
     let mut page = 0;
 
     loop {
@@ -84,6 +88,8 @@ pub async fn fetch(
                 .unwrap_or_else(|| "https://codeforces.com/problemset".to_string());
             out.push(Submission {
                 platform: "codeforces".into(),
+                account: handle.into(),
+                source: "oj".into(),
                 submission_id: s
                     .get("id")
                     .and_then(Value::as_i64)
@@ -121,7 +127,7 @@ pub async fn fetch(
         difficulty: vec![],
         activity_only: false,
         notes: vec!["Codeforces 官方 user.status API".into()],
-        cursor_epoch: max_seen.max(now_epoch().saturating_sub(2)),
+        cursor_epoch: max_seen.max(now_epoch().saturating_sub(24 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,
     })

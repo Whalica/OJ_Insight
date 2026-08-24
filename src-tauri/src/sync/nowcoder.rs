@@ -1,8 +1,11 @@
+use chrono::Datelike;
 use regex::Regex;
 use reqwest::Client;
 use scraper::{Html, Selector};
+use serde_json::Value;
+use std::collections::HashMap;
 
-use super::{browser_headers, get_text, now_epoch, polite_sleep, with_referer};
+use super::{browser_headers, get_json, get_text, now_epoch, polite_sleep, with_referer};
 use crate::models::{AccountConfig, RemoteData, Submission, SyncError};
 
 pub async fn fetch(
@@ -21,7 +24,11 @@ pub async fn fetch(
     let mut out = Vec::new();
     let mut page = 1_i64;
     let mut max_seen = cursor;
-    let cutoff = if full { 0 } else { cursor.saturating_sub(5) };
+    let cutoff = if full {
+        0
+    } else {
+        cursor.saturating_sub(48 * 3600)
+    };
     loop {
         if page > 5000 {
             return Err(SyncError::error("牛客分页过多，已中止"));
@@ -59,6 +66,29 @@ pub async fn fetch(
         page += 1;
         polite_sleep(260).await;
     }
+    let (tracker, tracker_note) = match fetch_tracker_problems(client).await {
+        Ok(items) => (items, "已对照牛客 Tracker 每日一题".to_string()),
+        Err(error) => (
+            HashMap::new(),
+            format!("警告：牛客 Tracker 暂不可用（{}）", error.message),
+        ),
+    };
+    let mut daily_matches = 0;
+    for submission in &mut out {
+        if let Some(item) = tracker
+            .get(&submission.problem_key)
+            .or_else(|| tracker.get(&submission.problem_id))
+        {
+            submission.source = "daily".into();
+            if submission.problem_name.trim().is_empty() && !item.title.is_empty() {
+                submission.problem_name = item.title.clone();
+            }
+            if submission.difficulty.is_none() {
+                submission.difficulty = item.difficulty.clone();
+            }
+            daily_matches += 1;
+        }
+    }
     Ok(RemoteData {
         platform: "nowcoder".into(),
         account: uid.into(),
@@ -67,11 +97,84 @@ pub async fn fetch(
         solved_count: None,
         difficulty: vec![],
         activity_only: false,
-        notes: vec!["牛客竞赛站公开练习提交页 · statusTypeFilter=5".into()],
-        cursor_epoch: max_seen.max(now_epoch().saturating_sub(2)),
+        notes: vec![
+            "牛客竞赛站公开练习提交页 · statusTypeFilter=5".into(),
+            format!("{tracker_note} · 匹配 {daily_matches} 条真实 AC 提交"),
+        ],
+        cursor_epoch: max_seen.max(now_epoch().saturating_sub(48 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,
     })
+}
+
+#[derive(Clone)]
+struct TrackerProblem {
+    title: String,
+    difficulty: Option<String>,
+}
+
+async fn fetch_tracker_problems(
+    client: &Client,
+) -> Result<HashMap<String, TrackerProblem>, SyncError> {
+    let now = chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+    let mut year = now.year();
+    let mut month = now.month() as i32;
+    let mut result = HashMap::new();
+    for _ in 0..18 {
+        let url = format!(
+            "https://www.nowcoder.com/problem/tracker/clock/monthinfo?year={year}&month={month}"
+        );
+        let payload = get_json(
+            client,
+            &url,
+            with_referer(browser_headers(), "https://www.nowcoder.com/"),
+        )
+        .await?;
+        if payload.get("code").and_then(Value::as_i64).unwrap_or(-1) == 0 {
+            if let Some(items) = payload.get("data").and_then(Value::as_array) {
+                for item in items {
+                    let id = item
+                        .get("problemId")
+                        .or_else(|| item.get("questionId"))
+                        .and_then(|value| {
+                            value
+                                .as_i64()
+                                .map(|x| x.to_string())
+                                .or_else(|| value.as_str().map(str::to_string))
+                        })
+                        .unwrap_or_default();
+                    if id.is_empty() {
+                        continue;
+                    }
+                    let title = item
+                        .get("questionTitle")
+                        .or_else(|| item.get("title"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    let difficulty = item
+                        .get("difficultyScore")
+                        .or_else(|| item.get("difficulty"))
+                        .and_then(|value| {
+                            value.as_i64().map(|x| x.to_string()).or_else(|| {
+                                value
+                                    .as_str()
+                                    .filter(|x| !x.is_empty() && *x != "N/A")
+                                    .map(str::to_string)
+                            })
+                        });
+                    result.insert(id, TrackerProblem { title, difficulty });
+                }
+            }
+        }
+        month -= 1;
+        if month == 0 {
+            month = 12;
+            year -= 1;
+        }
+        polite_sleep(90).await;
+    }
+    Ok(result)
 }
 
 fn parse_rows(html: &str, uid: &str) -> Vec<Submission> {
@@ -146,6 +249,8 @@ fn parse_rows(html: &str, uid: &str) -> Vec<Submission> {
             .collect::<String>();
         out.push(Submission {
             platform: "nowcoder".into(),
+            account: uid.into(),
+            source: "oj".into(),
             submission_id: if id.is_empty() {
                 format!("{uid}-{ts}-{pid}")
             } else {
