@@ -2,22 +2,24 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.2.0 是一个 Windows / macOS 本地优先桌面面板，把 Codeforces、AtCoder、洛谷、牛客、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用统一的 Career、时间范围统计、Activity、平台概览和难度分布展示。
+OJ Insight v0.3.0 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
 ## 功能
 
-- 总览和每个 OJ 的独立页面。
+- 总览和每个 OJ 的独立页面；各 OJ 页面同时保留活动砖与难度足迹。
+- 每个平台支持配置多个用户 ID，可查看聚合数据或筛选单个账号。
 - Career 生涯统计与当前时间范围统计严格分开。
 - `< [ 2026 ▼ ] >` 年份控件；`Until now` 显示截至今天最近 365 天，Activity 最右列包含今天。
 - Activity 四种口径：First AC、Unique AC、AC Submissions、Platform Activity。
-- Platform Summary、Recent Accepted、Data Sources。
-- Difficulty Profile 按平台自身体系分别绘制 histogram，不跨 OJ 强行统一难度。
+- 今日进度固定展示六个 OJ；问候语按凌晨、早晨、中午、傍晚和夜间切换。
+- Platform Summary、Recent Accepted、Data Sources；点击任意活动砖可查看当天全部提交。
+- Difficulty Profile 按平台自身体系分别绘制 histogram，不跨 OJ 强行统一难度；难度足迹按当天最高难度着色。
 - 增量同步、全量重建、清空单 OJ、清空所有同步数据。
 - 缓存数据与最近一次同步错误分离；同步失败不会删除旧缓存。
-- 同步进度显示完成站点数、新增记录与失败站点数。
+- 同步进度显示完成站点数、新增记录与失败站点数；每次全同步固定展示一条随机竞赛 Tips。
 - 指定年份区间或 Until now 的 Activity 导出；All OJs/单 OJ；PNG/SVG。
 - About 页提供版本、GitHub Releases 更新检查、仓库和 Issue 入口。
-- Windows Release 使用 GUI subsystem；macOS Release 使用原生 `.app`。启动、同步、检查更新、导出均不创建 console / shell 子进程。
+- Windows Release 使用 GUI subsystem；macOS Release 使用原生 `.app`；Linux 提供 AppImage、DEB 与 RPM。启动、同步、检查更新、导出均不创建 console / shell 子进程。
 
 ## 便携目录（Windows）
 
@@ -55,9 +57,23 @@ macOS 应用包是只读的，因此持久数据保存在用户应用支持目�
 
 复制整个 `com.ojinsight.app` 目录即可备份或迁移。构建说明见 [BUILD_MACOS.md](BUILD_MACOS.md)。
 
+## 数据目录（Linux）
+
+Linux 安装目录通常不可写，因此数据保存在 Tauri 返回的当前用户应用数据目录中，通常位于：
+
+```text
+~/.local/share/com.ojinsight.app/
+├─ data/oj-insight.sqlite3
+├─ exports/
+├─ logs/oj-insight.log
+└─ webview/
+```
+
+实际路径以应用「关于」页面显示为准。构建说明见 [BUILD_LINUX.md](BUILD_LINUX.md)。
+
 ## 第一次使用
 
-1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；macOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`（或其他可写目录）。
+1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；macOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`；Linux：安装 DEB/RPM 或运行 AppImage。
 2. 打开「设置」，填写需要使用的平台账号并保存。
 3. 打开「数据源」，对新账号执行「重建」。
 4. 以后使用「增量」或「同步全部」。
@@ -69,8 +85,8 @@ macOS 应用包是只读的，因此持久数据保存在用户应用支持目�
 |---|---|
 | Codeforces | Handle |
 | AtCoder | 用户名 |
-| 洛谷 | 用户名或数字 UID |
-| 牛客 | 个人主页 URL 中的数字 User ID |
+| Luogu | 用户名或数字 UID，可填写多个 |
+| NowCoder | 个人主页 URL 中的数字 User ID，可填写多个 |
 | QOJ | 用户名；另填 `UOJSESSID` |
 | LeetCode 国际站 | `/u/` 后的用户名 |
 | LeetCode 中国站 | `cn:用户名` |
@@ -111,7 +127,7 @@ Cookie 等价于登录凭据。不要上传 `data/`，也不要把数据库或�
 cn:admiring-sutherlanduel
 ```
 
-v0.2.0 不再只替换域名：
+v0.3.0 会按站点公开能力分别同步：
 
 - `leetcode.com` 使用 `matchedUser(username)` 获取公开日历与统计；
 - `leetcode.cn` 使用当前公开的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard；
@@ -145,8 +161,8 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 难度是有序变量，因此使用 histogram，不使用饼图。每个平台保留自身体系：
 
-- Codeforces / AtCoder：各自 rating/difficulty 区间；
-- 洛谷：官方难度标签（可获取时）；
+- Codeforces：按官方颜色逐个统计 800～3500 的每个 100 rating；AtCoder 使用自身 difficulty；
+- Luogu：最新八级难度体系与官方颜色；
 - LeetCode：Easy / Medium / Hard；
 - 牛客 / QOJ：只有可靠难度数据时才展示。
 
@@ -173,7 +189,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.2.0`。Check for Updates 请求：
+About 显示当前版本 `0.3.0`。Check for Updates 请求：
 
 ```text
 https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
@@ -196,6 +212,7 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 
 - Windows：Visual Studio C++ Build Tools、WebView2 Runtime。
 - macOS：Xcode Command Line Tools（WKWebView 由系统提供）。
+- Linux：WebKitGTK 4.1、AppIndicator、librsvg、OpenSSL 与常用编译工具。
 
 ```bash
 npm install
@@ -208,24 +225,15 @@ npm run tauri build
 
 - Windows：当前可执行文件旁，通常是 `src-tauri/target/debug/{data,exports,logs,webview}`。
 - macOS：`~/Library/Application Support/com.ojinsight.app/`。
+- Linux：通常为 `~/.local/share/com.ojinsight.app/`，以应用显示路径为准。
 
 ## GitHub Actions 与发布
 
-`.github/workflows/windows-build.yml` 保留：
+`.github/workflows/build.yml` 是统一的三端构建工作流。手动运行、推送 `v*` tag 或发起 Pull Request 时会并行构建：
 
-- `actions/checkout@v5`；
-- `actions/setup-node@v5` + Node 22；
-- Rust stable；
-- Tauri Windows NSIS/MSI 构建；
-- workflow_dispatch 的 artifact；
-- 推送 `v*` tag 时同样触发。
-
-`.github/workflows/macos-build.yml` 提供 macOS 对应构建：
-
-- macos-latest + Rust stable；
-- Tauri `app` + `dmg` 打包（bundle targets 已改为 `all`，按平台自动选择）；
-- 上传 DMG 与 `.app.zip` artifact；
-- workflow_dispatch、`v*` tag 与 Pull Request 均可触发构建。
+- `OJ-Insight-Windows`：NSIS EXE 与 MSI；
+- `OJ-Insight-macOS`：DMG 与 `.app.zip`；
+- `OJ-Insight-Linux`：AppImage、DEB 与 RPM。
 
 发布前确保下列版本一致：
 
@@ -236,18 +244,19 @@ npm run tauri build
 然后推送 tag：
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS Release 直接使用 `.app` 应用包。
+Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS 使用 `.app`；Linux 使用原生安装包或 AppImage。
 
 ## 数据源边界
 
 OJ Insight 尊重上游公开数据能力，不虚构统一精度：
 
-- CF / AtCoder / 牛客 / 已登录 QOJ：可保存逐题 AC 历史。
-- 洛谷：公开 `dailyCounts` 更稳定，部分数据只能用于 Activity。
+- CF / AtCoder / NowCoder / 已登录 QOJ：可保存逐题 AC 历史。
+- Luogu：优先读取提交记录以保留真实 AC 时间，接口不可用时安全降级到 `dailyCounts`。
+- NowCoder：普通题目和每日一题 Tracker 都会统计；Tracker 只关联已有真实 AC，不伪造提交时间。
 - LeetCode 国际站：`submissionCalendar` 表示提交活动，并不提供完整历史逐题首次 AC。
 - LeetCode 中国站：公开 profile 可同步解题总数与难度；Activity 日历由独立 schema 尝试获取，不可用时安全降级并保留旧缓存。
 

@@ -1,3 +1,28 @@
+# OJ Insight 0.3.0 — Multi-account & Difficulty Footprint
+
+## UI 与统计
+
+- 首页固定展示六个 OJ 的今日进度，问候语根据本地时段切换。
+- 每个 OJ 页面同时提供活动砖、难度足迹和独立难度分布。
+- 活动砖继续支持点击查看当天全部提交；最近 AC 增加显眼的题目跳转按钮。
+- Codeforces 按官方颜色逐个展示 800～3500 rating；Luogu 使用最新八级难度名称与颜色。
+- 时间范围和统计口径会记住上一次选择，并按 UTC+8 在零点立即补出今天的格子。
+
+## 账号与同步
+
+- 每个平台支持多个用户 ID，同时提供聚合与单账号筛选。
+- 修复同步有新增记录但界面显示新增 0 的问题。
+- 全部同步时只展示一条随机竞赛 Tips。
+- AtCoder 使用真实提交时间并扩大重叠窗口；Luogu 优先读取提交记录；NowCoder 同时统计普通题目与每日一题 Tracker。
+- LeetCode 国际站同步最近 AC，页面补充活动和难度数据；中国站继续按公开接口安全降级。
+
+## 桌面与发布
+
+- 版本统一更新到 0.3.0。
+- `.github/workflows/build.yml` 并行构建 Windows、macOS 与 Linux，并分别上传三个 artifact。
+- Linux 数据改为写入用户应用数据目录，避免安装目录不可写。
+- Issue 反馈入口直接打开项目 GitHub Issues。
+
 # OJ Insight 0.2.0 — Career & Activity
 
 Buildfix: 修复 LeetCode provider 中局部变量遮蔽 `calendar_node()` 函数导致的 Rust E0618 编译错误。

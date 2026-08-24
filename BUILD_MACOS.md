@@ -5,7 +5,7 @@ OJ Insight 是 Tauri 2 桌面应用。自本版本起支持 macOS（Apple Silico
 ## 最省事：GitHub Actions 构建
 
 1. 打开仓库 `Actions`。
-2. 选择 `Build macOS`。
+2. 选择 `Build desktop apps`。
 3. 点击 `Run workflow`。
 4. 完成后下载 `OJ-Insight-macOS` artifact；推送 `v*` tag 或发起 Pull Request 时 workflow 同样会触发。
 5. 解压后可取得当前 runner 架构的 `OJ Insight_<version>_<arch>.dmg`（如 `aarch64` 或 `x64`）与打包好的 `OJ Insight.app.zip`。
