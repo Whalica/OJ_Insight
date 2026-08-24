@@ -33,7 +33,7 @@ pub async fn fetch_platform(
 
 pub fn browser_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
-    h.insert(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36 OJ-Insight/0.3"));
+    h.insert(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36 OJ-Insight/0.4"));
     h.insert(
         ACCEPT,
         HeaderValue::from_static(
@@ -52,6 +52,16 @@ pub fn with_cookie(mut h: HeaderMap, cookie: &str) -> HeaderMap {
             format!("UOJSESSID={cookie}")
         };
         if let Ok(v) = HeaderValue::from_str(&normalized) {
+            h.insert(COOKIE, v);
+        }
+    }
+    h
+}
+
+pub fn with_raw_cookie(mut h: HeaderMap, cookie: &str) -> HeaderMap {
+    let cookie = cookie.trim();
+    if !cookie.is_empty() {
+        if let Ok(v) = HeaderValue::from_str(cookie) {
             h.insert(COOKIE, v);
         }
     }

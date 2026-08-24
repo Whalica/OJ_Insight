@@ -193,6 +193,7 @@ fn parse_rows(html: &str, user: &str) -> Vec<Submission> {
             platform: "qoj".into(),
             account: user.into(),
             source: "oj".into(),
+            source_day: None,
             submission_id: id,
             problem_key: pid.clone(),
             problem_id: format!("#{pid}"),

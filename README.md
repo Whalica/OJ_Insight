@@ -2,14 +2,15 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.3.0 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.4.0 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
 ## 功能
 
 - 总览和每个 OJ 的独立页面；各 OJ 页面同时保留活动砖与难度足迹。
 - 每个平台支持配置多个用户 ID，可查看聚合数据或筛选单个账号。
 - Career 生涯统计与当前时间范围统计严格分开。
-- `< [ 2026 ▼ ] >` 年份控件；`Until now` 显示截至今天最近 365 天，Activity 最右列包含今天。
+- `< [ 2026 ▼ ] >` 年份控件；`至今（近一年）` 显示截至今天最近 365 天，活动砖最右列包含今天。
+- 可选择统计时区；今日进度、问候、砖块日期、连续打卡和零点换日统一按该时区换算。
 - Activity 四种口径：First AC、Unique AC、AC Submissions、Platform Activity。
 - 今日进度固定展示六个 OJ；问候语按凌晨、早晨、中午、傍晚和夜间切换。
 - Platform Summary、Recent Accepted、Data Sources；点击任意活动砖可查看当天全部提交。
@@ -36,9 +37,9 @@ OJ Insight/
 └─ webview/
 ```
 
-- `data/`：账号、QOJ Cookie、提交、统计、同步游标与状态。
+- `data/`：账号、可选平台 Cookie、提交、统计、同步游标与状态。
 - `exports/`：默认图片导出目录。
-- `logs/`：同步诊断日志。`UOJSESSID` 与用户填写的 Secret 会被脱敏。
+- `logs/`：同步诊断日志。`UOJSESSID` 与用户填写的 Secret/Cookie 会被脱敏。
 - `webview/`：WebView2 localStorage 与缓存。
 
 复制整个目录即可备份或迁移。目录必须可写，不建议把便携版放在普通用户不可写的 `Program Files`。
@@ -86,10 +87,10 @@ Linux 安装目录通常不可写，因此数据保存在 Tauri 返回的当前�
 | Codeforces | Handle |
 | AtCoder | 用户名 |
 | Luogu | 用户名或数字 UID，可填写多个 |
-| NowCoder | 个人主页 URL 中的数字 User ID，可填写多个 |
+| NowCoder | 个人主页 URL 中的数字 User ID；Tracker 完成记录需要可选的网页 Cookie |
 | QOJ | 用户名；另填 `UOJSESSID` |
 | LeetCode 国际站 | `/u/` 后的用户名 |
-| LeetCode 中国站 | `cn:用户名` |
+| LeetCode 中国站 | `cn:用户名`；活动接口受限时可选填对应站点 Cookie |
 
 ### QOJ
 
@@ -127,11 +128,11 @@ Cookie 等价于登录凭据。不要上传 `data/`，也不要把数据库或�
 cn:admiring-sutherlanduel
 ```
 
-v0.3.0 会按站点公开能力分别同步：
+v0.4.0 会按站点公开能力分别同步：
 
 - `leetcode.com` 使用 `matchedUser(username)` 获取公开日历与统计；
-- `leetcode.cn` 使用当前公开的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard；
-- 中国站的标准 `/graphql/` schema 不提供国际站的 `matchedUser/userCalendar`。为避免接口 400 让整站同步失败，应用不会再向中国站发送国际站日历查询；解题总数与难度正常同步，已有日期缓存会保留，数据源状态会明确提示 Activity 暂不可用。
+- `leetcode.cn` 使用自己的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard，并尝试独立的 `userProfileCalendar` 与最近 AC 查询；
+- 中国站活动接口不可用时不会清空旧砖；同步状态会显示失败原因，并可在账号设置中填入对应站点 Cookie 后重试。
 
 GraphQL 错误会显示 operation、HTTP 状态与有限响应摘要，方便判断接口变化。
 
@@ -156,6 +157,8 @@ Career 永远基于本地已知的全部历史，不随年份/Until now 切换�
 - `Activity`：平台公开的原始日期活动量，主要用于只能获取 calendar/dailyCounts 的数据源。
 
 Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 日至 12 月 31 日。点击格子可查看当日逐题记录或平台公开活动说明。
+
+带原始 epoch 的提交和日历会按所选统计时区换算。上游只提供 `YYYY-MM-DD`、没有准确时刻的记录（例如部分 Tracker 完成日）保留来源日期，不会假造时间，也不会随时区漂移。
 
 ## Difficulty Profile
 
@@ -189,7 +192,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.3.0`。Check for Updates 请求：
+About 显示当前版本 `0.4.0`。Check for Updates 请求：
 
 ```text
 https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
@@ -204,7 +207,7 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 - Windows：`OJ Insight.exe` 同级的 `logs/oj-insight.log`。
 - macOS：`~/Library/Application Support/com.ojinsight.app/logs/oj-insight.log`。
 
-日志记录同步开始、完成、insert/update 数与错误分类，不记录明文 QOJ Secret。若 QOJ 报「结构变化」，可在确认日志已脱敏后附上相关错误行提交 Issue；不要附带数据库。
+日志记录同步开始、完成、insert/update 数与错误分类，不记录明文平台 Secret/Cookie。若同步源报「结构变化」，可在确认日志已脱敏后附上相关错误行提交 Issue；不要附带数据库。
 
 ## 源码开发
 
@@ -235,6 +238,8 @@ npm run tauri build
 - `OJ-Insight-macOS`：DMG 与 `.app.zip`；
 - `OJ-Insight-Linux`：AppImage、DEB 与 RPM。
 
+三个构建完成后还会生成 `OJ-Insight-All-Platforms.zip`：压缩包内按 Windows、macOS、Linux 分目录保存全部安装包，并附带 `SHA256SUMS.txt`。创建 Release 时只需下载并上传这一份总包。
+
 发布前确保下列版本一致：
 
 - `package.json`
@@ -244,8 +249,8 @@ npm run tauri build
 然后推送 tag：
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS 使用 `.app`；Linux 使用原生安装包或 AppImage。
@@ -256,7 +261,7 @@ OJ Insight 尊重上游公开数据能力，不虚构统一精度：
 
 - CF / AtCoder / NowCoder / 已登录 QOJ：可保存逐题 AC 历史。
 - Luogu：优先读取提交记录以保留真实 AC 时间，接口不可用时安全降级到 `dailyCounts`。
-- NowCoder：普通题目和每日一题 Tracker 都会统计；Tracker 只关联已有真实 AC，不伪造提交时间。
+- NowCoder：普通题目始终统计；填写 Cookie 后读取 Tracker 完成日期。能匹配到真实提交时保留原始 AC 时间，否则明确显示“来源日期”，不把状态更新时间伪装成 AC 时间。
 - LeetCode 国际站：`submissionCalendar` 表示提交活动，并不提供完整历史逐题首次 AC。
 - LeetCode 中国站：公开 profile 可同步解题总数与难度；Activity 日历由独立 schema 尝试获取，不可用时安全降级并保留旧缓存。
 

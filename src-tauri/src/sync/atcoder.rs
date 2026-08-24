@@ -56,7 +56,7 @@ pub async fn fetch(
     let mut from_second = if full {
         0
     } else {
-        cursor.saturating_sub(48 * 3600).max(0)
+        cursor.saturating_sub(7 * 24 * 3600).max(0)
     };
     let mut out = Vec::new();
     let mut max_seen = cursor;
@@ -90,12 +90,13 @@ pub async fn fetch(
                 .get(problem_id)
                 .and_then(|v| v.get("difficulty"))
                 .and_then(Value::as_f64)
-                .map(|x| x.round() as i64)
+                .map(atcoder_display_difficulty)
                 .map(|x| x.to_string());
             out.push(Submission {
                 platform: "atcoder".into(),
                 account: user.into(),
                 source: "oj".into(),
+                source_day: None,
                 submission_id: s
                     .get("id")
                     .and_then(Value::as_i64)
@@ -142,9 +143,21 @@ pub async fn fetch(
         solved_count: None,
         difficulty: vec![],
         activity_only: false,
-        notes: vec!["AtCoder Problems submission API".into()],
-        cursor_epoch: max_seen.max(now_epoch().saturating_sub(48 * 3600)),
+        notes: vec![
+            "AtCoder Problems submission API；使用原始 epoch_second".into(),
+            "增量同步回看 7 天，避免上游延迟入库造成漏记".into(),
+        ],
+        cursor_epoch: max_seen.max(now_epoch().saturating_sub(7 * 24 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,
     })
+}
+
+fn atcoder_display_difficulty(value: f64) -> i64 {
+    let adjusted = if value < 400.0 {
+        (400.0 / ((400.0 - value) / 400.0).exp()).round() as i64
+    } else {
+        value.round() as i64
+    };
+    adjusted.max(0)
 }

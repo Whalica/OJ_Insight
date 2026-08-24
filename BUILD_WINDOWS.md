@@ -10,8 +10,8 @@ OJ Insight 是 Tauri 2 桌面应用，不再启动 localhost 服务，也不需�
 2. 打开仓库 `Actions`。
 3. 选择 `Build desktop apps`。
 4. 点击 `Run workflow`。
-5. Windows job 完成后下载 `OJ-Insight-Windows` artifact；推送 `v*` tag 时同样会触发构建。
-6. 解压后可取得 Windows 构建产物 / 安装包。
+5. 全部 job 完成后下载 `OJ-Insight-All-Platforms` artifact；推送 `v*` tag 时同样会触发构建。
+6. 解压总包中的 `OJ-Insight-Windows/`，可取得 Windows EXE / MSI；同一总包还包含 macOS 与 Linux 目录。
 
 ## 本机开发构建
 

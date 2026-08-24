@@ -7,7 +7,7 @@ OJ Insight 使用 Tauri 2 构建 Linux 桌面应用，GitHub Actions 会分别�
 1. 打开仓库 `Actions`。
 2. 选择 `Build desktop apps`。
 3. 点击 `Run workflow`。
-4. Linux job 完成后下载 `OJ-Insight-Linux` artifact。
+4. 全部 job 完成后下载 `OJ-Insight-All-Platforms` artifact，解压其中的 `OJ-Insight-Linux/` 即可取得 AppImage、DEB 与 RPM；同一总包还包含 Windows 与 macOS 目录。
 
 工作流也会在推送 `v*` tag 或发起 Pull Request 时运行。
 

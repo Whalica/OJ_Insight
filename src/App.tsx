@@ -4,7 +4,7 @@ import DayDrawer from './components/DayDrawer';
 import DashboardPage from './pages/DashboardPage';
 import { AboutPage, DataPage, ExportPage, SettingsPage } from './pages/UtilityPages';
 import { api } from './lib/api';
-import { today } from './lib/date';
+import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
 import { emptyAccounts, emptySnapshot, initialMetric, initialScope, scopeRange, SYNC_TIPS, type AccountMap, type TimeScope } from './lib/ui';
 import type { DayDetail, Metric, Platform, Snapshot, SyncStatus } from './types';
@@ -13,14 +13,15 @@ type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
 export default function App() {
   const [page, setPage] = useState<Page>('overview');
-  const [timeScope, setTimeScopeState] = useState<TimeScope>(initialScope);
+  const [timeZone, setTimeZoneState] = useState(initialTimeZone);
+  const [timeScope, setTimeScopeState] = useState<TimeScope>(() => initialScope(timeZone));
   const [metric, setMetricState] = useState<Metric>(initialMetric);
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [accounts, setAccounts] = useState<AccountMap>(emptyAccounts);
   const [statuses, setStatuses] = useState<SyncStatus[]>([]);
   const [accountFilter, setAccountFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
-  const [chinaDay, setChinaDay] = useState(today());
+  const [selectedDay, setSelectedDay] = useState(() => today(timeZone));
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncTip, setSyncTip] = useState('');
@@ -30,19 +31,19 @@ export default function App() {
   const [dayLoading, setDayLoading] = useState(false);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
-  const range = useMemo(() => scopeRange(timeScope), [timeScope, chinaDay]);
+  const range = useMemo(() => scopeRange(timeScope, timeZone), [timeScope, selectedDay, timeZone]);
   const setTimeScope = (value: TimeScope) => { localStorage.setItem('oj-insight.time-scope', String(value)); setTimeScopeState(value); };
   const setMetric = (value: Metric) => { localStorage.setItem('oj-insight.metric', value); setMetricState(value); };
+  const setTimeZone = (value: string) => { localStorage.setItem('oj-insight.time-zone', value); setTimeZoneState(value); setSelectedDay(today(value)); };
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3600); };
 
   useEffect(() => {
     let timer = 0;
     const schedule = () => {
-      const nextChinaMidnight = Date.parse(`${today()}T16:00:00Z`);
-      timer = window.setTimeout(() => { setChinaDay(today()); schedule(); }, Math.max(1000, nextChinaMidnight - Date.now() + 250));
+      timer = window.setTimeout(() => { setSelectedDay(today(timeZone)); schedule(); }, millisecondsUntilNextDay(timeZone));
     };
     schedule(); return () => window.clearTimeout(timer);
-  }, []);
+  }, [timeZone]);
 
   const loadAccounts = useCallback(async () => {
     const next = emptyAccounts();
@@ -53,10 +54,10 @@ export default function App() {
   const loadSnapshot = useCallback(async () => {
     setLoading(true);
     try {
-      setSnapshot(await api.snapshot(selectedPlatform, range.start, range.end, metric, selectedPlatform ? accountFilter || null : null, selectedPlatform === 'nowcoder' ? sourceFilter || null : null));
+      setSnapshot(await api.snapshot(selectedPlatform, range.start, range.end, metric, selectedPlatform ? accountFilter || null : null, selectedPlatform === 'nowcoder' ? sourceFilter || null : null, timeZone));
     } catch (error) { notify(String(error)); }
     finally { setLoading(false); }
-  }, [selectedPlatform, range.start, range.end, metric, accountFilter, sourceFilter, chinaDay]);
+  }, [selectedPlatform, range.start, range.end, metric, accountFilter, sourceFilter, selectedDay, timeZone]);
 
   useEffect(() => { Promise.all([loadAccounts(), loadStatuses()]).catch((error) => notify(String(error))); }, [loadAccounts, loadStatuses]);
   useEffect(() => { setAccountFilter(''); setSourceFilter(''); }, [selectedPlatform]);
@@ -89,7 +90,7 @@ export default function App() {
   };
   const openDay = async (day: string) => {
     setDayLoading(true); setDayDetail({ day, items: [], aggregates: [] });
-    try { setDayDetail(await api.dayDetail(day, selectedPlatform, selectedPlatform ? accountFilter || null : null, selectedPlatform === 'nowcoder' ? sourceFilter || null : null)); }
+    try { setDayDetail(await api.dayDetail(day, selectedPlatform, selectedPlatform ? accountFilter || null : null, selectedPlatform === 'nowcoder' ? sourceFilter || null : null, timeZone)); }
     catch (error) { notify(String(error)); }
     finally { setDayLoading(false); }
   };
@@ -97,13 +98,13 @@ export default function App() {
   return <div className="app-shell">
     <Sidebar page={page} onChange={setPage} onIssue={() => api.openExternal('https://github.com/Whalica/OJ_Insight/issues')} />
     <main className="main">
-      {page === 'settings' ? <SettingsPage accounts={accounts} onSaved={async () => { await loadAccounts(); notify('账号设置已保存'); }} /> :
-       page === 'data' ? <DataPage statuses={statuses} syncing={syncing} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
-       page === 'export' ? <ExportPage accounts={accounts} metric={metric} /> :
+      {page === 'settings' ? <SettingsPage accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} onSaved={async () => { await loadAccounts(); notify('账号设置已保存'); }} /> :
+       page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
+       page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage /> :
-       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onPlatform={(platform) => setPage(platform)} />}
+       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onPlatform={(platform) => setPage(platform)} />}
     </main>
-    <DayDrawer detail={dayDetail} loading={dayLoading} onClose={() => setDayDetail(null)} />
+    <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={() => setDayDetail(null)} />
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }

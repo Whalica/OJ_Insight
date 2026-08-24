@@ -3,6 +3,7 @@ use reqwest::{
     Client,
 };
 use serde_json::Value;
+use std::collections::HashMap;
 
 use super::{get_json, get_text, now_epoch, polite_sleep};
 use crate::models::{
@@ -13,7 +14,7 @@ fn base_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
     h.insert(
         USER_AGENT,
-        HeaderValue::from_static("OJ-Insight/0.3 local analytics"),
+        HeaderValue::from_static("OJ-Insight/0.4 local analytics"),
     );
     h.insert(
         ACCEPT,
@@ -165,6 +166,7 @@ pub async fn fetch(
             }
             aggregates.push(AggregateDay {
                 day,
+                epoch_second: None,
                 metric: "activity".into(),
                 count,
                 note: "洛谷公开个人页 dailyCounts；仅有日期计数，无当天逐题明细".into(),
@@ -174,6 +176,7 @@ pub async fn fetch(
 
     let mut solved_count = None;
     let mut difficulty = Vec::new();
+    let mut problem_difficulties = HashMap::new();
     if let Ok(practice_text) = get_text(
         client,
         &format!("https://www.luogu.com.cn/user/{uid}/practice"),
@@ -193,6 +196,11 @@ pub async fn fetch(
                     if let Some(d) = p.get("difficulty").and_then(Value::as_i64) {
                         if (1..=8).contains(&d) {
                             buckets[d as usize] += 1;
+                            if let Some(pid) = p.get("pid").and_then(Value::as_str) {
+                                if let Some(label) = luogu_difficulty(d) {
+                                    problem_difficulties.insert(pid.to_string(), label);
+                                }
+                            }
                         }
                     }
                 }
@@ -220,7 +228,15 @@ pub async fn fetch(
         }
     }
 
-    let records = fetch_records(client, &uid, input, full, cursor).await;
+    let records = fetch_records(
+        client,
+        &uid,
+        input,
+        full,
+        cursor,
+        &problem_difficulties,
+    )
+    .await;
     let (submissions, record_note, record_available) = match records {
         Ok(items) => (
             items,
@@ -262,6 +278,7 @@ async fn fetch_records(
     account: &str,
     full: bool,
     cursor: i64,
+    known_difficulties: &HashMap<String, String>,
 ) -> Result<Vec<Submission>, SyncError> {
     let cutoff = if full {
         0
@@ -314,7 +331,8 @@ async fn fetch_records(
             let difficulty = problem
                 .get("difficulty")
                 .and_then(Value::as_i64)
-                .and_then(luogu_difficulty);
+                .and_then(luogu_difficulty)
+                .or_else(|| known_difficulties.get(pid).cloned());
             let id = record
                 .get("id")
                 .and_then(Value::as_i64)
@@ -324,6 +342,7 @@ async fn fetch_records(
                 platform: "luogu".into(),
                 account: account.into(),
                 source: "oj".into(),
+                source_day: None,
                 submission_id: id,
                 problem_key: pid.into(),
                 problem_id: pid.into(),

@@ -21,6 +21,7 @@ pub struct Submission {
     pub platform: String,
     pub account: String,
     pub source: String,
+    pub source_day: Option<String>,
     pub submission_id: String,
     pub problem_key: String,
     pub problem_id: String,
@@ -34,6 +35,7 @@ pub struct Submission {
 #[derive(Debug, Clone)]
 pub struct AggregateDay {
     pub day: String,
+    pub epoch_second: Option<i64>,
     pub metric: String,
     pub count: i64,
     pub note: String,

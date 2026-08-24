@@ -24,15 +24,15 @@ export const SYNC_TIPS = [
 export function emptyAccounts(): AccountMap {
   return Object.fromEntries(PLATFORM_ORDER.map((platform) => [platform, []])) as unknown as AccountMap;
 }
-export function scopeRange(scope: TimeScope) {
+export function scopeRange(scope: TimeScope, timeZone = 'Asia/Shanghai') {
   if (scope !== 'until') return { start: `${scope}-01-01`, end: `${scope}-12-31` };
-  const end = new Date(`${today()}T00:00:00Z`); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 364);
+  const end = new Date(`${today(timeZone)}T00:00:00Z`); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 364);
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
-export function initialScope(): TimeScope {
+export function initialScope(timeZone = 'Asia/Shanghai'): TimeScope {
   const saved = localStorage.getItem('oj-insight.time-scope');
   if (saved === 'until') return 'until';
-  const year = Number(saved); return year >= 2010 && year <= currentYear() ? year : 'until';
+  const year = Number(saved); return year >= 2010 && year <= currentYear(timeZone) ? year : 'until';
 }
 export function initialMetric(): Metric {
   const saved = localStorage.getItem('oj-insight.metric') as Metric | null;

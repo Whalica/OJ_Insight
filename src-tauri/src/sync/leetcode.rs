@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use chrono::Datelike;
+use chrono::{DateTime, Datelike, Utc};
 use reqwest::{
     header::{
         HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, REFERER, USER_AGENT,
@@ -9,7 +9,7 @@ use reqwest::{
 };
 use serde_json::{json, Value};
 
-use super::{now_epoch, polite_sleep, post_json};
+use super::{now_epoch, polite_sleep, post_json, with_raw_cookie};
 use crate::models::{
     AccountConfig, AggregateDay, DifficultyStat, RemoteData, Submission, SyncError,
 };
@@ -55,7 +55,7 @@ fn parse_account(raw: &str) -> (&str, LeetCodeSite) {
     }
 }
 
-fn headers(site: &LeetCodeSite) -> HeaderMap {
+fn headers(site: &LeetCodeSite, cookie: &str) -> HeaderMap {
     let mut h = HeaderMap::new();
     h.insert(
         USER_AGENT,
@@ -71,12 +71,14 @@ fn headers(site: &LeetCodeSite) -> HeaderMap {
         HeaderName::from_static("x-requested-with"),
         HeaderValue::from_static("XMLHttpRequest"),
     );
-    h
+    with_raw_cookie(h, cookie)
 }
 
 const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } recentAcSubmissionList(username: $username, limit: 20) { id title titleSlug timestamp } }"#;
 const CN_PROGRESS_QUERY: &str = r#"query userQuestionProgress($userSlug: String!) { userProfileUserQuestionProgress(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 const CN_PROGRESS_V2_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
+const CN_CALENDAR_QUERY: &str = r#"query userProfileCalendar($userSlug: String!, $year: Int) { userProfileCalendar(userSlug: $userSlug, year: $year) { activeYears streak totalActiveDays submissionCalendar } }"#;
+const CN_RECENT_QUERY: &str = r#"query recentACSubmissions($userSlug: String!) { recentACSubmissions(userSlug: $userSlug) { submissionId submitTime question { questionFrontendId title titleSlug translatedTitle } } }"#;
 
 pub async fn fetch(
     client: &Client,
@@ -88,29 +90,32 @@ pub async fn fetch(
     if user.is_empty() {
         return Err(SyncError::error("LeetCode 用户名为空"));
     }
+    let cookie = account.secret.trim();
     if site.kind == SiteKind::China {
         let empty = Value::Null;
-        let (solved_count, difficulty) = profile_stats(client, user, &site, &empty).await?;
+        let (solved_count, difficulty) = profile_stats(client, user, &site, &empty, cookie).await?;
+        let (aggregates, submissions, calendar_note) = load_cn_activity(client, user, &site, cookie).await;
+        let has_aggregates = !aggregates.is_empty();
         return Ok(RemoteData {
             platform: "leetcode".into(),
             account: format!("cn:{user}"),
-            submissions: vec![],
-            aggregates: vec![],
+            submissions,
+            aggregates,
             solved_count,
             difficulty,
             activity_only: true,
             notes: vec![
                 "LeetCode 中国站公开个人资料使用独立 GraphQL schema".into(),
-                "中国站目前没有稳定可用的公开 Activity 日历接口；解题总数与难度正常同步，已有日期缓存不会被清空。".into(),
+                calendar_note,
             ],
             cursor_epoch: now_epoch(),
             replace_submissions: false,
-            replace_aggregates: false,
+            replace_aggregates: has_aggregates,
         });
     }
 
-    let (first, aggregates) = load_calendar(client, user, &site).await?;
-    let (solved_count, difficulty) = profile_stats(client, user, &site, &first).await?;
+    let (first, aggregates) = load_calendar(client, user, &site, cookie).await?;
+    let (solved_count, difficulty) = profile_stats(client, user, &site, &first, cookie).await?;
     let submissions = recent_submissions(user, &first);
     Ok(RemoteData {
         platform: "leetcode".into(),
@@ -156,6 +161,7 @@ fn recent_submissions(user: &str, payload: &Value) -> Vec<Submission> {
                         platform: "leetcode".into(),
                         account: user.into(),
                         source: "oj".into(),
+                        source_day: None,
                         submission_id: id,
                         problem_key: slug.into(),
                         problem_id: slug.into(),
@@ -179,9 +185,10 @@ async fn load_calendar(
     client: &Client,
     user: &str,
     site: &LeetCodeSite,
+    cookie: &str,
 ) -> Result<(Value, Vec<AggregateDay>), SyncError> {
     let current = chrono::Utc::now().year();
-    let first = calendar_request(client, user, current, site).await?;
+    let first = calendar_request(client, user, current, site, cookie).await?;
     let initial_calendar = calendar_node(&first)
         .filter(|v| !v.is_null())
         .ok_or_else(|| {
@@ -207,7 +214,7 @@ async fn load_calendar(
         let payload = if year == current {
             first.clone()
         } else {
-            calendar_request(client, user, year, site).await?
+            calendar_request(client, user, year, site, cookie).await?
         };
         if let Some(s) = calendar_node(&payload)
             .and_then(|v| v.get("submissionCalendar"))
@@ -227,7 +234,11 @@ async fn load_calendar(
         .into_iter()
         .filter_map(|(epoch, count)| {
             epoch.parse::<i64>().ok().map(|ts| AggregateDay {
-                day: crate::db::day_utc8(ts),
+                day: DateTime::from_timestamp(ts, 0)
+                    .unwrap_or_else(Utc::now)
+                    .format("%Y-%m-%d")
+                    .to_string(),
+                epoch_second: Some(ts),
                 metric: "activity".into(),
                 count,
                 note: format!(
@@ -249,9 +260,177 @@ async fn calendar_request(
     user: &str,
     year: i32,
     site: &LeetCodeSite,
+    cookie: &str,
 ) -> Result<Value, SyncError> {
     let body = json!({"operationName":"userProfileCalendar","query":GLOBAL_QUERY,"variables":{"username":user,"year":year}});
-    post_json(client, site.endpoint, headers(site), body).await
+    post_json(client, site.endpoint, headers(site, cookie), body).await
+}
+
+async fn load_cn_activity(
+    client: &Client,
+    user: &str,
+    site: &LeetCodeSite,
+    cookie: &str,
+) -> (Vec<AggregateDay>, Vec<Submission>, String) {
+    let current = chrono::Utc::now().year();
+    let body = json!({
+        "operationName": "userProfileCalendar",
+        "query": CN_CALENDAR_QUERY,
+        "variables": { "userSlug": user, "year": current }
+    });
+    let first = match post_cn_activity(client, site, cookie, body).await {
+        Ok(value) => value,
+        Err(error) => {
+            return (
+                Vec::new(),
+                Vec::new(),
+                format!(
+                    "活动日历接口暂不可用（{}）；已有活动砖缓存会保留。{}",
+                    error.message,
+                    if cookie.is_empty() { "可在账号设置中填写对应站点 Cookie 后重试。" } else { "已携带 Cookie 请求。" }
+                ),
+            )
+        }
+    };
+    let mut years = BTreeSet::new();
+    if let Some(items) = first
+        .pointer("/data/userProfileCalendar/activeYears")
+        .and_then(Value::as_array)
+    {
+        for item in items {
+            if let Some(year) = item.as_i64() {
+                years.insert(year as i32);
+            }
+        }
+    }
+    years.insert(current);
+    let mut calendar = BTreeMap::new();
+    for year in years {
+        let payload = if year == current {
+            first.clone()
+        } else {
+            let body = json!({
+                "operationName": "userProfileCalendar",
+                "query": CN_CALENDAR_QUERY,
+                "variables": { "userSlug": user, "year": year }
+            });
+            match post_cn_activity(client, site, cookie, body).await {
+                Ok(value) => value,
+                Err(_) => continue,
+            }
+        };
+        if let Some(serialized) = payload
+            .pointer("/data/userProfileCalendar/submissionCalendar")
+            .and_then(Value::as_str)
+        {
+            if let Ok(rows) = serde_json::from_str::<BTreeMap<String, i64>>(serialized) {
+                calendar.extend(rows.into_iter().filter(|(_, count)| *count > 0));
+            }
+        }
+        polite_sleep(120).await;
+    }
+    let aggregates = calendar
+        .into_iter()
+        .filter_map(|(epoch, count)| {
+            epoch.parse::<i64>().ok().map(|ts| AggregateDay {
+                day: DateTime::from_timestamp(ts, 0)
+                    .unwrap_or_else(Utc::now)
+                    .format("%Y-%m-%d")
+                    .to_string(),
+                epoch_second: Some(ts),
+                metric: "activity".into(),
+                count,
+                note: "LeetCode CN submissionCalendar：提交活动计数".into(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let recent_body = json!({
+        "operationName": "recentACSubmissions",
+        "query": CN_RECENT_QUERY,
+        "variables": { "userSlug": user }
+    });
+    let submissions = post_cn_activity(client, site, cookie, recent_body)
+        .await
+        .ok()
+        .and_then(|payload| payload.pointer("/data/recentACSubmissions").cloned())
+        .and_then(|value| value.as_array().cloned())
+        .map(|rows| {
+            rows.into_iter()
+                .filter_map(|row| {
+                    let question = row.get("question")?;
+                    let slug = question.get("titleSlug").and_then(Value::as_str)?;
+                    let ts = row.get("submitTime").and_then(|value| {
+                        value
+                            .as_i64()
+                            .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+                    })?;
+                    let id = row
+                        .get("submissionId")
+                        .and_then(|value| {
+                            value
+                                .as_str()
+                                .map(str::to_string)
+                                .or_else(|| value.as_i64().map(|number| number.to_string()))
+                        })
+                        .unwrap_or_else(|| format!("cn-{user}-{ts}-{slug}"));
+                    Some(Submission {
+                        platform: "leetcode".into(),
+                        account: format!("cn:{user}"),
+                        source: "oj".into(),
+                        source_day: None,
+                        submission_id: id,
+                        problem_key: slug.into(),
+                        problem_id: question
+                            .get("questionFrontendId")
+                            .and_then(Value::as_str)
+                            .unwrap_or(slug)
+                            .into(),
+                        problem_name: question
+                            .get("translatedTitle")
+                            .or_else(|| question.get("title"))
+                            .and_then(Value::as_str)
+                            .unwrap_or(slug)
+                            .into(),
+                        problem_url: format!("https://leetcode.cn/problems/{slug}/"),
+                        epoch_second: ts,
+                        language: String::new(),
+                        difficulty: None,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let note = format!(
+        "活动日历 {} 天，最近 AC {} 条；日期来自官方日历 epoch，并按所选时区显示。",
+        aggregates.len(),
+        submissions.len()
+    );
+    (aggregates, submissions, note)
+}
+
+async fn post_cn_activity(
+    client: &Client,
+    site: &LeetCodeSite,
+    cookie: &str,
+    body: Value,
+) -> Result<Value, SyncError> {
+    match post_json(client, site.endpoint, headers(site, cookie), body.clone()).await {
+        Ok(value) => Ok(value),
+        Err(primary) => post_json(
+            client,
+            "https://leetcode.cn/graphql/noj-go/",
+            headers(site, cookie),
+            body,
+        )
+        .await
+        .map_err(|fallback| {
+            SyncError::error(format!(
+                "标准接口：{}；noj-go 回退：{}",
+                primary.message, fallback.message
+            ))
+        }),
+    }
 }
 
 async fn profile_stats(
@@ -259,14 +438,15 @@ async fn profile_stats(
     user: &str,
     site: &LeetCodeSite,
     first: &Value,
+    cookie: &str,
 ) -> Result<(Option<i64>, Vec<DifficultyStat>), SyncError> {
     let rows = if site.kind == SiteKind::China {
         let v1 = json!({"operationName":"userQuestionProgress","query":CN_PROGRESS_QUERY,"variables":{"userSlug":user}});
-        let value = match post_json(client, site.endpoint, headers(site), v1).await {
+        let value = match post_json(client, site.endpoint, headers(site, cookie), v1).await {
             Ok(value) => value,
             Err(v1_error) => {
                 let v2 = json!({"operationName":"userProfileUserQuestionProgressV2","query":CN_PROGRESS_V2_QUERY,"variables":{"userSlug":user}});
-                post_json(client, site.endpoint, headers(site), v2)
+                post_json(client, site.endpoint, headers(site, cookie), v2)
                     .await
                     .map_err(|v2_error| {
                         SyncError::error(format!(

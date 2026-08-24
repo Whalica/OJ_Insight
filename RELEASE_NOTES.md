@@ -1,3 +1,24 @@
+# OJ Insight 0.4.0 — Time Zone & Reliable Sources
+
+## 统计与界面
+
+- 新增统计时区选择，今日进度、问候语、活动砖、难度足迹、连续打卡与零点换日统一按所选时区计算。
+- “至今”明确改为“至今（近一年）”；生涯累计移动到今日进度与时间范围之间。
+- 难度统计改为生涯去重题目数：同一账号同一题只计一次；未完成的 0 项不显示，柱间距随实际分级数量变化。
+- Codeforces 难度图隐藏系统白色滚动条；AtCoder 低分 difficulty 使用官方显示换算且不再出现负分。
+- 最近 AC 不受当前年份筛选影响；Tracker 仅有日期时明确显示“来源日期”。
+
+## 数据源
+
+- Luogu 从练习题单补齐已通过题目的最新八级难度，用于提交与难度足迹；提交接口不可用时仍安全保留 `dailyCounts`。
+- NowCoder 保留普通 OJ 提交，并支持用可选 Cookie 读取 Tracker 完成日；优先匹配真实提交，无法匹配时保存不伪造时间的日期记录。
+- LeetCode 国际站日历保留原始 epoch 后按统计时区换算；中国站新增独立活动日历、最近 AC 与可选 Cookie 回退，接口失败不清空旧缓存。
+
+## 发布
+
+- 版本统一更新到 0.4.0。
+- 统一 workflow 一次并行构建 Windows、macOS、Linux，最终额外产出 `OJ-Insight-All-Platforms.zip` 与 SHA-256 校验清单。
+
 # OJ Insight 0.3.0 — Multi-account & Difficulty Footprint
 
 ## UI 与统计

@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
-use chrono::{DateTime, Duration, FixedOffset, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Duration, LocalResult, NaiveDate, TimeZone, Utc};
+use chrono_tz::Tz;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
 use crate::models::*;
@@ -36,6 +37,9 @@ CREATE TABLE IF NOT EXISTS account_sync_state (
 );
 CREATE TABLE IF NOT EXISTS submissions (
   platform TEXT NOT NULL,
+  account TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'oj',
+  source_day TEXT,
   submission_id TEXT NOT NULL,
   problem_key TEXT NOT NULL,
   problem_id TEXT NOT NULL DEFAULT '',
@@ -62,6 +66,7 @@ CREATE TABLE IF NOT EXISTS daily_aggregates (
   metric TEXT NOT NULL,
   count INTEGER NOT NULL,
   note TEXT NOT NULL DEFAULT '',
+  epoch_second INTEGER,
   PRIMARY KEY(platform, day, metric)
 );
 CREATE TABLE IF NOT EXISTS daily_aggregates_accounts (
@@ -71,6 +76,7 @@ CREATE TABLE IF NOT EXISTS daily_aggregates_accounts (
   metric TEXT NOT NULL,
   count INTEGER NOT NULL,
   note TEXT NOT NULL DEFAULT '',
+  epoch_second INTEGER,
   PRIMARY KEY(platform, account, day, metric)
 );
 CREATE TABLE IF NOT EXISTS platform_stats (
@@ -115,6 +121,14 @@ CREATE TABLE IF NOT EXISTS sync_state (
     .map_err(|e| format!("初始化 SQLite 失败：{e}"))?;
     ensure_column(&conn, "submissions", "account", "TEXT NOT NULL DEFAULT ''")?;
     ensure_column(&conn, "submissions", "source", "TEXT NOT NULL DEFAULT 'oj'")?;
+    ensure_column(&conn, "submissions", "source_day", "TEXT")?;
+    ensure_column(&conn, "daily_aggregates", "epoch_second", "INTEGER")?;
+    ensure_column(
+        &conn,
+        "daily_aggregates_accounts",
+        "epoch_second",
+        "INTEGER",
+    )?;
     conn.execute("INSERT OR IGNORE INTO account_entries(platform,account,secret,updated_at) SELECT platform,account,secret,updated_at FROM accounts WHERE TRIM(account)<>''", []).map_err(|e| e.to_string())?;
     conn.execute("UPDATE submissions SET account=COALESCE((SELECT account FROM accounts a WHERE a.platform=submissions.platform),'') WHERE account=''", []).map_err(|e| e.to_string())?;
     conn.execute("INSERT OR IGNORE INTO daily_aggregates_accounts(platform,account,day,metric,count,note) SELECT d.platform,COALESCE(a.account,''),d.day,d.metric,d.count,d.note FROM daily_aggregates d LEFT JOIN accounts a ON a.platform=d.platform", []).map_err(|e| e.to_string())?;
@@ -270,6 +284,27 @@ pub fn mark_failed(
 
 pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, i64), String> {
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let previous_aggregates = if remote.activity_only && !remote.aggregates.is_empty() {
+        let mut stmt = tx
+            .prepare("SELECT day,metric,count FROM daily_aggregates_accounts WHERE platform=? AND account=?")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![remote.platform, remote.account], |row| {
+                Ok((
+                    (row.get::<_, String>(0)?, row.get::<_, String>(1)?),
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut values = HashMap::new();
+        for row in rows {
+            let (key, count) = row.map_err(|e| e.to_string())?;
+            values.insert(key, count);
+        }
+        values
+    } else {
+        HashMap::new()
+    };
     if remote.replace_submissions {
         tx.execute(
             "DELETE FROM submissions WHERE platform=? AND account=?",
@@ -284,8 +319,8 @@ pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, 
         )
         .map_err(|e| e.to_string())?;
     }
-    let mut inserted = 0_i64;
-    let mut updated = 0_i64;
+    let mut submission_inserted = 0_i64;
+    let mut submission_updated = 0_i64;
     for s in &remote.submissions {
         let exists: bool = tx
             .query_row(
@@ -294,18 +329,32 @@ pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, 
                 |r| r.get(0),
             )
             .map_err(|e| e.to_string())?;
-        tx.execute(r#"INSERT INTO submissions(platform,account,source,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty)
-VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SET account=excluded.account,source=excluded.source,problem_key=excluded.problem_key,problem_id=excluded.problem_id,problem_name=excluded.problem_name,problem_url=excluded.problem_url,epoch_second=excluded.epoch_second,language=excluded.language,difficulty=excluded.difficulty"#,
-            params![s.platform,s.account,s.source,s.submission_id,s.problem_key,s.problem_id,s.problem_name,s.problem_url,s.epoch_second,s.language,s.difficulty]).map_err(|e| e.to_string())?;
+        tx.execute(r#"INSERT INTO submissions(platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SET account=excluded.account,source=excluded.source,source_day=excluded.source_day,problem_key=excluded.problem_key,problem_id=excluded.problem_id,problem_name=excluded.problem_name,problem_url=excluded.problem_url,epoch_second=excluded.epoch_second,language=excluded.language,difficulty=excluded.difficulty"#,
+            params![s.platform,s.account,s.source,s.source_day,s.submission_id,s.problem_key,s.problem_id,s.problem_name,s.problem_url,s.epoch_second,s.language,s.difficulty]).map_err(|e| e.to_string())?;
         if exists {
-            updated += 1;
+            submission_updated += 1;
         } else {
-            inserted += 1;
+            submission_inserted += 1;
         }
     }
+    let mut aggregate_inserted = 0_i64;
+    let mut aggregate_updated = 0_i64;
     for a in &remote.aggregates {
-        tx.execute("INSERT INTO daily_aggregates_accounts(platform,account,day,metric,count,note) VALUES(?,?,?,?,?,?) ON CONFLICT(platform,account,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note", params![remote.platform,remote.account,a.day,a.metric,a.count,a.note]).map_err(|e| e.to_string())?;
-        tx.execute("INSERT INTO daily_aggregates(platform,day,metric,count,note) VALUES(?,?,?,?,?) ON CONFLICT(platform,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note", params![remote.platform,a.day,a.metric,a.count,a.note]).map_err(|e| e.to_string())?;
+        if remote.activity_only {
+            let previous = previous_aggregates
+                .get(&(a.day.clone(), a.metric.clone()))
+                .copied()
+                .unwrap_or(0);
+            let delta = a.count - previous;
+            if delta > 0 {
+                aggregate_inserted += delta;
+            } else if delta < 0 {
+                aggregate_updated += 1;
+            }
+        }
+        tx.execute("INSERT INTO daily_aggregates_accounts(platform,account,day,metric,count,note,epoch_second) VALUES(?,?,?,?,?,?,?) ON CONFLICT(platform,account,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note,epoch_second=excluded.epoch_second", params![remote.platform,remote.account,a.day,a.metric,a.count,a.note,a.epoch_second]).map_err(|e| e.to_string())?;
+        tx.execute("INSERT INTO daily_aggregates(platform,day,metric,count,note,epoch_second) VALUES(?,?,?,?,?,?) ON CONFLICT(platform,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note,epoch_second=excluded.epoch_second", params![remote.platform,a.day,a.metric,a.count,a.note,a.epoch_second]).map_err(|e| e.to_string())?;
         tx.execute("INSERT INTO daily_counts(platform,day,metric,count) VALUES(?,?,?,?) ON CONFLICT(platform,day,metric) DO UPDATE SET count=excluded.count", params![remote.platform,a.day,a.metric,a.count]).map_err(|e| e.to_string())?;
     }
     tx.execute(
@@ -365,6 +414,11 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SET 
     } else {
         recompute_aggregate_daily(&tx, &remote.platform)?;
     }
+    let (inserted, updated) = if remote.activity_only && !remote.aggregates.is_empty() {
+        (aggregate_inserted, aggregate_updated)
+    } else {
+        (submission_inserted, submission_updated)
+    };
     let now = Utc::now().timestamp();
     let warning = remote
         .notes
@@ -422,7 +476,7 @@ fn recompute_raw_daily(tx: &Transaction<'_>, platform: &str) -> Result<(), Strin
     let mut subs: BTreeMap<String, i64> = BTreeMap::new();
     for row in rows {
         let (problem, ts) = row.map_err(|e| e.to_string())?;
-        let day = day_utc8(ts);
+        let day = day_in_time_zone(ts, "Asia/Shanghai");
         *subs.entry(day.clone()).or_default() += 1;
         if daily_seen.insert(format!("{day}\0{problem}")) {
             *unique.entry(day.clone()).or_default() += 1;
@@ -501,13 +555,45 @@ pub fn clear_all(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-pub fn day_utc8(ts: i64) -> String {
-    let tz = FixedOffset::east_opt(8 * 3600).unwrap();
+fn parse_time_zone(value: &str) -> Tz {
+    value
+        .parse::<Tz>()
+        .unwrap_or(chrono_tz::Asia::Shanghai)
+}
+
+pub fn day_in_time_zone(ts: i64, time_zone: &str) -> String {
+    let tz = parse_time_zone(time_zone);
     DateTime::<Utc>::from_timestamp(ts, 0)
         .unwrap_or_else(Utc::now)
         .with_timezone(&tz)
         .format("%Y-%m-%d")
         .to_string()
+}
+
+fn today_in_time_zone(time_zone: &str) -> NaiveDate {
+    Utc::now().with_timezone(&parse_time_zone(time_zone)).date_naive()
+}
+
+fn local_day_start(date: NaiveDate, time_zone: &str) -> Option<i64> {
+    let tz = parse_time_zone(time_zone);
+    for hour in 0..=6 {
+        let local = date.and_hms_opt(hour, 0, 0)?;
+        match tz.from_local_datetime(&local) {
+            LocalResult::Single(value) => return Some(value.timestamp()),
+            LocalResult::Ambiguous(first, second) => {
+                return Some(first.timestamp().min(second.timestamp()))
+            }
+            LocalResult::None => {}
+        }
+    }
+    None
+}
+
+fn day_epoch_range(day: &str, time_zone: &str) -> Option<(i64, i64)> {
+    let date = NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()?;
+    let start = local_day_start(date, time_zone)?;
+    let next = local_day_start(date.succ_opt()?, time_zone)?;
+    Some((start, next.saturating_sub(1)))
 }
 
 fn platform_activity_only(conn: &Connection, platform: &str, account: Option<&str>) -> bool {
@@ -552,7 +638,7 @@ fn platform_solved_lifetime(
         }
     }
     conn.query_row(
-        "SELECT COUNT(DISTINCT problem_key) FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?)",
+        "SELECT COUNT(*) FROM (SELECT account,problem_key FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) GROUP BY account,problem_key)",
         params![platform, account, account, source, source],
         |r| r.get(0),
     )
@@ -567,6 +653,7 @@ pub fn snapshot(
     metric: &str,
     account_filter: Option<&str>,
     source_filter: Option<&str>,
+    time_zone: &str,
 ) -> Result<Snapshot, String> {
     let selected: Vec<&str> = match platform {
         Some(p) => vec![p],
@@ -633,6 +720,7 @@ pub fn snapshot(
             end_day,
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )?;
         if !activity_only || metric == "activity" {
             metric_available = true;
@@ -648,6 +736,7 @@ pub fn snapshot(
             end_day,
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )?;
         solved_range += first.iter().map(|x| x.1).sum::<i64>();
         let acs = load_daily(
@@ -658,10 +747,11 @@ pub fn snapshot(
             end_day,
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )?;
         ac_sub_range += acs.iter().map(|x| x.1).sum::<i64>();
         let active_days = daily.iter().filter(|x| x.1 > 0).count() as i64;
-        let today_key = day_utc8(Utc::now().timestamp());
+        let today_key = day_in_time_zone(Utc::now().timestamp(), time_zone);
         let today_count = load_daily(
             conn,
             p,
@@ -670,6 +760,7 @@ pub fn snapshot(
             Some(&today_key),
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )?
         .first()
         .map(|item| item.1)
@@ -695,6 +786,7 @@ pub fn snapshot(
             None,
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )? {
             *career_daily.entry(day).or_default() += count;
         }
@@ -722,11 +814,12 @@ pub fn snapshot(
         recent.extend(load_recent(
             conn,
             p,
-            start_day,
-            end_day,
+            None,
+            None,
             20,
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )?);
         difficulty.extend(difficulty_for_platform(
             conn,
@@ -743,6 +836,7 @@ pub fn snapshot(
             end_day,
             platform_account_filter,
             platform_source_filter,
+            time_zone,
         )?);
     }
     recent.sort_by_key(|x| std::cmp::Reverse(x.epoch_second));
@@ -754,8 +848,14 @@ pub fn snapshot(
             count: *c,
         })
         .collect();
-    let stats = stats_for_map(&combined, solved_range, ac_sub_range, end_day);
-    let career = stats_for_map(&career_daily, career_solved, career_ac_sub, None);
+    let stats = stats_for_map(&combined, solved_range, ac_sub_range, end_day, time_zone);
+    let career = stats_for_map(
+        &career_daily,
+        career_solved,
+        career_ac_sub,
+        None,
+        time_zone,
+    );
     Ok(Snapshot {
         stats,
         career,
@@ -774,9 +874,10 @@ fn stats_for_map(
     solved: i64,
     accepted_submissions: i64,
     end: Option<&str>,
+    time_zone: &str,
 ) -> SnapshotStats {
     let active_days = map.values().filter(|&&c| c > 0).count() as i64;
-    let (longest, current) = streaks(map, end);
+    let (longest, current) = streaks(map, end, time_zone);
     let (peak_day, peak_count) = map
         .iter()
         .max_by_key(|(_, c)| *c)
@@ -801,6 +902,7 @@ fn load_daily(
     end: Option<&str>,
     account: Option<&str>,
     source: Option<&str>,
+    time_zone: &str,
 ) -> Result<Vec<(String, i64)>, String> {
     let s = start.unwrap_or("0000-00-00");
     let e = end.unwrap_or("9999-99-99");
@@ -820,8 +922,16 @@ fn load_daily(
         if !accounts.is_empty() {
             let mut combined = BTreeMap::new();
             for account in &accounts {
-                for (day, count) in load_daily(conn, p, metric, start, end, Some(account), source)?
-                {
+                for (day, count) in load_daily(
+                    conn,
+                    p,
+                    metric,
+                    start,
+                    end,
+                    Some(account),
+                    source,
+                    time_zone,
+                )? {
                     *combined.entry(day).or_default() += count;
                 }
             }
@@ -833,24 +943,34 @@ fn load_daily(
             return Ok(Vec::new());
         }
         let account = account.unwrap_or("");
-        let mut stmt=conn.prepare("SELECT day,SUM(count) FROM daily_aggregates_accounts WHERE platform=? AND metric=? AND day>=? AND day<=? AND (?='' OR account=?) GROUP BY day ORDER BY day").map_err(|e|e.to_string())?;
+        let mut stmt=conn.prepare("SELECT day,epoch_second,count FROM daily_aggregates_accounts WHERE platform=? AND metric=? AND (?='' OR account=?) ORDER BY day").map_err(|e|e.to_string())?;
         let rows = stmt
-            .query_map(params![p, metric, s, e, account, account], |r| {
-                Ok((r.get(0)?, r.get(1)?))
+            .query_map(params![p, metric, account, account], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, Option<i64>>(1)?, r.get::<_, i64>(2)?))
             })
             .map_err(|e| e.to_string())?;
-        let mut out = Vec::new();
+        let mut out = BTreeMap::new();
         for row in rows {
-            out.push(row.map_err(|e| e.to_string())?);
+            let (source_day, epoch, count) = row.map_err(|e| e.to_string())?;
+            let day = epoch
+                .map(|value| day_in_time_zone(value, time_zone))
+                .unwrap_or(source_day);
+            if day.as_str() >= s && day.as_str() <= e {
+                *out.entry(day).or_default() += count;
+            }
         }
-        return Ok(out);
+        return Ok(out.into_iter().collect());
     }
     let account = account.unwrap_or("");
     let source = source.unwrap_or("");
-    let mut stmt=conn.prepare("SELECT problem_key,epoch_second FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second,submission_id").map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare("SELECT problem_key,epoch_second,source_day FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second,submission_id").map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map(params![p, account, account, source, source], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, Option<String>>(2)?,
+            ))
         })
         .map_err(|e| e.to_string())?;
     let mut first_seen = HashSet::new();
@@ -859,8 +979,8 @@ fn load_daily(
     let mut unique = BTreeMap::new();
     let mut subs = BTreeMap::new();
     for row in rows {
-        let (problem, ts) = row.map_err(|e| e.to_string())?;
-        let day = day_utc8(ts);
+        let (problem, ts, source_day) = row.map_err(|e| e.to_string())?;
+        let day = source_day.unwrap_or_else(|| day_in_time_zone(ts, time_zone));
         *subs.entry(day.clone()).or_default() += 1;
         if daily_seen.insert(format!("{day}\0{problem}")) {
             *unique.entry(day.clone()).or_default() += 1;
@@ -889,15 +1009,22 @@ fn load_recent(
     limit: i64,
     account: Option<&str>,
     source: Option<&str>,
+    time_zone: &str,
 ) -> Result<Vec<Submission>, String> {
-    let start_ts = day_start_epoch(start.unwrap_or("1970-01-01")).unwrap_or(0);
-    let end_ts = day_end_epoch(end.unwrap_or("2999-12-31")).unwrap_or(i64::MAX / 2);
+    let start_ts = start
+        .and_then(|day| day_epoch_range(day, time_zone).map(|range| range.0))
+        .unwrap_or(0);
+    let end_ts = end
+        .and_then(|day| day_epoch_range(day, time_zone).map(|range| range.1))
+        .unwrap_or(i64::MAX / 2);
     let account = account.unwrap_or("");
     let source = source.unwrap_or("");
-    let mut stmt=conn.prepare("SELECT platform,account,source,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND epoch_second>=? AND epoch_second<=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC LIMIT ?").map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare("SELECT platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND ((source_day IS NULL AND epoch_second>=? AND epoch_second<=?) OR (source_day IS NOT NULL AND source_day>=? AND source_day<=?)) AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC LIMIT ?").map_err(|e|e.to_string())?;
+    let start_day = start.unwrap_or("0000-00-00");
+    let end_day = end.unwrap_or("9999-99-99");
     let rows = stmt
         .query_map(
-            params![p, start_ts, end_ts, account, account, source, source, limit],
+            params![p, start_ts, end_ts, start_day, end_day, account, account, source, source, limit],
             row_submission,
         )
         .map_err(|e| e.to_string())?;
@@ -912,22 +1039,23 @@ fn row_submission(r: &rusqlite::Row<'_>) -> rusqlite::Result<Submission> {
         platform: r.get(0)?,
         account: r.get(1)?,
         source: r.get(2)?,
-        submission_id: r.get(3)?,
-        problem_key: r.get(4)?,
-        problem_id: r.get(5)?,
-        problem_name: r.get(6)?,
-        problem_url: r.get(7)?,
-        epoch_second: r.get(8)?,
-        language: r.get(9)?,
-        difficulty: r.get(10)?,
+        source_day: r.get(3)?,
+        submission_id: r.get(4)?,
+        problem_key: r.get(5)?,
+        problem_id: r.get(6)?,
+        problem_name: r.get(7)?,
+        problem_url: r.get(8)?,
+        epoch_second: r.get(9)?,
+        language: r.get(10)?,
+        difficulty: r.get(11)?,
     })
 }
 
 fn difficulty_for_platform(
     conn: &Connection,
     p: &str,
-    start: Option<&str>,
-    end: Option<&str>,
+    _start: Option<&str>,
+    _end: Option<&str>,
     account: Option<&str>,
     source: Option<&str>,
 ) -> Result<Vec<DifficultyBucket>, String> {
@@ -940,19 +1068,7 @@ fn difficulty_for_platform(
             |r| r.get(0),
         )
         .unwrap_or(0);
-    let raw_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?)",
-        params![p,account,account,source,source], |r| r.get(0)).unwrap_or(0);
-    let explicit_only = platform_activity_only(
-        conn,
-        p,
-        if account.is_empty() {
-            None
-        } else {
-            Some(account)
-        },
-    );
-    if explicit_count > 0 && (explicit_only || raw_count == 0) && source.is_empty() {
+    if explicit_count > 0 && source.is_empty() {
         let mut stmt=conn.prepare("SELECT label,SUM(count),sort_order FROM difficulty_stats_accounts WHERE platform=? AND (?='' OR account=?) GROUP BY label,sort_order ORDER BY sort_order,label").map_err(|e|e.to_string())?;
         let rows = stmt
             .query_map(params![p, account, account], |r| {
@@ -968,29 +1084,23 @@ fn difficulty_for_platform(
         for r in rows {
             out.push(r.map_err(|e| e.to_string())?);
         }
-        return Ok(out);
+        return Ok(out.into_iter().filter(|item| item.count > 0).collect());
     }
-    let mut stmt=conn.prepare("SELECT problem_key,epoch_second,difficulty FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second,submission_id").map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare("SELECT account,problem_key,difficulty FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second,submission_id").map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map(params![p, account, account, source, source], |r| {
             Ok((
                 r.get::<_, String>(0)?,
-                r.get::<_, i64>(1)?,
+                r.get::<_, String>(1)?,
                 r.get::<_, Option<String>>(2)?,
             ))
         })
         .map_err(|e| e.to_string())?;
-    let s = start.unwrap_or("0000-00-00");
-    let e = end.unwrap_or("9999-99-99");
     let mut seen = HashSet::new();
     let mut bucket: BTreeMap<(i64, String), i64> = BTreeMap::new();
     for row in rows {
-        let (problem, ts, diff) = row.map_err(|e| e.to_string())?;
-        if !seen.insert(problem) {
-            continue;
-        }
-        let day = day_utc8(ts);
-        if day.as_str() < s || day.as_str() > e {
+        let (row_account, problem, diff) = row.map_err(|e| e.to_string())?;
+        if !seen.insert(format!("{row_account}\0{problem}")) {
             continue;
         }
         if let Some(d) = diff {
@@ -1061,21 +1171,26 @@ fn difficulty_daily_for_platform(
     end: Option<&str>,
     account: Option<&str>,
     source: Option<&str>,
+    time_zone: &str,
 ) -> Result<Vec<DifficultyDayPoint>, String> {
     let s = start.unwrap_or("0000-00-00");
     let e = end.unwrap_or("9999-99-99");
     let account = account.unwrap_or("");
     let source = source.unwrap_or("");
-    let mut stmt = conn.prepare("SELECT epoch_second,difficulty FROM submissions WHERE platform=? AND difficulty IS NOT NULL AND TRIM(difficulty)<>'' AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second").map_err(|e|e.to_string())?;
+    let mut stmt = conn.prepare("SELECT epoch_second,difficulty,source_day FROM submissions WHERE platform=? AND difficulty IS NOT NULL AND TRIM(difficulty)<>'' AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second").map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map(params![p, account, account, source, source], |r| {
-            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<String>>(2)?,
+            ))
         })
         .map_err(|e| e.to_string())?;
     let mut days: BTreeMap<String, (i64, String)> = BTreeMap::new();
     for row in rows {
-        let (ts, difficulty) = row.map_err(|e| e.to_string())?;
-        let day = day_utc8(ts);
+        let (ts, difficulty, source_day) = row.map_err(|e| e.to_string())?;
+        let day = source_day.unwrap_or_else(|| day_in_time_zone(ts, time_zone));
         if day.as_str() < s || day.as_str() > e {
             continue;
         }
@@ -1101,7 +1216,7 @@ fn difficulty_daily_for_platform(
         .collect())
 }
 
-fn streaks(map: &BTreeMap<String, i64>, end: Option<&str>) -> (i64, i64) {
+fn streaks(map: &BTreeMap<String, i64>, end: Option<&str>, time_zone: &str) -> (i64, i64) {
     let days: Vec<NaiveDate> = map
         .iter()
         .filter(|(_, c)| **c > 0)
@@ -1120,9 +1235,7 @@ fn streaks(map: &BTreeMap<String, i64>, end: Option<&str>) -> (i64, i64) {
             cur = 1;
         }
     }
-    let today = Utc::now()
-        .with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap())
-        .date_naive();
+    let today = today_in_time_zone(time_zone);
     let target = end
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
         .map(|d| d.min(today))
@@ -1147,40 +1260,69 @@ pub fn day_detail(
     platform: Option<&str>,
     account: Option<&str>,
     source: Option<&str>,
+    time_zone: &str,
 ) -> Result<DayDetail, String> {
-    let start = day_start_epoch(day).ok_or_else(|| "日期格式错误".to_string())?;
-    let end = day_end_epoch(day).ok_or_else(|| "日期格式错误".to_string())?;
+    let (start, end) =
+        day_epoch_range(day, time_zone).ok_or_else(|| "日期或时区格式错误".to_string())?;
     let mut items = Vec::new();
-    let mut aggs = Vec::new();
+    let mut aggs: Vec<AggregateDetail> = Vec::new();
     let ps: Vec<&str> = platform
         .map(|p| vec![p])
         .unwrap_or_else(|| PLATFORMS.into_iter().collect());
     for p in ps {
         let account = account.unwrap_or("");
         let source = source.unwrap_or("");
-        let mut stmt=conn.prepare("SELECT platform,account,source,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND epoch_second>=? AND epoch_second<=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC").map_err(|e|e.to_string())?;
+        let mut stmt=conn.prepare("SELECT platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND ((source_day IS NULL AND epoch_second>=? AND epoch_second<=?) OR source_day=?) AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC").map_err(|e|e.to_string())?;
         let rows = stmt
             .query_map(
-                params![p, start, end, account, account, source, source],
+                params![p, start, end, day, account, account, source, source],
                 row_submission,
             )
             .map_err(|e| e.to_string())?;
         for r in rows {
             items.push(r.map_err(|e| e.to_string())?);
         }
-        let mut st=conn.prepare("SELECT platform,metric,SUM(count),COALESCE(GROUP_CONCAT(NULLIF(note,''),' · '),'') FROM daily_aggregates_accounts WHERE platform=? AND day=? AND (?='' OR account=?) GROUP BY platform,metric ORDER BY metric").map_err(|e|e.to_string())?;
+        let mut st=conn.prepare("SELECT platform,metric,count,note,day,epoch_second FROM daily_aggregates_accounts WHERE platform=? AND (?='' OR account=?) ORDER BY metric").map_err(|e|e.to_string())?;
         let rs = st
-            .query_map(params![p, day, account, account], |r| {
-                Ok(AggregateDetail {
-                    platform: r.get(0)?,
-                    metric: r.get(1)?,
-                    count: r.get(2)?,
-                    note: r.get(3)?,
-                })
+            .query_map(params![p, account, account], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, Option<i64>>(5)?,
+                ))
             })
             .map_err(|e| e.to_string())?;
         for r in rs {
-            aggs.push(r.map_err(|e| e.to_string())?);
+            let (row_platform, metric, count, note, source_day, epoch) =
+                r.map_err(|e| e.to_string())?;
+            let converted = epoch
+                .map(|value| day_in_time_zone(value, time_zone))
+                .unwrap_or(source_day);
+            if converted != day {
+                continue;
+            }
+            if let Some(existing) = aggs
+                .iter_mut()
+                .find(|item| item.platform == row_platform && item.metric == metric)
+            {
+                existing.count += count;
+                if !note.is_empty() && !existing.note.contains(&note) {
+                    if !existing.note.is_empty() {
+                        existing.note.push_str(" · ");
+                    }
+                    existing.note.push_str(&note);
+                }
+            } else {
+                aggs.push(AggregateDetail {
+                    platform: row_platform,
+                    metric,
+                    count,
+                    note,
+                });
+            }
         }
     }
     items.sort_by_key(|x| std::cmp::Reverse(x.epoch_second));
@@ -1191,18 +1333,6 @@ pub fn day_detail(
     })
 }
 
-fn day_start_epoch(day: &str) -> Option<i64> {
-    let date = NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()?;
-    let tz = FixedOffset::east_opt(8 * 3600)?;
-    Some(
-        tz.from_local_datetime(&date.and_hms_opt(0, 0, 0)?)
-            .single()?
-            .timestamp(),
-    )
-}
-fn day_end_epoch(day: &str) -> Option<i64> {
-    day_start_epoch(day).map(|x| x + 86399)
-}
 fn platform_name(p: &str) -> &'static str {
     match p {
         "codeforces" => "Codeforces",
@@ -1226,12 +1356,24 @@ fn metric_label(m: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{bucket_label, day_utc8};
+    use super::{bucket_label, day_epoch_range, day_in_time_zone};
 
     #[test]
     fn utc8_day_changes_at_china_midnight() {
-        assert_eq!(day_utc8(1_767_196_799), "2025-12-31");
-        assert_eq!(day_utc8(1_767_196_800), "2026-01-01");
+        assert_eq!(
+            day_in_time_zone(1_767_196_799, "Asia/Shanghai"),
+            "2025-12-31"
+        );
+        assert_eq!(
+            day_in_time_zone(1_767_196_800, "Asia/Shanghai"),
+            "2026-01-01"
+        );
+    }
+
+    #[test]
+    fn day_range_follows_dst_timezone() {
+        let (start, end) = day_epoch_range("2026-03-08", "America/New_York").unwrap();
+        assert_eq!(end - start + 1, 23 * 3600);
     }
 
     #[test]

@@ -90,6 +90,7 @@ pub async fn fetch(
                 platform: "codeforces".into(),
                 account: handle.into(),
                 source: "oj".into(),
+                source_day: None,
                 submission_id: s
                     .get("id")
                     .and_then(Value::as_i64)

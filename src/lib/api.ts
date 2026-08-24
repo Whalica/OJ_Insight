@@ -19,10 +19,10 @@ export const api = {
   syncAll: () => invoke<SyncResult[]>('sync_all'),
   clearPlatform: (platform: Platform) => invoke<void>('clear_platform_records', { platform }),
   clearAll: () => invoke<void>('clear_all_records'),
-  snapshot: (platform: Platform | null, startDay: string | null, endDay: string | null, metric: Metric, account: string | null = null, source: string | null = null) =>
-    invoke<Snapshot>('get_snapshot', { platform, startDay, endDay, metric, account, source }),
-  dayDetail: (day: string, platform: Platform | null, account: string | null = null, source: string | null = null) =>
-    invoke<DayDetail>('get_day_detail', { day, platform, account, source }),
+  snapshot: (platform: Platform | null, startDay: string | null, endDay: string | null, metric: Metric, account: string | null = null, source: string | null = null, timeZone = 'Asia/Shanghai') =>
+    invoke<Snapshot>('get_snapshot', { platform, startDay, endDay, metric, account, source, timeZone }),
+  dayDetail: (day: string, platform: Platform | null, account: string | null = null, source: string | null = null, timeZone = 'Asia/Shanghai') =>
+    invoke<DayDetail>('get_day_detail', { day, platform, account, source, timeZone }),
   checkForUpdates: () => invoke<UpdateInfo>('check_for_updates'),
   openExternal: (url: string) => invoke<void>('open_external', { url }),
 };

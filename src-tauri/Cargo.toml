@@ -1,6 +1,6 @@
 [package]
 name = "oj-insight"
-version = "0.3.0"
+version = "0.4.0"
 description = "Unified competitive programming analytics desktop app"
 authors = ["OJ Insight"]
 edition = "2021"
@@ -10,10 +10,10 @@ name = "oj_insight_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2" }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2" }
+tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
@@ -22,6 +22,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tokio = { version = "1", features = ["time"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
 regex = "1"
 scraper = "0.22"
 urlencoding = "2"

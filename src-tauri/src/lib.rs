@@ -315,6 +315,7 @@ fn get_snapshot(
     metric: String,
     account: Option<String>,
     source: Option<String>,
+    time_zone: Option<String>,
 ) -> Result<Snapshot, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::snapshot(
@@ -325,6 +326,7 @@ fn get_snapshot(
         &metric,
         account.as_deref(),
         source.as_deref(),
+        time_zone.as_deref().unwrap_or("Asia/Shanghai"),
     )
 }
 
@@ -335,6 +337,7 @@ fn get_day_detail(
     platform: Option<String>,
     account: Option<String>,
     source: Option<String>,
+    time_zone: Option<String>,
 ) -> Result<DayDetail, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::day_detail(
@@ -343,6 +346,7 @@ fn get_day_detail(
         platform.as_deref(),
         account.as_deref(),
         source.as_deref(),
+        time_zone.as_deref().unwrap_or("Asia/Shanghai"),
     )
 }
 
@@ -439,7 +443,7 @@ pub fn run() {
             let conn =
                 db::open(&data_dir.join("oj-insight.sqlite3")).map_err(std::io::Error::other)?;
             let client = Client::builder()
-                .user_agent("OJ-Insight/0.3.0")
+                .user_agent("OJ-Insight/0.4.0")
                 .timeout(std::time::Duration::from_secs(35))
                 .connect_timeout(std::time::Duration::from_secs(12))
                 .build()?;

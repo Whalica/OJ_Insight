@@ -6,9 +6,9 @@ export const PLATFORM_META: Record<Platform, { name: string; short: string; acce
   codeforces: { name: 'Codeforces', short: 'CF', accent: '#5aa6e8', accountHint: 'Handle' },
   atcoder: { name: 'AtCoder', short: 'ATC', accent: '#d7d9dc', accountHint: '用户名' },
   luogu: { name: 'Luogu', short: 'LG', accent: '#2d9cdb', accountHint: '用户名或数字 UID' },
-  nowcoder: { name: 'NowCoder', short: 'NC', accent: '#00b96b', accountHint: '个人主页 users/ 后的数字 User ID' },
+  nowcoder: { name: 'NowCoder', short: 'NC', accent: '#00b96b', accountHint: '个人主页 users/ 后的数字 User ID', secretHint: '可选：牛客网页 Cookie（用于同步 Tracker 完成记录）' },
   qoj: { name: 'QOJ', short: 'QOJ', accent: '#48d0c0', accountHint: '用户名', secretHint: '可选：UOJSESSID=...（QOJ 当前需登录查看完整提交）' },
-  leetcode: { name: 'LeetCode', short: 'LC', accent: '#f3b23c', accountHint: '国际站用户名；中国站写 cn:用户名' },
+  leetcode: { name: 'LeetCode', short: 'LC', accent: '#f3b23c', accountHint: '国际站用户名；中国站写 cn:用户名', secretHint: '可选：对应站点 Cookie（中国站活动与最近 AC 兜底）' },
 };
 
 export const METRICS = [
@@ -27,9 +27,9 @@ export function difficultyColor(platform: Platform, label: string, order = 0) {
   if (platform === 'luogu') return LUOGU_COLORS[label] || '#68737d';
   if (platform === 'codeforces') {
     const rating = Number(label) || order;
-    if (rating < 1200) return '#808080'; if (rating < 1400) return '#43a047';
-    if (rating < 1600) return '#03a89e'; if (rating < 1900) return '#3282d8';
-    if (rating < 2100) return '#aa47bc'; if (rating < 2400) return '#ff8c00'; return '#e53935';
+    if (rating < 1200) return '#808080'; if (rating < 1400) return '#008000';
+    if (rating < 1600) return '#03a89e'; if (rating < 1900) return '#0000ff';
+    if (rating < 2100) return '#aa00aa'; if (rating < 2400) return '#ff8c00'; return '#ff0000';
   }
   if (platform === 'atcoder') {
     const rating = order || Number(label.split('–')[0]);

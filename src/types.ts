@@ -48,6 +48,7 @@ export interface SubmissionItem {
   platform: Platform;
   account: string;
   source: 'oj' | 'daily' | string;
+  source_day: string | null;
   submission_id: string;
   problem_key: string;
   problem_id: string;
