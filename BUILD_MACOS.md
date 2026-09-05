@@ -58,3 +58,5 @@ npm run tauri dev
 - 通过 DMG 安装后直接运行即可。
 - 如果从浏览器下载的 `.app` 被 Gatekeeper 拦截（“无法验证开发者”），在 Finder 中右键 → 打开，或在「系统设置 → 隐私与安全性」中允许。
 - 未签名 CI 产物在部分机器上可能需要执行 `xattr -dr com.apple.quarantine "/Applications/OJ Insight.app"` 后再运行。
+
+打包前可运行 npm run build 和 cargo test --locked --manifest-path src-tauri/Cargo.toml。

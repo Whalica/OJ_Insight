@@ -26,6 +26,8 @@ OJ Insight 是 Tauri 2 桌面应用，不再启动 localhost 服务，也不需�
 
 ```powershell
 npm install
+npm run build
+cargo test --locked --manifest-path src-tauri/Cargo.toml
 npm run tauri build
 ```
 

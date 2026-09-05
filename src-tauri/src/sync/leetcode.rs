@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 
 use super::{now_epoch, polite_sleep, post_json, with_raw_cookie};
 use crate::models::{
-    AccountConfig, AggregateDay, DifficultyStat, RemoteData, Submission, SyncError,
+    AccountConfig, AggregateDay, DifficultyStat, RatingPoint, RemoteData, Submission, SyncError,
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -75,6 +75,7 @@ fn headers(site: &LeetCodeSite, cookie: &str) -> HeaderMap {
 }
 
 const GLOBAL_QUERY: &str = r#"query userProfileCalendar($username: String!, $year: Int) { matchedUser(username: $username) { username submitStatsGlobal { acSubmissionNum { difficulty count submissions } } userCalendar(year: $year) { activeYears streak totalActiveDays submissionCalendar } } recentAcSubmissionList(username: $username, limit: 20) { id title titleSlug timestamp } }"#;
+const RATING_QUERY: &str = r#"query userContestRankingHistory($username: String!) { userContestRankingHistory(username: $username) { attended rating ranking contest { title startTime } } }"#;
 const CN_PROGRESS_QUERY: &str = r#"query userQuestionProgress($userSlug: String!) { userProfileUserQuestionProgress(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 const CN_PROGRESS_V2_QUERY: &str = r#"query userProfileUserQuestionProgressV2($userSlug: String!) { userProfileUserQuestionProgressV2(userSlug: $userSlug) { numAcceptedQuestions { count difficulty } } }"#;
 const CN_CALENDAR_QUERY: &str = r#"query userProfileCalendar($userSlug: String!, $year: Int) { userProfileCalendar(userSlug: $userSlug, year: $year) { activeYears streak totalActiveDays submissionCalendar } }"#;
@@ -103,6 +104,7 @@ pub async fn fetch(
             aggregates,
             solved_count,
             difficulty,
+            ratings: None,
             activity_only: true,
             notes: vec![
                 "LeetCode 中国站公开个人资料使用独立 GraphQL schema".into(),
@@ -117,6 +119,9 @@ pub async fn fetch(
     let (first, aggregates) = load_calendar(client, user, &site, cookie).await?;
     let (solved_count, difficulty) = profile_stats(client, user, &site, &first, cookie).await?;
     let submissions = recent_submissions(user, &first);
+    let ratings = post_json(client, site.endpoint, headers(&site, cookie),
+        json!({"operationName":"userContestRankingHistory","query":RATING_QUERY,"variables":{"username":user}}))
+        .await.ok().and_then(|payload| contest_rating_history(&payload));
     Ok(RemoteData {
         platform: "leetcode".into(),
         account: user.into(),
@@ -124,6 +129,7 @@ pub async fn fetch(
         aggregates,
         solved_count,
         difficulty,
+        ratings,
         activity_only: true,
         notes: vec![
             format!("{} 独立 GraphQL provider", site.label),
@@ -133,6 +139,40 @@ pub async fn fetch(
         replace_submissions: false,
         replace_aggregates: true,
     })
+}
+
+fn contest_rating_history(payload: &Value) -> Option<Vec<RatingPoint>> {
+    if payload.get("errors").and_then(Value::as_array).is_some_and(|errors| !errors.is_empty()) { return None; }
+    let history = payload.pointer("/data/userContestRankingHistory")?.as_array()?;
+    if history.iter().any(|row| row.get("attended").and_then(Value::as_bool).is_none()) { return None; }
+    let mut rows: Vec<_> = history.iter()
+        .filter(|row| row.get("attended").and_then(Value::as_bool) == Some(true)).collect();
+    rows.sort_by_key(|row| row.pointer("/contest/startTime").and_then(Value::as_i64).unwrap_or(0));
+    let mut previous = 0_i64;
+    let mut points = Vec::new();
+    for row in rows {
+        if !row.get("attended").and_then(Value::as_bool).unwrap_or(false) {
+            continue;
+        }
+        let contest = row.get("contest");
+        let epoch_second = row.pointer("/contest/startTime")?.as_i64()?;
+        if epoch_second <= 0 { return None; }
+        let new_rating = row.get("rating").and_then(Value::as_f64)?.round() as i64;
+        let title = contest
+            .and_then(|value| value.get("title"))
+            .and_then(Value::as_str)
+            .unwrap_or("LeetCode Contest");
+        points.push(RatingPoint {
+            contest_id: format!("{epoch_second}-{title}"),
+            contest_name: title.to_string(),
+            epoch_second,
+            old_rating: if previous == 0 { new_rating } else { previous },
+            new_rating,
+            rank: row.get("ranking").and_then(Value::as_i64),
+        });
+        previous = new_rating;
+    }
+    Some(points)
 }
 
 fn recent_submissions(user: &str, payload: &Value) -> Vec<Submission> {

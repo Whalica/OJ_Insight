@@ -1,10 +1,11 @@
 {
   "name": "oj-insight",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "check": "tsc --noEmit",
     "build": "tsc && vite build --configLoader runner",
     "tauri": "tauri"
   },

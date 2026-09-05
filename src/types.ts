@@ -66,6 +66,27 @@ export interface DifficultyDayPoint {
   order: number;
 }
 
+export interface RatingHistoryPoint {
+  contest_name: string;
+  epoch_second: number;
+  old_rating: number;
+  new_rating: number;
+  rank: number | null;
+}
+
+export interface RatingSummary {
+  last_updated: number | null;
+  stale: boolean;
+  platform: Platform;
+  account: string;
+  current: number;
+  maximum: number;
+  last_change: number;
+  contest_count: number;
+  last_contest_epoch: number;
+  history: RatingHistoryPoint[];
+}
+
 export interface SnapshotStats {
   solved: number;
   accepted_submissions: number;
@@ -83,6 +104,7 @@ export interface Snapshot {
   platforms: PlatformSummary[];
   difficulty: DifficultyBucket[];
   difficulty_daily: DifficultyDayPoint[];
+  ratings: RatingSummary[];
   recent: SubmissionItem[];
   metric_available: boolean;
   warnings: string[];

@@ -2,12 +2,16 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.4.0 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.5.0 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+
+> v0.5.0 开发版本：源码功能已实现，安装包和 Arch/niri 实机验证尚未完成。详细改动见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
 
 ## 功能
 
 - 总览和每个 OJ 的独立页面；各 OJ 页面同时保留活动砖与难度足迹。
-- 每个平台支持配置多个用户 ID，可查看聚合数据或筛选单个账号。
+- 每个平台支持配置多个用户 ID，可查看聚合数据或筛选单个账号；移除 ID 时同步清理其本地缓存，其他 ID 不受影响。
+- Rating 总览：按 OJ/ID 查看当前、最高、最近变化和曲线。当前接入 CF、AtCoder Algorithm、LeetCode 国际站；未接入的平台明确留空。
+- 设置分为账号设置/个性化；亮暗/系统主题、三级字号、密度、活动砖配色、减少动效、时区与启动页。
 - Career 生涯统计与当前时间范围统计严格分开。
 - `< [ 2026 ▼ ] >` 年份控件；`至今（近一年）` 显示截至今天最近 365 天，活动砖最右列包含今天。
 - 可选择统计时区；今日进度、问候、砖块日期、连续打卡和零点换日统一按该时区换算。
@@ -72,6 +76,12 @@ Linux 安装目录通常不可写，因此数据保存在 Tauri 返回的当前�
 
 实际路径以应用「关于」页面显示为准。构建说明见 [BUILD_LINUX.md](BUILD_LINUX.md)。
 
+## 升级与删除账号
+
+升级前退出应用并备份整个应用数据目录。保存时会确认被移除/改名的 ID，清理对应数据库记录；清空数据不会删除账号设置。旧版本遗留的无主账号缓存会在启动时清理。删除后的记录重新添加 ID 后需要重新同步，历史日志与已导出图片不会被连带删除。
+
+如果旧版已将某个 ID 的统计错误写入另一个保留 ID，无法自动猜测真实归属，应在备份后对受影响平台执行重建。
+
 ## 第一次使用
 
 1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；macOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`；Linux：安装 DEB/RPM 或运行 AppImage。
@@ -128,7 +138,7 @@ Cookie 等价于登录凭据。不要上传 `data/`，也不要把数据库或�
 cn:admiring-sutherlanduel
 ```
 
-v0.4.0 会按站点公开能力分别同步：
+v0.5.0 会按站点公开能力分别同步：
 
 - `leetcode.com` 使用 `matchedUser(username)` 获取公开日历与统计；
 - `leetcode.cn` 使用自己的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard，并尝试独立的 `userProfileCalendar` 与最近 AC 查询；
@@ -192,7 +202,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.4.0`。Check for Updates 请求：
+About 显示当前版本 `0.5.0`。Check for Updates 请求：
 
 ```text
 https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
@@ -211,7 +221,7 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 
 ## 源码开发
 
-要求：Node.js 22+、Rust stable。
+要求：Node.js 22+、Rust stable。沿用当前 GitHub 仓库的 npm 构建方式。
 
 - Windows：Visual Studio C++ Build Tools、WebView2 Runtime。
 - macOS：Xcode Command Line Tools（WKWebView 由系统提供）。
@@ -249,8 +259,8 @@ npm run tauri build
 然后推送 tag：
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS 使用 `.app`；Linux 使用原生安装包或 AppImage。
@@ -266,3 +276,12 @@ OJ Insight 尊重上游公开数据能力，不虚构统一精度：
 - LeetCode 中国站：公开 profile 可同步解题总数与难度；Activity 日历由独立 schema 尝试获取，不可用时安全降级并保留旧缓存。
 
 上游网站可能随时修改接口或限制访问。错误应表现为 Latest sync 失败，旧缓存仍可查看。
+
+## 回归检查
+
+```bash
+npm run build
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+```
+
+Rust 回归用例保留在源码中。独立 Node/SQL 测试仅用于开发验证，不随此源码包附带；仍需完成原生桌面交互验收。发布前还需检查三种主题 × 三档字号、删除/重启/重新添加 ID、同步中保存/清空，以及各平台的真实接口。

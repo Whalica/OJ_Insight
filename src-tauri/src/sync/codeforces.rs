@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{browser_headers, get_json, now_epoch, polite_sleep};
-use crate::models::{AccountConfig, RemoteData, Submission, SyncError};
+use crate::models::{AccountConfig, RatingPoint, RemoteData, Submission, SyncError};
 
 pub async fn fetch(
     client: &Client,
@@ -119,6 +119,9 @@ pub async fn fetch(
         polite_sleep(2100).await;
     }
 
+    polite_sleep(2100).await;
+    let ratings = fetch_rating_history(client, handle).await.ok();
+
     Ok(RemoteData {
         platform: "codeforces".into(),
         account: handle.into(),
@@ -126,10 +129,50 @@ pub async fn fetch(
         aggregates: vec![],
         solved_count: None,
         difficulty: vec![],
+        ratings,
         activity_only: false,
         notes: vec!["Codeforces 官方 user.status API".into()],
         cursor_epoch: max_seen.max(now_epoch().saturating_sub(24 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,
     })
+}
+
+async fn fetch_rating_history(client: &Client, handle: &str) -> Result<Vec<RatingPoint>, SyncError> {
+    let url = format!(
+        "https://codeforces.com/api/user.rating?handle={}",
+        urlencoding::encode(handle)
+    );
+    let payload = get_json(client, &url, browser_headers()).await?;
+    if payload.get("status").and_then(Value::as_str) != Some("OK") {
+        return Err(SyncError::error(
+            payload
+                .get("comment")
+                .and_then(Value::as_str)
+                .unwrap_or("Codeforces Rating API 返回失败"),
+        ));
+    }
+    let rows = payload
+        .get("result")
+        .and_then(Value::as_array)
+        .ok_or_else(|| SyncError::error("Codeforces Rating 历史格式异常"))?;
+    rows
+        .iter()
+        .map(|row| {
+            let contest_id = row.get("contestId")?.as_i64()?;
+            Some(RatingPoint {
+                contest_id: contest_id.to_string(),
+                contest_name: row
+                    .get("contestName")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Codeforces Contest")
+                    .to_string(),
+                epoch_second: row.get("ratingUpdateTimeSeconds")?.as_i64()?,
+                old_rating: row.get("oldRating")?.as_i64()?,
+                new_rating: row.get("newRating")?.as_i64()?,
+                rank: row.get("rank").and_then(Value::as_i64),
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| SyncError::error("Rating 历史存在不完整记录，保留旧缓存"))
 }

@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Re
 import Heatmap from '../components/Heatmap';
 import DifficultyHeatmap from '../components/DifficultyHeatmap';
 import StatCards from '../components/StatCards';
+import RatingOverview from '../components/RatingOverview';
 import { currentYear, formatDateTime, hourInTimeZone, timeZoneLabel, today } from '../lib/date';
 import { difficultyColor, METRICS, PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { TimeScope } from '../lib/ui';
@@ -52,6 +53,7 @@ export default function DashboardPage(props: Props) {
     {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>新增 {syncProgress.added} 条 · {syncProgress.failed} 个平台失败</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
     {!platform && <TodayProgress rows={snapshot.platforms} timeZone={timeZone} onSelect={onPlatform} />}
     <div className="section-title career-title"><small>CAREER · 不受下方时间范围影响</small><h2>生涯累计</h2></div><StatCards stats={snapshot.career} />
+    <RatingOverview ratings={snapshot.ratings} timeZone={timeZone} selectedPlatform={platform} />
     <div className="toolbar">
       <label>时间范围<div className="year-control"><button onClick={() => move(-1)} disabled={timeScope === 'until' || timeScope <= 2010}><ChevronLeft size={15} /></button><div className="select-wrap"><select value={timeScope} onChange={(event) => setTimeScope(event.target.value === 'until' ? 'until' : Number(event.target.value))}><option value="until">至今（近一年）</option>{years.map((year) => <option value={year} key={year}>{year}</option>)}</select><ChevronDown size={14} /></div><button onClick={() => move(1)} disabled={timeScope === 'until' || timeScope >= currentYear(timeZone)}><ChevronRight size={15} /></button></div></label>
       <label>统计口径<div className="select-wrap"><select value={metric} onChange={(event) => setMetric(event.target.value as Metric)}>{METRICS.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select><ChevronDown size={14} /></div></label>
@@ -105,5 +107,5 @@ function LeetCodeSummary({ data }: { data: Snapshot['difficulty'] }) {
 
 function RecentList({ items, timeZone }: { items: Snapshot['recent']; timeZone: string }) {
   if (!items.length) return <div className="empty">暂时没有可读取的逐题 AC。同步源不可用时会在上方给出具体说明，不会用活动计数伪造题目。</div>;
-  return <div className="recent-list">{items.map((item) => <article key={`${item.platform}-${item.submission_id}`}><span className="platform-monogram" style={{ color: PLATFORM_META[item.platform].accent }}>{PLATFORM_META[item.platform].short}</span><div className="recent-title"><strong>{item.problem_id || item.problem_name}</strong><span>{item.problem_name}</span><small>{item.account}{item.source === 'daily' ? ' · 每日一题' : ''}</small></div><div className="recent-meta">{item.difficulty && <span><i style={{ background: difficultyColor(item.platform, item.difficulty) }} />{item.difficulty}</span>}<small>{item.source_day ? `来源日期 ${item.source_day}` : formatDateTime(item.epoch_second, timeZone)}</small></div>{item.problem_url ? <a className="problem-button" href={item.problem_url} target="_blank" rel="noreferrer">前往题目<ExternalLink size={14} /></a> : <span />}</article>)}</div>;
+  return <div className="recent-list">{items.map((item) => <article key={`${item.platform}-${item.account}-${item.submission_id}`}><span className="platform-monogram" style={{ color: PLATFORM_META[item.platform].accent }}>{PLATFORM_META[item.platform].short}</span><div className="recent-title"><strong>{item.problem_id || item.problem_name}</strong><span>{item.problem_name}</span><small>{item.account}{item.source === 'daily' ? ' · 每日一题' : ''}</small></div><div className="recent-meta">{item.difficulty && <span><i style={{ background: difficultyColor(item.platform, item.difficulty) }} />{item.difficulty}</span>}<small>{item.source_day ? `来源日期 ${item.source_day}` : formatDateTime(item.epoch_second, timeZone)}</small></div>{item.problem_url ? <a className="problem-button" href={item.problem_url} target="_blank" rel="noreferrer">前往题目<ExternalLink size={14} /></a> : <span />}</article>)}</div>;
 }

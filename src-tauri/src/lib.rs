@@ -1,5 +1,6 @@
 mod db;
 mod models;
+mod operation;
 mod sync;
 
 use reqwest::Client;
@@ -14,6 +15,7 @@ use models::*;
 struct AppState {
     db: Mutex<rusqlite::Connection>,
     client: Client,
+    operations: operation::OperationGate,
     root_dir: PathBuf,
     data_dir: PathBuf,
     export_dir: PathBuf,
@@ -128,8 +130,9 @@ fn save_account(
     if !PLATFORMS.contains(&platform.as_str()) {
         return Err("不支持的平台".into());
     }
-    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-    db::save_account(&*conn, &platform, &account, &secret)
+    let _operation = state.operations.enter()?;
+    let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::save_account(&mut conn, &platform, &account, &secret)
 }
 
 #[tauri::command]
@@ -144,8 +147,19 @@ fn save_accounts(
     if accounts.iter().any(|entry| entry.platform != platform) {
         return Err("账号列表的平台不一致".into());
     }
+    let _operation = state.operations.enter()?;
     let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::replace_accounts(&mut conn, &platform, &accounts)
+}
+
+#[tauri::command]
+fn save_all_accounts(state: State<'_, AppState>, accounts: Vec<AccountConfig>) -> Result<(), String> {
+    if accounts.iter().any(|entry| !PLATFORMS.contains(&entry.platform.as_str())) {
+        return Err("不支持的平台".into());
+    }
+    let _operation = state.operations.enter()?;
+    let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::replace_all_accounts(&mut conn, &accounts)
 }
 
 #[tauri::command]
@@ -159,6 +173,7 @@ async fn sync_one_inner(
     platform: &str,
     full: bool,
 ) -> Result<SyncResult, String> {
+    let _operation = state.operations.enter()?;
     let accounts = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
         db::get_accounts(&conn)?
@@ -173,6 +188,7 @@ async fn sync_one_inner(
     let mut updated = 0;
     let mut succeeded = 0;
     let mut failures = Vec::new();
+    let mut advisories = Vec::new();
     for account in accounts {
         let cursor = {
             let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
@@ -196,6 +212,10 @@ async fn sync_one_inner(
         );
         match sync::fetch_platform(&state.client, &account, full, cursor).await {
             Ok(mut remote) => {
+                if remote.ratings.is_none() && (platform == "codeforces" || platform == "atcoder" ||
+                    (platform == "leetcode" && !account.account.to_ascii_lowercase().starts_with("cn:"))) {
+                    remote.notes.push("警告：Rating 暂未更新，已有 Rating 缓存保留；提交同步不受影响".into());
+                }
                 // The configured identifier is the stable local account key. Some
                 // providers return a display name, which must not split one account.
                 remote.account = account.account.trim().to_string();
@@ -204,8 +224,23 @@ async fn sync_one_inner(
                 }
                 let counts = {
                     let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-                    db::apply_remote(&mut conn, &remote)?
+                    db::apply_remote(&mut conn, &remote)
                 };
+                let counts = match counts {
+                    Ok(value) => value,
+                    Err(message) => {
+                        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+                        db::mark_failed(&conn, platform, &account.account, "error", &message)?;
+                        failures.push(format!("{}：{}", account.account, message));
+                        log_event(state, platform, &message, &account.secret);
+                        continue;
+                    }
+                };
+                for note in &remote.notes {
+                    if let Some(warning) = note.strip_prefix("警告：") {
+                        advisories.push(format!("{}：{}", account.account, warning));
+                    }
+                }
                 inserted += counts.0;
                 updated += counts.1;
                 succeeded += 1;
@@ -234,23 +269,31 @@ async fn sync_one_inner(
         }
     }
     if succeeded == 0 {
-        return Err(failures.join("；"));
+        let message = failures.join("；");
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        conn.execute("UPDATE sync_state SET status='error',message=? WHERE platform=?",
+            rusqlite::params![message,platform]).map_err(|e| e.to_string())?;
+        return Err(message);
     }
     let suffix = if failures.is_empty() {
         String::new()
     } else {
         format!(" · {} 个账号失败", failures.len())
     };
+    let status = if failures.is_empty() && advisories.is_empty() { "ok" } else { "warning" };
+    let mut message = format!("同步成功 · 新增 {inserted}，更新 {updated}{suffix}");
+    for detail in failures.iter().chain(advisories.iter()) { message.push_str(&format!("；{detail}")); }
+    {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        conn.execute("UPDATE sync_state SET status=?,message=? WHERE platform=?",
+            rusqlite::params![status,message,platform]).map_err(|e| e.to_string())?;
+    }
     Ok(SyncResult {
         platform: platform.into(),
         inserted,
         updated,
-        message: format!("同步成功 · 新增 {inserted}，更新 {updated}{suffix}"),
-        status: if failures.is_empty() {
-            "ok".into()
-        } else {
-            "warning".into()
-        },
+        message,
+        status: status.into(),
     })
 }
 
@@ -296,14 +339,17 @@ async fn sync_all(state: State<'_, AppState>) -> Result<Vec<SyncResult>, String>
 
 #[tauri::command]
 fn clear_platform_records(state: State<'_, AppState>, platform: String) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-    db::clear_platform(&*conn, &platform)
+    if !PLATFORMS.contains(&platform.as_str()) { return Err("不支持的平台".into()); }
+    let _operation = state.operations.enter()?;
+    let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::clear_platform(&mut conn, &platform)
 }
 
 #[tauri::command]
 fn clear_all_records(state: State<'_, AppState>) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-    db::clear_all(&*conn)
+    let _operation = state.operations.enter()?;
+    let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::clear_all(&mut conn)
 }
 
 #[tauri::command]
@@ -443,13 +489,14 @@ pub fn run() {
             let conn =
                 db::open(&data_dir.join("oj-insight.sqlite3")).map_err(std::io::Error::other)?;
             let client = Client::builder()
-                .user_agent("OJ-Insight/0.4.0")
+                .user_agent("OJ-Insight/0.5.0")
                 .timeout(std::time::Duration::from_secs(35))
                 .connect_timeout(std::time::Duration::from_secs(12))
                 .build()?;
             app.manage(AppState {
                 db: Mutex::new(conn),
                 client,
+                operations: operation::OperationGate::default(),
                 root_dir: root_dir.clone(),
                 data_dir,
                 export_dir,
@@ -470,6 +517,7 @@ pub fn run() {
             get_accounts,
             save_account,
             save_accounts,
+            save_all_accounts,
             get_sync_statuses,
             sync_platform,
             sync_all,

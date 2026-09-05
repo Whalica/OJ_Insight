@@ -136,6 +136,7 @@ pub async fn fetch(
         aggregates: vec![],
         solved_count: None,
         difficulty: vec![],
+        ratings: None,
         activity_only: false,
         notes: vec![
             "牛客竞赛站公开练习提交页 · statusTypeFilter=5".into(),

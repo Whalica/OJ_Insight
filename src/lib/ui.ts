@@ -8,7 +8,7 @@ export type AccountMap = Record<Platform, AccountConfig[]>;
 export const emptySnapshot: Snapshot = {
   stats: { solved: 0, accepted_submissions: 0, active_days: 0, longest_streak: 0, current_streak: 0, peak_day: null, peak_count: 0 },
   career: { solved: 0, accepted_submissions: 0, active_days: 0, longest_streak: 0, current_streak: 0, peak_day: null, peak_count: 0 },
-  daily: [], platforms: [], difficulty: [], difficulty_daily: [], recent: [], metric_available: true, warnings: [],
+  daily: [], platforms: [], difficulty: [], difficulty_daily: [], ratings: [], recent: [], metric_available: true, warnings: [],
 };
 
 export const SYNC_TIPS = [

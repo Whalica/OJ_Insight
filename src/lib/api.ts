@@ -14,6 +14,7 @@ export const api = {
   getAccounts: () => invoke<AccountConfig[]>('get_accounts'),
   saveAccount: (platform: Platform, account: string, secret: string) => invoke<void>('save_account', { platform, account, secret }),
   saveAccounts: (platform: Platform, accounts: AccountConfig[]) => invoke<void>('save_accounts', { platform, accounts }),
+  saveAllAccounts: (accounts: AccountConfig[]) => invoke<void>('save_all_accounts', { accounts }),
   getStatuses: () => invoke<SyncStatus[]>('get_sync_statuses'),
   syncPlatform: (platform: Platform, full = false) => invoke<SyncResult>('sync_platform', { platform, full }),
   syncAll: () => invoke<SyncResult[]>('sync_all'),

@@ -49,6 +49,16 @@ pub struct DifficultyStat {
 }
 
 #[derive(Debug, Clone)]
+pub struct RatingPoint {
+    pub contest_id: String,
+    pub contest_name: String,
+    pub epoch_second: i64,
+    pub old_rating: i64,
+    pub new_rating: i64,
+    pub rank: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
 pub struct RemoteData {
     pub platform: String,
     pub account: String,
@@ -56,6 +66,9 @@ pub struct RemoteData {
     pub aggregates: Vec<AggregateDay>,
     pub solved_count: Option<i64>,
     pub difficulty: Vec<DifficultyStat>,
+    /// `None` keeps the previous cache when an optional rating endpoint is
+    /// unavailable. `Some` replaces the complete rating history for this account.
+    pub ratings: Option<Vec<RatingPoint>>,
     pub activity_only: bool,
     pub notes: Vec<String>,
     pub cursor_epoch: i64,
@@ -133,6 +146,29 @@ pub struct DifficultyBucket {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct RatingSummary {
+    pub last_updated: Option<i64>,
+    pub stale: bool,
+    pub platform: String,
+    pub account: String,
+    pub current: i64,
+    pub maximum: i64,
+    pub last_change: i64,
+    pub contest_count: i64,
+    pub last_contest_epoch: i64,
+    pub history: Vec<RatingHistoryPoint>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RatingHistoryPoint {
+    pub contest_name: String,
+    pub epoch_second: i64,
+    pub old_rating: i64,
+    pub new_rating: i64,
+    pub rank: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct PlatformSummary {
     pub platform: String,
     pub account: String,
@@ -167,6 +203,7 @@ pub struct Snapshot {
     pub platforms: Vec<PlatformSummary>,
     pub difficulty: Vec<DifficultyBucket>,
     pub difficulty_daily: Vec<DifficultyDayPoint>,
+    pub ratings: Vec<RatingSummary>,
     pub recent: Vec<Submission>,
     pub metric_available: bool,
     pub warnings: Vec<String>,

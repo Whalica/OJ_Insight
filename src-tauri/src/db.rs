@@ -8,12 +8,17 @@ use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use crate::models::*;
 
 pub fn open(path: &Path) -> Result<Connection, String> {
-    let conn = Connection::open(path).map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    let mut conn = Connection::open(path).map_err(|e| format!("打开 SQLite 失败：{e}"))?;
     conn.pragma_update(None, "journal_mode", "WAL")
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(|e| e.to_string())?;
-    conn.execute_batch(
+    let had_multi_accounts: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_entries')",
+        [], |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute_batch(
         r#"
 CREATE TABLE IF NOT EXISTS accounts (
   platform TEXT PRIMARY KEY,
@@ -107,6 +112,19 @@ CREATE TABLE IF NOT EXISTS difficulty_stats_accounts (
   sort_order INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(platform, account, label)
 );
+CREATE TABLE IF NOT EXISTS rating_history (
+  platform TEXT NOT NULL,
+  account TEXT NOT NULL,
+  contest_id TEXT NOT NULL,
+  contest_name TEXT NOT NULL DEFAULT '',
+  epoch_second INTEGER NOT NULL,
+  old_rating INTEGER NOT NULL,
+  new_rating INTEGER NOT NULL,
+  rank INTEGER,
+  PRIMARY KEY(platform, account, contest_id)
+);
+CREATE INDEX IF NOT EXISTS idx_rating_history_account_time
+  ON rating_history(platform, account, epoch_second);
 CREATE TABLE IF NOT EXISTS sync_state (
   platform TEXT PRIMARY KEY,
   account TEXT NOT NULL DEFAULT '',
@@ -119,25 +137,60 @@ CREATE TABLE IF NOT EXISTS sync_state (
 "#,
     )
     .map_err(|e| format!("初始化 SQLite 失败：{e}"))?;
-    ensure_column(&conn, "submissions", "account", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_column(&conn, "submissions", "source", "TEXT NOT NULL DEFAULT 'oj'")?;
-    ensure_column(&conn, "submissions", "source_day", "TEXT")?;
-    ensure_column(&conn, "daily_aggregates", "epoch_second", "INTEGER")?;
+    ensure_column(&tx, "submissions", "account", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(&tx, "submissions", "source", "TEXT NOT NULL DEFAULT 'oj'")?;
+    ensure_column(&tx, "submissions", "source_day", "TEXT")?;
+    ensure_column(&tx, "daily_aggregates", "epoch_second", "INTEGER")?;
     ensure_column(
-        &conn,
+        &tx,
         "daily_aggregates_accounts",
         "epoch_second",
         "INTEGER",
     )?;
-    conn.execute("INSERT OR IGNORE INTO account_entries(platform,account,secret,updated_at) SELECT platform,account,secret,updated_at FROM accounts WHERE TRIM(account)<>''", []).map_err(|e| e.to_string())?;
-    conn.execute("UPDATE submissions SET account=COALESCE((SELECT account FROM accounts a WHERE a.platform=submissions.platform),'') WHERE account=''", []).map_err(|e| e.to_string())?;
-    conn.execute("INSERT OR IGNORE INTO daily_aggregates_accounts(platform,account,day,metric,count,note) SELECT d.platform,COALESCE(a.account,''),d.day,d.metric,d.count,d.note FROM daily_aggregates d LEFT JOIN accounts a ON a.platform=d.platform", []).map_err(|e| e.to_string())?;
-    conn.execute("INSERT OR IGNORE INTO difficulty_stats_accounts(platform,account,label,count,sort_order) SELECT d.platform,COALESCE(a.account,''),d.label,d.count,d.sort_order FROM difficulty_stats d LEFT JOIN accounts a ON a.platform=d.platform", []).map_err(|e| e.to_string())?;
-    conn.execute("INSERT OR IGNORE INTO platform_stats_accounts(platform,account,key,value) SELECT p.platform,COALESCE(a.account,''),p.key,p.value FROM platform_stats p LEFT JOIN accounts a ON a.platform=p.platform", []).map_err(|e| e.to_string())?;
+    // Import legacy single-account caches only on the first upgrade. Repeating
+    // this import can assign a deleted account's cache to another account.
+    if !had_multi_accounts {
+        tx.execute_batch("
+INSERT OR IGNORE INTO account_entries SELECT platform,account,secret,updated_at FROM accounts WHERE TRIM(account)<>'';
+UPDATE submissions SET account=COALESCE((SELECT account FROM accounts a WHERE a.platform=submissions.platform),'') WHERE account='';
+INSERT OR IGNORE INTO daily_aggregates_accounts SELECT d.platform,a.account,d.day,d.metric,d.count,d.note,d.epoch_second FROM daily_aggregates d JOIN accounts a ON a.platform=d.platform WHERE TRIM(a.account)<>'';
+INSERT OR IGNORE INTO difficulty_stats_accounts SELECT d.platform,a.account,d.label,d.count,d.sort_order FROM difficulty_stats d JOIN accounts a ON a.platform=d.platform WHERE TRIM(a.account)<>'';
+INSERT OR IGNORE INTO platform_stats_accounts SELECT p.platform,a.account,p.key,p.value FROM platform_stats p JOIN accounts a ON a.platform=p.platform WHERE TRIM(a.account)<>'';
+").map_err(|e| e.to_string())?;
+    }
+    // Submission IDs are not necessarily unique across accounts/sites.
+    let account_pk: i64 = tx.query_row(
+        "SELECT pk FROM pragma_table_info('submissions') WHERE name='account'",
+        [], |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    if account_pk == 0 {
+        tx.execute_batch("
+ALTER TABLE submissions RENAME TO submissions_v4;
+CREATE TABLE submissions (
+ platform TEXT NOT NULL, account TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'oj',
+ source_day TEXT, submission_id TEXT NOT NULL, problem_key TEXT NOT NULL,
+ problem_id TEXT NOT NULL DEFAULT '', problem_name TEXT NOT NULL DEFAULT '',
+ problem_url TEXT NOT NULL DEFAULT '', epoch_second INTEGER NOT NULL,
+ language TEXT NOT NULL DEFAULT '', difficulty TEXT,
+ PRIMARY KEY(platform,account,submission_id)
+);
+INSERT INTO submissions SELECT platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions_v4;
+DROP TABLE submissions_v4;
+CREATE INDEX idx_submissions_platform_time ON submissions(platform,epoch_second);
+CREATE INDEX idx_submissions_platform_problem ON submissions(platform,problem_key);
+").map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
     for p in PLATFORMS {
         conn.execute("INSERT OR IGNORE INTO sync_state(platform) VALUES(?)", [p])
             .map_err(|e| e.to_string())?;
     }
+    // Repair orphaned records left by older account-removal implementations.
+    // Only records with no configured owner are removed; retained IDs survive.
+    let accounts = get_accounts(&conn)?;
+    replace_all_accounts(&mut conn, &accounts)?;
+    conn.execute("UPDATE sync_state SET status='idle',message='上次同步被中断，请重新同步' WHERE status='syncing'", [])
+        .map_err(|e| e.to_string())?;
     Ok(conn)
 }
 
@@ -186,33 +239,26 @@ pub fn get_accounts(conn: &Connection) -> Result<Vec<AccountConfig>, String> {
     Ok(out)
 }
 
-pub fn save_account(
-    conn: &Connection,
-    platform: &str,
-    account: &str,
-    secret: &str,
-) -> Result<(), String> {
-    let now = Utc::now().timestamp();
+pub fn save_account(conn: &mut Connection, platform: &str, account: &str, secret: &str) -> Result<(), String> {
+    let mut entries: Vec<_> = get_accounts(conn)?.into_iter()
+        .filter(|entry| entry.platform == platform).collect();
     if account.trim().is_empty() {
-        conn.execute("DELETE FROM account_entries WHERE platform=?", [platform])
-            .map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM accounts WHERE platform=?", [platform])
-            .map_err(|e| e.to_string())?;
-        conn.execute(
-            "UPDATE sync_state SET account='' WHERE platform=?",
-            [platform],
-        )
-        .map_err(|e| e.to_string())?;
-        return Ok(());
+        entries.clear();
+    } else if let Some(entry) = entries.iter_mut().find(|entry| entry.account == account.trim()) {
+        entry.secret = secret.trim().into();
+    } else {
+        entries.push(AccountConfig { platform: platform.into(), account: account.trim().into(), secret: secret.trim().into() });
     }
-    conn.execute("INSERT INTO account_entries(platform,account,secret,updated_at) VALUES(?,?,?,?) ON CONFLICT(platform,account) DO UPDATE SET secret=excluded.secret,updated_at=excluded.updated_at", params![platform, account.trim(), secret.trim(), now]).map_err(|e| e.to_string())?;
-    conn.execute("INSERT INTO accounts(platform,account,secret,updated_at) VALUES(?,?,?,?) ON CONFLICT(platform) DO UPDATE SET account=excluded.account,secret=excluded.secret,updated_at=excluded.updated_at", params![platform, account.trim(), secret.trim(), now]).map_err(|e| e.to_string())?;
-    conn.execute(
-        "UPDATE sync_state SET account=? WHERE platform=?",
-        params![account.trim(), platform],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
+    replace_accounts(conn, platform, &entries)
+}
+
+pub fn replace_all_accounts(conn: &mut Connection, accounts: &[AccountConfig]) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for platform in PLATFORMS {
+        let entries: Vec<_> = accounts.iter().filter(|entry| entry.platform == platform).cloned().collect();
+        replace_accounts_tx(&tx, platform, &entries)?;
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 pub fn replace_accounts(
@@ -221,6 +267,16 @@ pub fn replace_accounts(
     accounts: &[AccountConfig],
 ) -> Result<(), String> {
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    replace_accounts_tx(&tx, platform, accounts)?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+fn replace_accounts_tx(tx: &Transaction<'_>, platform: &str, accounts: &[AccountConfig]) -> Result<(), String> {
+    let previous: HashSet<String> = {
+        let mut stmt = tx.prepare("SELECT account FROM account_entries WHERE platform=?").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([platform], |row| row.get(0)).map_err(|e| e.to_string())?;
+        rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+    };
     tx.execute("DELETE FROM account_entries WHERE platform=?", [platform])
         .map_err(|e| e.to_string())?;
     let now = Utc::now().timestamp();
@@ -252,7 +308,31 @@ pub fn replace_accounts(
         )
         .map_err(|e| e.to_string())?;
     }
-    tx.commit().map_err(|e| e.to_string())
+    let mut removed = 0;
+    for table in ["submissions", "daily_aggregates_accounts", "difficulty_stats_accounts",
+                  "platform_stats_accounts", "rating_history", "account_sync_state"] {
+        removed += tx.execute(&format!(
+            "DELETE FROM {table} WHERE platform=? AND NOT EXISTS (SELECT 1 FROM account_entries e WHERE e.platform={table}.platform AND e.account={table}.account)"
+        ), [platform]).map_err(|e| e.to_string())?;
+    }
+    // Retired single-account caches must never reappear on restart/downgrade.
+    for table in ["daily_aggregates", "difficulty_stats", "platform_stats"] {
+        tx.execute(&format!("DELETE FROM {table} WHERE platform=?"), [platform]).map_err(|e| e.to_string())?;
+    }
+    if previous != seen || removed > 0 {
+        if platform_activity_only(tx, platform, None) {
+            recompute_aggregate_daily(tx, platform)?;
+        } else {
+            recompute_raw_daily(tx, platform)?;
+        }
+        tx.execute(
+            "UPDATE sync_state SET status='idle',message='账号已更新；移除账号的本地记录已清理',last_attempt=NULL,
+             last_success=(SELECT MAX(last_success) FROM account_sync_state WHERE platform=?),
+             cursor_epoch=COALESCE((SELECT MAX(cursor_epoch) FROM account_sync_state WHERE platform=?),0) WHERE platform=?",
+            params![platform,platform,platform],
+        ).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 pub fn get_cursor(conn: &Connection, platform: &str, account: &str) -> Result<i64, String> {
@@ -284,6 +364,14 @@ pub fn mark_failed(
 
 pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, i64), String> {
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let configured: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM account_entries WHERE platform=? AND account=?)",
+        params![remote.platform,remote.account], |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    if !configured { return Err("账号已移除，丢弃此次同步结果".into()); }
+    if remote.submissions.iter().any(|s| s.platform != remote.platform || s.account != remote.account) {
+        return Err("同步数据的账号归属不一致".into());
+    }
     let previous_aggregates = if remote.activity_only && !remote.aggregates.is_empty() {
         let mut stmt = tx
             .prepare("SELECT day,metric,count FROM daily_aggregates_accounts WHERE platform=? AND account=?")
@@ -324,13 +412,13 @@ pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, 
     for s in &remote.submissions {
         let exists: bool = tx
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM submissions WHERE platform=? AND submission_id=?)",
-                params![s.platform, s.submission_id],
+                "SELECT EXISTS(SELECT 1 FROM submissions WHERE platform=? AND account=? AND submission_id=?)",
+                params![s.platform, s.account, s.submission_id],
                 |r| r.get(0),
             )
             .map_err(|e| e.to_string())?;
         tx.execute(r#"INSERT INTO submissions(platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SET account=excluded.account,source=excluded.source,source_day=excluded.source_day,problem_key=excluded.problem_key,problem_id=excluded.problem_id,problem_name=excluded.problem_name,problem_url=excluded.problem_url,epoch_second=excluded.epoch_second,language=excluded.language,difficulty=excluded.difficulty"#,
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,account,submission_id) DO UPDATE SET account=excluded.account,source=excluded.source,source_day=excluded.source_day,problem_key=excluded.problem_key,problem_id=excluded.problem_id,problem_name=excluded.problem_name,problem_url=excluded.problem_url,epoch_second=excluded.epoch_second,language=excluded.language,difficulty=excluded.difficulty"#,
             params![s.platform,s.account,s.source,s.source_day,s.submission_id,s.problem_key,s.problem_id,s.problem_name,s.problem_url,s.epoch_second,s.language,s.difficulty]).map_err(|e| e.to_string())?;
         if exists {
             submission_updated += 1;
@@ -354,8 +442,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SE
             }
         }
         tx.execute("INSERT INTO daily_aggregates_accounts(platform,account,day,metric,count,note,epoch_second) VALUES(?,?,?,?,?,?,?) ON CONFLICT(platform,account,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note,epoch_second=excluded.epoch_second", params![remote.platform,remote.account,a.day,a.metric,a.count,a.note,a.epoch_second]).map_err(|e| e.to_string())?;
-        tx.execute("INSERT INTO daily_aggregates(platform,day,metric,count,note,epoch_second) VALUES(?,?,?,?,?,?) ON CONFLICT(platform,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note,epoch_second=excluded.epoch_second", params![remote.platform,a.day,a.metric,a.count,a.note,a.epoch_second]).map_err(|e| e.to_string())?;
-        tx.execute("INSERT INTO daily_counts(platform,day,metric,count) VALUES(?,?,?,?) ON CONFLICT(platform,day,metric) DO UPDATE SET count=excluded.count", params![remote.platform,a.day,a.metric,a.count]).map_err(|e| e.to_string())?;
     }
     tx.execute(
         "DELETE FROM difficulty_stats_accounts WHERE platform=? AND account=?",
@@ -368,12 +454,26 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SE
             params![remote.platform, remote.account, d.label, d.count, d.order],
         )
         .map_err(|e| e.to_string())?;
+
+    }
+    if let Some(ratings) = &remote.ratings {
         tx.execute(
-            "INSERT INTO difficulty_stats(platform,label,count,sort_order) VALUES(?,?,?,?) ON CONFLICT(platform,label) DO UPDATE SET count=excluded.count,sort_order=excluded.sort_order",
-            params![remote.platform, d.label, d.count, d.order],
+            "DELETE FROM rating_history WHERE platform=? AND account=?",
+            params![remote.platform, remote.account],
         )
         .map_err(|e| e.to_string())?;
+        for rating in ratings {
+            tx.execute(
+                "INSERT INTO rating_history(platform,account,contest_id,contest_name,epoch_second,old_rating,new_rating,rank) VALUES(?,?,?,?,?,?,?,?)",
+                params![remote.platform, remote.account, rating.contest_id, rating.contest_name, rating.epoch_second, rating.old_rating, rating.new_rating, rating.rank],
+            )
+            .map_err(|e| e.to_string())?;
+        }
     }
+    if remote.ratings.is_some() {
+        set_account_stat_tx(&tx, &remote.platform, &remote.account, "rating_synced_at", &Utc::now().timestamp().to_string())?;
+    }
+    set_account_stat_tx(&tx, &remote.platform, &remote.account, "rating_stale", if remote.ratings.is_some() { "0" } else { "1" })?;
     set_account_stat_tx(
         &tx,
         &remote.platform,
@@ -396,7 +496,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SE
             "solved_count",
             &solved.to_string(),
         )?;
-        set_stat_tx(&tx, &remote.platform, "solved_count", &solved.to_string())?;
     } else if !remote.activity_only {
         tx.execute(
             "DELETE FROM platform_stats_accounts WHERE platform=? AND account=? AND key='solved_count'",
@@ -432,11 +531,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,submission_id) DO UPDATE SE
     tx.execute("INSERT INTO account_sync_state(platform,account,cursor_epoch,last_success) VALUES(?,?,?,?) ON CONFLICT(platform,account) DO UPDATE SET cursor_epoch=MAX(account_sync_state.cursor_epoch,excluded.cursor_epoch),last_success=excluded.last_success", params![remote.platform,remote.account,remote.cursor_epoch,now]).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok((inserted, updated))
-}
-
-fn set_stat_tx(tx: &Transaction<'_>, platform: &str, key: &str, value: &str) -> Result<(), String> {
-    tx.execute("INSERT INTO platform_stats(platform,key,value) VALUES(?,?,?) ON CONFLICT(platform,key) DO UPDATE SET value=excluded.value", params![platform,key,value]).map_err(|e| e.to_string())?;
-    Ok(())
 }
 
 fn set_account_stat_tx(
@@ -530,7 +624,13 @@ pub fn statuses(conn: &Connection) -> Result<Vec<SyncStatus>, String> {
     Ok(out)
 }
 
-pub fn clear_platform(conn: &Connection, platform: &str) -> Result<(), String> {
+pub fn clear_platform(conn: &mut Connection, platform: &str) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    clear_platform_tx(&tx, platform)?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+fn clear_platform_tx(conn: &Connection, platform: &str) -> Result<(), String> {
     for sql in [
         "DELETE FROM submissions WHERE platform=?",
         "DELETE FROM daily_counts WHERE platform=?",
@@ -540,6 +640,7 @@ pub fn clear_platform(conn: &Connection, platform: &str) -> Result<(), String> {
         "DELETE FROM platform_stats_accounts WHERE platform=?",
         "DELETE FROM difficulty_stats WHERE platform=?",
         "DELETE FROM difficulty_stats_accounts WHERE platform=?",
+        "DELETE FROM rating_history WHERE platform=?",
         "DELETE FROM account_sync_state WHERE platform=?",
     ] {
         conn.execute(sql, [platform]).map_err(|e| e.to_string())?;
@@ -548,11 +649,10 @@ pub fn clear_platform(conn: &Connection, platform: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn clear_all(conn: &Connection) -> Result<(), String> {
-    for p in PLATFORMS {
-        clear_platform(conn, p)?;
-    }
-    Ok(())
+pub fn clear_all(conn: &mut Connection) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for p in PLATFORMS { clear_platform_tx(&tx, p)?; }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 fn parse_time_zone(value: &str) -> Tz {
@@ -645,6 +745,63 @@ fn platform_solved_lifetime(
     .ok()
 }
 
+fn ratings_for_platform(
+    conn: &Connection,
+    platform: &str,
+    account: Option<&str>,
+) -> Result<Vec<RatingSummary>, String> {
+    let account_filter = account.unwrap_or("");
+    let mut stmt = conn
+        .prepare(
+            "SELECT account,contest_name,epoch_second,old_rating,new_rating,rank FROM rating_history WHERE platform=? AND (?='' OR account=?) ORDER BY account,epoch_second,contest_id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![platform, account_filter, account_filter], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                RatingHistoryPoint {
+                    contest_name: row.get(1)?,
+                    epoch_second: row.get(2)?,
+                    old_rating: row.get(3)?,
+                    new_rating: row.get(4)?,
+                    rank: row.get(5)?,
+                },
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut grouped: BTreeMap<String, Vec<RatingHistoryPoint>> = BTreeMap::new();
+    for row in rows {
+        let (account, point) = row.map_err(|e| e.to_string())?;
+        grouped.entry(account).or_default().push(point);
+    }
+    let mut summaries = Vec::new();
+    for (account, history) in grouped {
+        if let Some(last) = history.last() {
+            let last_updated = conn.query_row("SELECT value FROM platform_stats_accounts WHERE platform=? AND account=? AND key='rating_synced_at'", params![platform,account], |row| row.get::<_,String>(0))
+                .optional().map_err(|e| e.to_string())?.and_then(|value| value.parse::<i64>().ok());
+            let stale = conn.query_row("SELECT value FROM platform_stats_accounts WHERE platform=? AND account=? AND key='rating_stale'", params![platform,account], |row| row.get::<_,String>(0))
+                .optional().map_err(|e| e.to_string())?.as_deref() != Some("0");
+            summaries.push(RatingSummary {
+                last_updated, stale,
+                platform: platform.to_string(),
+                account,
+                current: last.new_rating,
+                maximum: history
+                    .iter()
+                    .map(|point| point.new_rating)
+                    .max()
+                    .unwrap_or(last.new_rating),
+                last_change: last.new_rating - last.old_rating,
+                contest_count: history.len() as i64,
+                last_contest_epoch: last.epoch_second,
+                history,
+            });
+        }
+    }
+    Ok(summaries)
+}
+
 pub fn snapshot(
     conn: &Connection,
     platform: Option<&str>,
@@ -666,6 +823,7 @@ pub fn snapshot(
     let mut recent = Vec::new();
     let mut difficulty = Vec::new();
     let mut difficulty_daily = Vec::new();
+    let mut ratings = Vec::new();
     let mut solved_range = 0_i64;
     let mut ac_sub_range = 0_i64;
     let mut career_solved = 0_i64;
@@ -838,6 +996,7 @@ pub fn snapshot(
             platform_source_filter,
             time_zone,
         )?);
+        ratings.extend(ratings_for_platform(conn, p, platform_account_filter)?);
     }
     recent.sort_by_key(|x| std::cmp::Reverse(x.epoch_second));
     recent.truncate(20);
@@ -863,6 +1022,7 @@ pub fn snapshot(
         platforms,
         difficulty,
         difficulty_daily,
+        ratings,
         recent,
         metric_available,
         warnings,
@@ -1356,7 +1516,135 @@ fn metric_label(m: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{bucket_label, day_epoch_range, day_in_time_zone};
+    use super::*;
+
+    fn entry(platform: &str, account: &str) -> AccountConfig {
+        AccountConfig { platform: platform.into(), account: account.into(), secret: String::new() }
+    }
+
+    fn remote(platform: &str, account: &str) -> RemoteData {
+        RemoteData {
+            platform: platform.into(), account: account.into(),
+            submissions: vec![Submission {
+                platform: platform.into(), account: account.into(), source: "oj".into(),
+                source_day: None, submission_id: "shared-id".into(), problem_key: "A".into(),
+                problem_id: "A".into(), problem_name: "A".into(), problem_url: String::new(),
+                epoch_second: 1_767_196_800, language: "C++".into(), difficulty: Some("1200".into()),
+            }],
+            aggregates: vec![AggregateDay { day: "2026-01-01".into(), epoch_second: None,
+                metric: "activity".into(), count: 3, note: String::new() }],
+            solved_count: Some(1), difficulty: vec![DifficultyStat { label: "1200".into(), count: 1, order: 1200 }],
+            ratings: Some(vec![RatingPoint { contest_id: "1".into(), contest_name: "Round 1".into(),
+                epoch_second: 1_767_196_800, old_rating: 1200, new_rating: 1300, rank: Some(100) }]),
+            activity_only: false, notes: vec![], cursor_epoch: 123,
+            replace_submissions: false, replace_aggregates: false,
+        }
+    }
+
+    fn count(conn: &Connection, table: &str, platform: &str, account: &str) -> i64 {
+        conn.query_row(&format!("SELECT COUNT(*) FROM {table} WHERE platform=? AND account=?"),
+            params![platform,account], |r| r.get(0)).unwrap()
+    }
+
+    #[test]
+    fn removing_one_id_purges_all_owned_records_and_preserves_others() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_all_accounts(&mut conn, &[entry("codeforces","alice"), entry("codeforces","bob"), entry("atcoder","alice")]).unwrap();
+        for (platform, account) in [("codeforces","alice"), ("codeforces","bob"), ("atcoder","alice")] {
+            apply_remote(&mut conn, &remote(platform, account)).unwrap();
+        }
+        // Same submission id must coexist across accounts.
+        assert_eq!(count(&conn,"submissions","codeforces","alice"), 1);
+        replace_accounts(&mut conn, "codeforces", &[entry("codeforces","bob")]).unwrap();
+        for table in ["submissions","daily_aggregates_accounts","difficulty_stats_accounts",
+                      "platform_stats_accounts","rating_history","account_sync_state"] {
+            assert_eq!(count(&conn, table, "codeforces", "alice"), 0, "{table}");
+            assert!(count(&conn, table, "codeforces", "bob") > 0, "{table}");
+            assert!(count(&conn, table, "atcoder", "alice") > 0, "{table}");
+        }
+        assert_eq!(get_cursor(&conn,"codeforces","alice").unwrap(), 0);
+        assert_eq!(ratings_for_platform(&conn,"codeforces",None).unwrap().len(), 1);
+        let detail = day_detail(&conn,"2026-01-01",Some("codeforces"),None,None,"Asia/Shanghai").unwrap();
+        assert_eq!(detail.items.len(), 1);
+        assert_eq!(detail.items[0].account, "bob");
+    }
+
+    #[test]
+    fn renamed_or_removed_ids_cannot_accept_late_sync_results() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","old")]).unwrap();
+        apply_remote(&mut conn,&remote("codeforces","old")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","new")]).unwrap();
+        assert!(apply_remote(&mut conn,&remote("codeforces","old")).is_err());
+        assert_eq!(get_cursor(&conn,"codeforces","new").unwrap(),0);
+        save_account(&mut conn,"codeforces","","").unwrap();
+        assert!(get_accounts(&conn).unwrap().is_empty());
+        assert!(ratings_for_platform(&conn,"codeforces",None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn bulk_account_save_rolls_back_all_platforms_on_error() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_all_accounts(&mut conn,&[entry("codeforces","alice"),entry("atcoder","bob")]).unwrap();
+        apply_remote(&mut conn,&remote("codeforces","alice")).unwrap();
+        conn.execute_batch("CREATE TRIGGER fail_save BEFORE INSERT ON account_entries WHEN NEW.account='fail' BEGIN SELECT RAISE(ABORT,'test failure'); END;").unwrap();
+        assert!(replace_all_accounts(&mut conn,&[entry("atcoder","fail")]).is_err());
+        assert_eq!(get_accounts(&conn).unwrap().len(),2);
+        assert_eq!(count(&conn,"submissions","codeforces","alice"),1);
+    }
+
+    #[test]
+    fn clearing_records_keeps_accounts_and_resets_cursors_and_ratings() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","alice")]).unwrap();
+        apply_remote(&mut conn,&remote("codeforces","alice")).unwrap();
+        clear_all(&mut conn).unwrap();
+        assert_eq!(get_accounts(&conn).unwrap().len(),1);
+        assert_eq!(get_cursor(&conn,"codeforces","alice").unwrap(),0);
+        assert!(ratings_for_platform(&conn,"codeforces",None).unwrap().is_empty());
+        assert_eq!(statuses(&conn).unwrap().iter().map(|s| s.cached_records).sum::<i64>(),0);
+    }
+
+    #[test]
+    fn failed_rating_refresh_preserves_cache_but_empty_success_clears_it() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","alice")]).unwrap();
+        let mut data = remote("codeforces","alice");
+        apply_remote(&mut conn,&data).unwrap();
+        data.ratings = None;
+        apply_remote(&mut conn,&data).unwrap();
+        assert_eq!(count(&conn,"rating_history","codeforces","alice"),1);
+        data.ratings = Some(vec![]);
+        apply_remote(&mut conn,&data).unwrap();
+        assert_eq!(count(&conn,"rating_history","codeforces","alice"),0);
+    }
+
+    #[test]
+    fn reopening_does_not_reimport_legacy_caches() {
+        let path = std::env::temp_dir().join(format!("oj-insight-test-{}-{}.sqlite3",
+            std::process::id(), Utc::now().timestamp_nanos_opt().unwrap()));
+        {
+            let mut conn = open(&path).unwrap();
+            replace_accounts(&mut conn,"codeforces",&[entry("codeforces","alice"),entry("codeforces","removed")]).unwrap();
+            apply_remote(&mut conn,&remote("codeforces","removed")).unwrap();
+            // Simulate v0.4 removing just the config, leaving account caches.
+            conn.execute("DELETE FROM account_entries WHERE account='removed'", []).unwrap();
+            conn.execute_batch("INSERT INTO daily_aggregates VALUES('codeforces','2026-01-01','activity',99,'legacy',NULL);").unwrap();
+        }
+        {
+            let mut conn = open(&path).unwrap();
+            assert_eq!(count(&conn,"daily_aggregates_accounts","codeforces","alice"),0);
+            assert_eq!(count(&conn,"submissions","codeforces","removed"),0);
+            assert_eq!(count(&conn,"rating_history","codeforces","removed"),0);
+            replace_accounts(&mut conn,"codeforces",&[]).unwrap();
+        }
+        {
+            let conn = open(&path).unwrap();
+            assert!(get_accounts(&conn).unwrap().is_empty());
+            assert_eq!(statuses(&conn).unwrap().iter().map(|s| s.cached_records).sum::<i64>(),0);
+        }
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn utc8_day_changes_at_china_midnight() {

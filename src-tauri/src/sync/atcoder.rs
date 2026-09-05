@@ -1,9 +1,10 @@
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;
+use chrono::DateTime;
 
 use super::{browser_headers, get_json, get_text, now_epoch, polite_sleep};
-use crate::models::{AccountConfig, RemoteData, Submission, SyncError};
+use crate::models::{AccountConfig, RatingPoint, RemoteData, Submission, SyncError};
 
 pub async fn fetch(
     client: &Client,
@@ -135,6 +136,8 @@ pub async fn fetch(
         polite_sleep(1100).await;
     }
 
+    let ratings = fetch_rating_history(client, user).await.ok();
+
     Ok(RemoteData {
         platform: "atcoder".into(),
         account: user.into(),
@@ -142,6 +145,7 @@ pub async fn fetch(
         aggregates: vec![],
         solved_count: None,
         difficulty: vec![],
+        ratings,
         activity_only: false,
         notes: vec![
             "AtCoder Problems submission API；使用原始 epoch_second".into(),
@@ -151,6 +155,52 @@ pub async fn fetch(
         replace_submissions: full,
         replace_aggregates: full,
     })
+}
+
+async fn fetch_rating_history(client: &Client, user: &str) -> Result<Vec<RatingPoint>, SyncError> {
+    let url = format!(
+        "https://atcoder.jp/users/{}/history/json",
+        urlencoding::encode(user)
+    );
+    let payload = get_json(client, &url, browser_headers()).await?;
+    let rows = payload
+        .as_array()
+        .ok_or_else(|| SyncError::error("AtCoder Rating 历史格式异常"))?;
+    if rows.iter().any(|row| row.get("IsRated").and_then(Value::as_bool).is_none()) {
+        return Err(SyncError::error("AtCoder Rating 标识不完整，保留旧缓存"));
+    }
+    rows
+        .iter()
+        .filter(|row| row.get("IsRated").and_then(Value::as_bool).unwrap_or(false))
+        .map(|row| {
+            let epoch_second = DateTime::parse_from_rfc3339(row.get("EndTime")?.as_str()?)
+                .ok()?
+                .timestamp();
+            let contest_id = row
+                .get("ContestScreenName")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .split('.')
+                .next()
+                .unwrap_or("");
+            if contest_id.is_empty() {
+                return None;
+            }
+            Some(RatingPoint {
+                contest_id: contest_id.to_string(),
+                contest_name: row
+                    .get("ContestName")
+                    .and_then(Value::as_str)
+                    .unwrap_or(contest_id)
+                    .to_string(),
+                epoch_second,
+                old_rating: row.get("OldRating")?.as_i64()?,
+                new_rating: row.get("NewRating")?.as_i64()?,
+                rank: row.get("Place").and_then(Value::as_i64),
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| SyncError::error("Rating 历史存在不完整记录，保留旧缓存"))
 }
 
 fn atcoder_display_difficulty(value: f64) -> i64 {

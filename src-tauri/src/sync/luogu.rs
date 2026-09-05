@@ -14,7 +14,7 @@ fn base_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
     h.insert(
         USER_AGENT,
-        HeaderValue::from_static("OJ-Insight/0.4 local analytics"),
+        HeaderValue::from_static("OJ-Insight/0.5 local analytics"),
     );
     h.insert(
         ACCEPT,
@@ -264,6 +264,7 @@ pub async fn fetch(
         aggregates,
         solved_count,
         difficulty,
+        ratings: None,
         activity_only,
         notes: vec![format!("洛谷个人页热度图 · UID {uid}"), record_note],
         cursor_epoch: now_epoch().saturating_sub(48 * 3600),
