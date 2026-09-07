@@ -2,9 +2,9 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.5.0 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.5.1 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
-> v0.5.0 开发版本：源码功能已实现，安装包和 Arch/niri 实机验证尚未完成。详细改动见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
+> v0.5.1 修复版：集中修复字号、主题、难度图、洛谷部分同步和 macOS 架构兼容问题。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 功能
 
@@ -60,7 +60,7 @@ macOS 应用包是只读的，因此持久数据保存在用户应用支持目�
 └─ webview/
 ```
 
-复制整个 `com.ojinsight.app` 目录即可备份或迁移。构建说明见 [BUILD_MACOS.md](BUILD_MACOS.md)。
+复制整个 `com.ojinsight.app` 目录即可备份或迁移。构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 数据目录（Linux）
 
@@ -74,7 +74,7 @@ Linux 安装目录通常不可写，因此数据保存在 Tauri 返回的当前�
 └─ webview/
 ```
 
-实际路径以应用「关于」页面显示为准。构建说明见 [BUILD_LINUX.md](BUILD_LINUX.md)。
+实际路径以应用「关于」页面显示为准。构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 升级与删除账号
 
@@ -138,7 +138,7 @@ Cookie 等价于登录凭据。不要上传 `data/`，也不要把数据库或�
 cn:admiring-sutherlanduel
 ```
 
-v0.5.0 会按站点公开能力分别同步：
+v0.5.1 会按站点公开能力分别同步：
 
 - `leetcode.com` 使用 `matchedUser(username)` 获取公开日历与统计；
 - `leetcode.cn` 使用自己的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard，并尝试独立的 `userProfileCalendar` 与最近 AC 查询；
@@ -188,7 +188,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 - 「清空」：删除单 OJ 的提交、Activity、难度与同步状态，保留账号。
 - 「清空所有」：对六站执行清空，仍保留账号。
 
-同步全部按已配置平台逐站执行，UI 显示 `x / n`、新增记录和失败数量。任一站失败不会中断其他站，也不会删除该站上次成功缓存。
+同步全部按已配置平台逐站执行，UI 显示 `x / n`、新增记录、部分可用和失败数量。洛谷能取得可信聚合、题量或难度数据但无法取得具体提交时计为“部分可用”，不计入失败。任一站失败不会中断其他站，也不会删除该站上次成功缓存。
 
 ## 导出
 
@@ -202,7 +202,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.5.0`。Check for Updates 请求：
+About 显示当前版本 `0.5.1`。Check for Updates 请求：
 
 ```text
 https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
@@ -259,8 +259,8 @@ npm run tauri build
 然后推送 tag：
 
 ```bash
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.5.1
+git push origin v0.5.1
 ```
 
 Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS 使用 `.app`；Linux 使用原生安装包或 AppImage。

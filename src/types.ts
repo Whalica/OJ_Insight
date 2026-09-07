@@ -10,7 +10,7 @@ export interface AccountConfig {
 export interface SyncStatus {
   platform: Platform;
   account: string;
-  status: 'idle' | 'syncing' | 'ok' | 'error' | 'auth_required';
+  status: 'idle' | 'syncing' | 'ok' | 'warning' | 'error' | 'auth_required';
   message: string;
   last_attempt: number | null;
   last_success: number | null;
@@ -124,4 +124,5 @@ export interface SyncResult {
   updated: number;
   message: string;
   status: string;
+  partial: boolean;
 }

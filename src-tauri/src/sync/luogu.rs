@@ -253,8 +253,8 @@ pub async fn fetch(
         ),
     };
     let activity_only = !record_available;
-    if activity_only && aggregates.is_empty() {
-        return Err(SyncError::error("洛谷没有返回可用的提交记录或逐日活动数据"));
+    if activity_only && aggregates.is_empty() && solved_count.is_none() && difficulty.is_empty() {
+        return Err(SyncError::error("洛谷没有返回可用的提交、活动或题目统计数据"));
     }
 
     Ok(RemoteData {

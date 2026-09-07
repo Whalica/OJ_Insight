@@ -25,13 +25,23 @@ function ratingLabel(platform: Platform, rating: number) {
 
 function ratingColor(platform: Platform, rating: number) {
   if (platform === 'codeforces') {
-    if (rating >= 2400) return '#f15b64';
-    if (rating >= 2100) return '#f0b44c';
-    if (rating >= 1900) return '#c979e7';
-    if (rating >= 1600) return '#5e9ee6';
-    if (rating >= 1400) return '#48c7c0';
-    if (rating >= 1200) return '#62c878';
-    return '#9aa4ad';
+    if (rating >= 2400) return '#ff0000';
+    if (rating >= 2100) return '#ff8c00';
+    if (rating >= 1900) return '#aa00aa';
+    if (rating >= 1600) return '#0000ff';
+    if (rating >= 1400) return '#03a89e';
+    if (rating >= 1200) return '#008000';
+    return '#808080';
+  }
+  if (platform === 'atcoder') {
+    if (rating >= 2800) return '#ff0000';
+    if (rating >= 2400) return '#ff8000';
+    if (rating >= 2000) return '#c0c000';
+    if (rating >= 1600) return '#0000ff';
+    if (rating >= 1200) return '#00c0c0';
+    if (rating >= 800) return '#008000';
+    if (rating >= 400) return '#804000';
+    return '#808080';
   }
   return PLATFORM_META[platform].accent;
 }
@@ -85,6 +95,9 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
   }, [shown]);
 
   const color = summary ? ratingColor(platform, summary.current) : PLATFORM_META[platform].accent;
+  const maximumColor = summary ? ratingColor(platform, summary.maximum) : color;
+  const recent90 = summary?.history.filter((point) => point.epoch_second >= Date.now() / 1000 - 90 * 86400).sort((left, right) => left.epoch_second - right.epoch_second) || [];
+  const recent90Change = recent90.length ? recent90[recent90.length - 1].new_rating - recent90[0].old_rating : 0;
   return <>
     <div className="section-title rating-title"><small>RATING OVERVIEW · 独立于训练时间范围</small><h2>竞赛 Rating 总览</h2></div>
     <section className="panel rating-panel" style={{ '--rating-color': color } as CSSProperties}>
@@ -95,13 +108,13 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
       </div>
       {!summary ? <div className="rating-empty"><strong>{PLATFORM_META[platform].name} 暂无 Rating 记录</strong><span>{['codeforces', 'atcoder', 'leetcode'].includes(platform) ? '请配置 ID 后同步；未参加 Rated 比赛或接口暂不可用时不会显示为 0。LeetCode 当前仅接入国际站。' : '该平台的 Rating 历史暂未接入，不显示 0 或估算值。'}</span></div> : <div className="rating-layout">
         <div className="rating-summary">
-          <div className="rating-account"><span className="platform-monogram" style={{ color: PLATFORM_META[platform].accent }}>{PLATFORM_META[platform].short}</span>{accounts.length > 1 ? <div className="select-wrap"><select value={summary.account} onChange={(event) => setAccount(event.target.value)}>{accounts.map((item) => <option key={item.account}>{item.account}</option>)}</select><ChevronDown size={14} /></div> : <strong>{summary.account}</strong>}</div>
-          <div className="rating-current"><small>当前 Rating</small><strong>{summary.current.toLocaleString()}</strong><span>{ratingLabel(platform, summary.current)}</span><small>{summary.stale ? '本次 Rating 未更新，显示缓存' : 'Rating 已同步'}{summary.last_updated ? ` · ${dateLabel(summary.last_updated, timeZone)}` : ''}</small></div>
+          <div className="rating-account">{accounts.length > 1 ? <div className="select-wrap"><select style={{ color }} value={summary.account} onChange={(event) => setAccount(event.target.value)}>{accounts.map((item) => <option key={item.account}>{item.account}</option>)}</select><ChevronDown size={14} /></div> : <strong style={{ color }}>{summary.account}</strong>}</div>
+          <div className="rating-milestones"><div className="rating-current"><small>当前 Rating</small><strong>{summary.current.toLocaleString()}</strong><span>{ratingLabel(platform, summary.current)}</span></div><div className="rating-maximum" style={{ '--maximum-color': maximumColor } as CSSProperties}><small>历史最高</small><strong>{summary.maximum.toLocaleString()}</strong><span>{ratingLabel(platform, summary.maximum)}</span></div></div>
+          <small className="rating-sync-state">{summary.stale ? '本次 Rating 未更新，显示缓存' : 'Rating 已同步'}{summary.last_updated ? ` · ${dateLabel(summary.last_updated, timeZone)}` : ''}</small>
           <div className="rating-facts">
-            <div><small>历史最高</small><strong>{summary.maximum.toLocaleString()}</strong></div>
             <div><small>最近一场变化</small><strong className={summary.last_change < 0 ? 'negative' : 'positive'}>{platform === 'leetcode' && summary.contest_count === 1 ? '—' : `${summary.last_change > 0 ? '+' : ''}${summary.last_change}`}</strong></div>
+            <div><small>近 90 天净变化</small><strong className={recent90Change < 0 ? 'negative' : 'positive'}>{recent90.length ? `${recent90Change > 0 ? '+' : ''}${recent90Change}` : '—'}</strong></div>
             <div><small>Rated 场次</small><strong>{summary.contest_count}</strong></div>
-            <div><small>最近 Rated 比赛</small><strong>{dateLabel(summary.last_contest_epoch, timeZone)}</strong></div>
           </div>
         </div>
         <div className="rating-chart-wrap">

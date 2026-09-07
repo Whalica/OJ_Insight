@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import DayDrawer from './components/DayDrawer';
 import DashboardPage from './pages/DashboardPage';
-import { AboutPage, DataPage, ExportPage, SettingsPage } from './pages/UtilityPages';
+import AboutPage from './pages/AboutPage';
+import DataPage from './pages/DataPage';
+import ExportPage from './pages/ExportPage';
+import SettingsPage from './pages/SettingsPage';
 import { api } from './lib/api';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
@@ -32,7 +35,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncTip, setSyncTip] = useState('');
-  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number; added: number; partial: number; failed: number } | null>(null);
   const [toast, setToast] = useState('');
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
   const [dayLoading, setDayLoading] = useState(false);
@@ -105,14 +108,14 @@ export default function App() {
   const syncAll = async () => {
     setSyncing('all'); chooseTip();
     const configured = PLATFORM_ORDER.filter((platform) => accounts[platform].some((entry) => entry.account.trim()));
-    let done = 0; let added = 0; let failed = 0;
-    setSyncProgress({ done, total: configured.length, added, failed });
+    let done = 0; let added = 0; let partial = 0; let failed = 0;
+    setSyncProgress({ done, total: configured.length, added, partial, failed });
     try {
       for (const platform of configured) {
-        try { const result = await api.syncPlatform(platform); added += result.inserted; if (result.status !== 'ok') failed += 1; } catch { failed += 1; }
-        done += 1; setSyncProgress({ done, total: configured.length, added, failed }); await loadStatuses();
+        try { const result = await api.syncPlatform(platform); added += result.inserted; if (result.partial) partial += 1; else if (result.status !== 'ok' && result.status !== 'warning') failed += 1; } catch { failed += 1; }
+        done += 1; setSyncProgress({ done, total: configured.length, added, partial, failed }); await loadStatuses();
       }
-      notify(configured.length ? `同步完成：新增 ${added} 条，${failed} 个平台需关注` : '还没有配置账号，请先到设置页填写');
+      notify(configured.length ? `同步完成：新增 ${added} 条，部分可用 ${partial}，失败 ${failed}` : '还没有配置账号，请先到设置页填写');
       await Promise.all([loadSnapshot(), loadStatuses()]);
     } finally { setSyncing(null); window.setTimeout(() => setSyncProgress(null), 2600); }
   };

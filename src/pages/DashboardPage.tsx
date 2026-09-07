@@ -26,7 +26,7 @@ interface Props {
   loading: boolean;
   syncing: string | null;
   syncTip: string;
-  syncProgress: { done: number; total: number; added: number; failed: number } | null;
+  syncProgress: { done: number; total: number; added: number; partial: number; failed: number } | null;
   onSync: () => void;
   onDay: (day: string) => void;
   onPlatform: (platform: Platform) => void;
@@ -50,7 +50,7 @@ export default function DashboardPage(props: Props) {
   return <>
     <header className="topbar dashboard-head"><div><small>{platform ? `${PLATFORM_META[platform].short} · PLATFORM` : today(timeZone)}</small><h1>{title}</h1><p>{platform ? `${PLATFORM_META[platform].name} 的活动砖、难度足迹和逐题记录。` : welcome.message}</p></div><button className="primary sync-button" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncProgress ? `${syncProgress.done}/${syncProgress.total}` : syncing ? '同步中' : platform ? `同步 ${PLATFORM_META[platform].short}` : '同步全部'}</button></header>
     {!!syncing && syncTip && <div className="tip-banner"><span>比赛小贴士</span><strong>{syncTip}</strong></div>}
-    {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>新增 {syncProgress.added} 条 · {syncProgress.failed} 个平台失败</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
+    {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>新增 {syncProgress.added} 条 · 部分可用 {syncProgress.partial} · 失败 {syncProgress.failed}</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
     {!platform && <TodayProgress rows={snapshot.platforms} timeZone={timeZone} onSelect={onPlatform} />}
     <div className="section-title career-title"><small>CAREER · 不受下方时间范围影响</small><h2>生涯累计</h2></div><StatCards stats={snapshot.career} />
     <RatingOverview ratings={snapshot.ratings} timeZone={timeZone} selectedPlatform={platform} />
@@ -96,7 +96,14 @@ function DifficultyProfile({ data, preferred }: { data: Snapshot['difficulty']; 
   const active = selected && available.includes(selected) ? selected : available[0];
   if (!active) return <div className="empty">生涯记录中暂时没有可靠的难度数据；同步源可用后会自动补齐。</div>;
   const shown = filledDifficulty(data, active); const max = Math.max(1, ...shown.map((item) => item.count)); const total = shown.reduce((sum, item) => sum + item.count, 0);
-  return <><div className="difficulty-tabs">{available.map((platform) => <button className={platform === active ? 'active' : ''} onClick={() => setSelected(platform)} key={platform}>{PLATFORM_META[platform].short}<span>{PLATFORM_META[platform].name}</span></button>)}</div><div className={`histogram histogram-${active}`} style={{ '--bucket-count': shown.length } as CSSProperties}>{shown.map((item) => <div key={`${item.platform}-${item.label}`} title={`${item.label}：${item.count}`}><strong>{item.count}</strong><i style={{ height: `${Math.max(8, item.count / max * 100)}%`, background: difficultyColor(active, item.label, item.order) }} /><span>{item.label}</span></div>)}</div><div className="difficulty-summary"><span>生涯去重难度题数<strong>{total.toLocaleString()} 题</strong></span><span>分级方式<strong>{active === 'codeforces' ? '每 100 rating 一级，仅显示已完成难度' : active === 'luogu' ? 'Luogu 最新八级体系' : `${PLATFORM_META[active].name} 当前体系`}</strong></span></div></>;
+  const gap = shown.length >= 14 ? 5 : shown.length >= 8 ? 9 : 12;
+  const idealSlot = active === 'codeforces' ? 46 : active === 'luogu' ? 92 : active === 'atcoder' ? 82 : 110;
+  const chartStyle = {
+    '--bucket-count': shown.length,
+    '--histogram-gap': `${gap}px`,
+    '--histogram-max-width': `${shown.length * idealSlot + Math.max(0, shown.length - 1) * gap}px`,
+  } as CSSProperties;
+  return <><div className="difficulty-tabs">{available.map((platform) => <button className={platform === active ? 'active' : ''} onClick={() => setSelected(platform)} key={platform}>{PLATFORM_META[platform].short}<span>{PLATFORM_META[platform].name}</span></button>)}</div><div className={`histogram histogram-${active}`} style={chartStyle}>{shown.map((item) => <div key={`${item.platform}-${item.label}`} title={`${item.label}：${item.count}`}><div className="histogram-bar" style={{ '--bar-height': `${Math.max(7, item.count / max * 100)}%`, '--bar-color': difficultyColor(active, item.label, item.order) } as CSSProperties}><strong>{item.count}</strong><i /></div><span>{item.label}</span></div>)}</div><div className="difficulty-summary"><span>生涯去重难度题数<strong>{total.toLocaleString()} 题</strong></span><span>分级方式<strong>{active === 'codeforces' ? '每 100 rating 一级，仅显示已完成难度' : active === 'luogu' ? 'Luogu 最新八级体系' : `${PLATFORM_META[active].name} 当前体系`}</strong></span></div></>;
 }
 
 function LeetCodeSummary({ data }: { data: Snapshot['difficulty'] }) {

@@ -19,27 +19,28 @@ export const METRICS = [
 ] as const;
 
 const LUOGU_COLORS: Record<string, string> = {
-  '入门': '#ef5350', '普及-': '#f39c12', '普及': '#f4c430', '普及+/提高-': '#52b65a',
-  '提高': '#13b6a7', '提高+/省选-': '#3182ce', '省选/NOI-': '#8b5cf6', 'NOI/NOI+/CTS': '#30343b',
+  '入门': '#FE4C61', '普及-': '#F39C11', '普及': '#FFC116', '普及+/提高-': '#52C41A',
+  '提高': '#00B5AD', '提高+/省选-': '#3498DB', '省选/NOI-': '#9D3DCF', 'NOI/NOI+/CTS': '#0E1D69',
 };
 
 export function difficultyColor(platform: Platform, label: string, order = 0) {
   if (platform === 'luogu') return LUOGU_COLORS[label] || '#68737d';
   if (platform === 'codeforces') {
     const rating = Number(label) || order;
-    if (rating < 1200) return '#808080'; if (rating < 1400) return '#008000';
-    if (rating < 1600) return '#03a89e'; if (rating < 1900) return '#0000ff';
-    if (rating < 2100) return '#aa00aa'; if (rating < 2400) return '#ff8c00'; return '#ff0000';
+    if (rating < 1200) return '#9AA4AD'; if (rating < 1400) return '#43B95C';
+    if (rating < 1600) return '#20B8B0'; if (rating < 1900) return '#4C8DDB';
+    if (rating < 2100) return '#A45BD4'; if (rating < 2400) return '#F29A2E'; return '#E85757';
   }
   if (platform === 'atcoder') {
-    const rating = order || Number(label.split('–')[0]);
-    if (rating < 400) return '#808080'; if (rating < 800) return '#9a6b3f';
-    if (rating < 1200) return '#2e9d46'; if (rating < 1600) return '#00a8a8';
-    if (rating < 2000) return '#3778c2'; if (rating < 2400) return '#c4a000';
-    if (rating < 2800) return '#ef7d00'; return '#d94141';
+    const parsed = Number(label.split(/[–-]/)[0]);
+    const rating = Number.isFinite(parsed) ? parsed : order * 400;
+    if (rating < 400) return '#9AA4AD'; if (rating < 800) return '#A36F48';
+    if (rating < 1200) return '#43B95C'; if (rating < 1600) return '#20B8B0';
+    if (rating < 2000) return '#4C8DDB'; if (rating < 2400) return '#D9B72C';
+    if (rating < 2800) return '#F29A2E'; return '#E85757';
   }
   if (platform === 'leetcode') {
-    if (/easy/i.test(label)) return '#00af9b'; if (/medium/i.test(label)) return '#f0ad1c'; return '#ef4743';
+    if (/easy/i.test(label)) return '#00B8A3'; if (/medium/i.test(label)) return '#FFC01E'; return '#FF375F';
   }
   if (platform === 'nowcoder') {
     const score = Number(label) || order;

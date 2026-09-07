@@ -187,6 +187,7 @@ async fn sync_one_inner(
     let mut inserted = 0;
     let mut updated = 0;
     let mut succeeded = 0;
+    let mut partial = false;
     let mut failures = Vec::new();
     let mut advisories = Vec::new();
     for account in accounts {
@@ -212,6 +213,7 @@ async fn sync_one_inner(
         );
         match sync::fetch_platform(&state.client, &account, full, cursor).await {
             Ok(mut remote) => {
+                partial |= remote.activity_only;
                 if remote.ratings.is_none() && (platform == "codeforces" || platform == "atcoder" ||
                     (platform == "leetcode" && !account.account.to_ascii_lowercase().starts_with("cn:"))) {
                     remote.notes.push("警告：Rating 暂未更新，已有 Rating 缓存保留；提交同步不受影响".into());
@@ -294,6 +296,7 @@ async fn sync_one_inner(
         updated,
         message,
         status: status.into(),
+        partial,
     })
 }
 
@@ -331,6 +334,7 @@ async fn sync_all(state: State<'_, AppState>) -> Result<Vec<SyncResult>, String>
                 updated: 0,
                 message,
                 status: "error".into(),
+                partial: false,
             }),
         }
     }
@@ -489,7 +493,7 @@ pub fn run() {
             let conn =
                 db::open(&data_dir.join("oj-insight.sqlite3")).map_err(std::io::Error::other)?;
             let client = Client::builder()
-                .user_agent("OJ-Insight/0.5.0")
+                .user_agent(concat!("OJ-Insight/", env!("CARGO_PKG_VERSION")))
                 .timeout(std::time::Duration::from_secs(35))
                 .connect_timeout(std::time::Duration::from_secs(12))
                 .build()?;

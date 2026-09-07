@@ -110,6 +110,7 @@ pub struct SyncResult {
     pub updated: i64,
     pub message: String,
     pub status: String,
+    pub partial: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
