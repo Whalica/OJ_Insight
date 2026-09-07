@@ -246,7 +246,7 @@ pub async fn fetch(
         Err(error) => (
             Vec::new(),
             format!(
-                "警告：提交记录暂不可用，已回退活动计数（{}）",
+                "提交记录不可用，已同步公开活动与题目统计（{}）",
                 error.message
             ),
             false,

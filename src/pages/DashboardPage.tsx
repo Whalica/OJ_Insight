@@ -97,11 +97,11 @@ function DifficultyProfile({ data, preferred }: { data: Snapshot['difficulty']; 
   if (!active) return <div className="empty">生涯记录中暂时没有可靠的难度数据；同步源可用后会自动补齐。</div>;
   const shown = filledDifficulty(data, active); const max = Math.max(1, ...shown.map((item) => item.count)); const total = shown.reduce((sum, item) => sum + item.count, 0);
   const gap = shown.length >= 14 ? 5 : shown.length >= 8 ? 9 : 12;
-  const idealSlot = active === 'codeforces' ? 46 : active === 'luogu' ? 92 : active === 'atcoder' ? 82 : 110;
+  const barFill = shown.length >= 14 ? 78 : shown.length >= 8 ? 72 : shown.length >= 5 ? 68 : 58;
   const chartStyle = {
     '--bucket-count': shown.length,
     '--histogram-gap': `${gap}px`,
-    '--histogram-max-width': `${shown.length * idealSlot + Math.max(0, shown.length - 1) * gap}px`,
+    '--histogram-bar-fill': `${barFill}%`,
   } as CSSProperties;
   return <><div className="difficulty-tabs">{available.map((platform) => <button className={platform === active ? 'active' : ''} onClick={() => setSelected(platform)} key={platform}>{PLATFORM_META[platform].short}<span>{PLATFORM_META[platform].name}</span></button>)}</div><div className={`histogram histogram-${active}`} style={chartStyle}>{shown.map((item) => <div key={`${item.platform}-${item.label}`} title={`${item.label}：${item.count}`}><div className="histogram-bar" style={{ '--bar-height': `${Math.max(7, item.count / max * 100)}%`, '--bar-color': difficultyColor(active, item.label, item.order) } as CSSProperties}><strong>{item.count}</strong><i /></div><span>{item.label}</span></div>)}</div><div className="difficulty-summary"><span>生涯去重难度题数<strong>{total.toLocaleString()} 题</strong></span><span>分级方式<strong>{active === 'codeforces' ? '每 100 rating 一级，仅显示已完成难度' : active === 'luogu' ? 'Luogu 最新八级体系' : `${PLATFORM_META[active].name} 当前体系`}</strong></span></div></>;
 }

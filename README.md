@@ -2,7 +2,7 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.5.1 是一个 Windows / macOS / Linux 本地优先桌面面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据缓存到 SQLite，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.5.1 是一个 Windows / macOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
 > v0.5.1 修复版：集中修复字号、主题、难度图、洛谷部分同步和 macOS 架构兼容问题。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 

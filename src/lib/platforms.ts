@@ -4,7 +4,7 @@ export const PLATFORM_ORDER: Platform[] = ['codeforces', 'atcoder', 'luogu', 'no
 
 export const PLATFORM_META: Record<Platform, { name: string; short: string; accent: string; accountHint: string; secretHint?: string }> = {
   codeforces: { name: 'Codeforces', short: 'CF', accent: '#5aa6e8', accountHint: 'Handle' },
-  atcoder: { name: 'AtCoder', short: 'ATC', accent: '#d7d9dc', accountHint: '用户名' },
+  atcoder: { name: 'AtCoder', short: 'ATC', accent: 'var(--atcoder-accent)', accountHint: '用户名' },
   luogu: { name: 'Luogu', short: 'LG', accent: '#2d9cdb', accountHint: '用户名或数字 UID' },
   nowcoder: { name: 'NowCoder', short: 'NC', accent: '#00b96b', accountHint: '个人主页 users/ 后的数字 User ID', secretHint: '可选：牛客网页 Cookie（用于同步 Tracker 完成记录）' },
   qoj: { name: 'QOJ', short: 'QOJ', accent: '#48d0c0', accountHint: '用户名', secretHint: '可选：UOJSESSID=...（QOJ 当前需登录查看完整提交）' },
@@ -34,7 +34,7 @@ export function difficultyColor(platform: Platform, label: string, order = 0) {
   if (platform === 'atcoder') {
     const parsed = Number(label.split(/[–-]/)[0]);
     const rating = Number.isFinite(parsed) ? parsed : order * 400;
-    if (rating < 400) return '#9AA4AD'; if (rating < 800) return '#A36F48';
+    if (rating < 400) return 'var(--atcoder-difficulty-gray)'; if (rating < 800) return '#A36F48';
     if (rating < 1200) return '#43B95C'; if (rating < 1600) return '#20B8B0';
     if (rating < 2000) return '#4C8DDB'; if (rating < 2400) return '#D9B72C';
     if (rating < 2800) return '#F29A2E'; return '#E85757';

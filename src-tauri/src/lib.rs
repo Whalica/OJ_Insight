@@ -213,7 +213,7 @@ async fn sync_one_inner(
         );
         match sync::fetch_platform(&state.client, &account, full, cursor).await {
             Ok(mut remote) => {
-                partial |= remote.activity_only;
+                partial |= remote.activity_only && platform != "luogu";
                 if remote.ratings.is_none() && (platform == "codeforces" || platform == "atcoder" ||
                     (platform == "leetcode" && !account.account.to_ascii_lowercase().starts_with("cn:"))) {
                     remote.notes.push("警告：Rating 暂未更新，已有 Rating 缓存保留；提交同步不受影响".into());
