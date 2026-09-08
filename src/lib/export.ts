@@ -1,7 +1,8 @@
 import { save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { sep } from '@tauri-apps/api/path';
-import type { DailyPoint } from '../types';
+import { APP_VERSION } from './version';
+import type { AccountConfig, DailyPoint } from '../types';
 
 const CELL = 11;
 const GAP = 3;
@@ -101,4 +102,32 @@ export async function exportHeatmap(title: string, daily: DailyPoint[], startYea
     const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error('PNG 编码失败')), 'image/png'));
     await invoke('write_export_file', { path, data: Array.from(new Uint8Array(await png.arrayBuffer())) });
   } finally { URL.revokeObjectURL(url); }
+}
+
+export async function exportPersonalProfile(accounts: AccountConfig[], includeCredentials: boolean) {
+  const storage = await invoke<{ exportDir: string }>('get_storage_info');
+  const separator = sep();
+  const slash = storage.exportDir.endsWith('/') || storage.exportDir.endsWith('\\') ? '' : separator;
+  const suffix = includeCredentials ? 'with-credentials' : 'safe';
+  const defaultPath = `${storage.exportDir}${slash}OJ-Insight-personal-profile-${suffix}.json`;
+  const path = await save({ defaultPath, filters: [{ name: 'JSON', extensions: ['json'] }] });
+  if (!path) return false;
+  const exportedAccounts = accounts
+    .filter((entry) => entry.account.trim())
+    .map((entry) => ({
+      platform: entry.platform,
+      account: entry.account.trim(),
+      ...(includeCredentials && entry.secret.trim() ? { secret: entry.secret.trim() } : {}),
+    }));
+  const profile = {
+    schema: 'com.ojinsight.personal-profile',
+    schema_version: 1,
+    app_version: APP_VERSION,
+    exported_at: new Date().toISOString(),
+    contains_credentials: includeCredentials,
+    accounts: exportedAccounts,
+  };
+  const data = new TextEncoder().encode(`${JSON.stringify(profile, null, 2)}\n`);
+  await invoke('write_export_file', { path, data: Array.from(data) });
+  return true;
 }

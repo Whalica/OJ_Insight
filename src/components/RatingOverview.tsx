@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
+import { ChevronDown, ExternalLink } from 'lucide-react';
+import { api } from '../lib/api';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
-import type { Platform, RatingSummary } from '../types';
+import type { Platform, RatingHistoryPoint, RatingSummary } from '../types';
 
 type Period = '30' | '90' | 'all';
 
@@ -55,11 +56,22 @@ function dateLabel(epoch: number, timeZone: string) {
   }).format(new Date(epoch * 1000));
 }
 
+function contestUrl(platform: Platform, point: RatingHistoryPoint) {
+  if (platform === 'codeforces' && /^\d+$/.test(point.contest_id)) return `https://codeforces.com/contest/${point.contest_id}`;
+  if (platform === 'atcoder' && point.contest_id) return `https://atcoder.jp/contests/${encodeURIComponent(point.contest_id)}`;
+  if (platform === 'leetcode' && point.contest_name) {
+    const slug = point.contest_name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (slug) return `https://leetcode.com/contest/${slug}`;
+  }
+  return '';
+}
+
 export default function RatingOverview({ ratings, timeZone, selectedPlatform }: { ratings: RatingSummary[]; timeZone: string; selectedPlatform?: Platform | null }) {
   const available = useMemo(() => new Set(ratings.map((item) => item.platform)), [ratings]);
   const [platform, setPlatform] = useState<Platform>(() => selectedPlatform || ratings[0]?.platform || 'codeforces');
   const [account, setAccount] = useState('');
   const [period, setPeriod] = useState<Period>('90');
+  const [hover, setHover] = useState<{ point: RatingHistoryPoint; x: number; y: number } | null>(null);
   useEffect(() => { if (selectedPlatform) setPlatform(selectedPlatform); }, [selectedPlatform]);
   const accounts = ratings.filter((item) => item.platform === platform);
 
@@ -98,6 +110,11 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
   const maximumColor = summary ? ratingColor(platform, summary.maximum) : color;
   const recent90 = summary?.history.filter((point) => point.epoch_second >= Date.now() / 1000 - 90 * 86400).sort((left, right) => left.epoch_second - right.epoch_second) || [];
   const recent90Change = recent90.length ? recent90[recent90.length - 1].new_rating - recent90[0].old_rating : 0;
+  const showHover = (point: RatingHistoryPoint, event: MouseEvent<SVGCircleElement> | FocusEvent<SVGCircleElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const mouse = 'clientX' in event && event.clientX > 0;
+    setHover({ point, x: mouse ? event.clientX : rect.left + rect.width / 2, y: mouse ? event.clientY : rect.top });
+  };
   return <>
     <div className="section-title rating-title"><small>RATING OVERVIEW · 独立于训练时间范围</small><h2>竞赛 Rating 总览</h2></div>
     <section className="panel rating-panel" style={{ '--rating-color': color } as CSSProperties}>
@@ -119,7 +136,7 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
         </div>
         <div className="rating-chart-wrap">
           <div className="rating-chart-head"><strong>{period === 'all' ? '完整 Rating 历史' : `最近 ${period} 天变化`}</strong><div className="rating-periods">{(['30', '90', 'all'] as Period[]).map((item) => <button className={item === period ? 'active' : ''} onClick={() => setPeriod(item)} key={item}>{item === 'all' ? '全部' : `${item} 天`}</button>)}</div></div>
-          {chart ? <div className="rating-chart"><svg viewBox="0 0 720 184" preserveAspectRatio="none" role="img" aria-label={`${PLATFORM_META[platform].name} Rating 曲线`}><line x1="0" y1="28" x2="720" y2="28"/><line x1="0" y1="92" x2="720" y2="92"/><line x1="0" y1="156" x2="720" y2="156"/>{chart.points.length > 1 && <path d={chart.area}/>}<polyline points={chart.line}/>{chart.points.map((point) => <circle key={`${point.epoch_second}-${point.new_rating}`} cx={point.x} cy={point.y} r="4"><title>{point.contest_name} · {point.new_rating} · {dateLabel(point.epoch_second, timeZone)}</title></circle>)}</svg><div><span>{dateLabel(shown[0].epoch_second, timeZone)}</span><span>比赛 Rating 更新事件</span><span>{dateLabel(shown[shown.length - 1].epoch_second, timeZone)}</span></div></div> : <div className="rating-range-empty">这个时间范围内没有 Rating 更新，切换到“全部”可查看完整历史。</div>}
+          {chart ? <div className="rating-chart"><svg viewBox="0 0 720 184" preserveAspectRatio="none" role="img" aria-label={`${PLATFORM_META[platform].name} Rating 曲线`}><line x1="0" y1="28" x2="720" y2="28"/><line x1="0" y1="92" x2="720" y2="92"/><line x1="0" y1="156" x2="720" y2="156"/>{chart.points.length > 1 && <path d={chart.area}/>}<polyline points={chart.line}/>{chart.points.map((point) => { const url = contestUrl(platform, point); return <circle key={`${point.epoch_second}-${point.new_rating}`} className={url ? 'rating-point-link' : ''} cx={point.x} cy={point.y} r="4" tabIndex={url ? 0 : -1} role={url ? 'link' : undefined} aria-label={`${point.contest_name}，Rating ${point.old_rating} 到 ${point.new_rating}${point.rank == null ? '' : `，排名 ${point.rank}`}，${url ? '点击前往比赛' : '暂无比赛链接'}`} onMouseEnter={(event) => showHover(point, event)} onMouseMove={(event) => showHover(point, event)} onMouseLeave={() => setHover(null)} onFocus={(event) => showHover(point, event)} onBlur={() => setHover(null)} onClick={() => url && api.openExternal(url)} onKeyDown={(event) => { if (url && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); api.openExternal(url); } }}><title>{point.contest_name} · {point.new_rating} · {dateLabel(point.epoch_second, timeZone)}</title></circle>; })}</svg><div><span>{dateLabel(shown[0].epoch_second, timeZone)}</span><span>悬停查看比赛 · 点击前往比赛</span><span>{dateLabel(shown[shown.length - 1].epoch_second, timeZone)}</span></div>{hover && <div className="rating-tooltip" style={{ left: Math.min(window.innerWidth - 286, hover.x + 14), top: Math.max(8, hover.y - 132) }}><strong>{hover.point.contest_name}</strong><span><i>{dateLabel(hover.point.epoch_second, timeZone)}</i>{hover.point.rank == null ? '排名未知' : `排名 ${hover.point.rank.toLocaleString()}`}</span><span><i>Rating</i><b>{hover.point.old_rating.toLocaleString()} → {hover.point.new_rating.toLocaleString()}</b><em className={hover.point.new_rating < hover.point.old_rating ? 'negative' : 'positive'}>{hover.point.new_rating > hover.point.old_rating ? '+' : ''}{hover.point.new_rating - hover.point.old_rating}</em></span>{contestUrl(platform, hover.point) && <small>点击该点前往比赛 <ExternalLink size={12} /></small>}</div>}</div> : <div className="rating-range-empty">这个时间范围内没有 Rating 更新，切换到“全部”可查看完整历史。</div>}
         </div>
       </div>}
     </section>

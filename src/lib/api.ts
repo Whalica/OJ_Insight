@@ -7,7 +7,7 @@ export interface StorageInfo {
 }
 
 import { invoke } from '@tauri-apps/api/core';
-import type { AccountConfig, DayDetail, Metric, Platform, Snapshot, SyncResult, SyncStatus, UpdateInfo } from '../types';
+import type { AccountConfig, DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncResult, SyncStatus, UpdateInfo } from '../types';
 
 export const api = {
   storageInfo: () => invoke<StorageInfo>('get_storage_info'),
@@ -24,6 +24,8 @@ export const api = {
     invoke<Snapshot>('get_snapshot', { platform, startDay, endDay, metric, account, source, timeZone }),
   dayDetail: (day: string, platform: Platform | null, account: string | null = null, source: string | null = null, timeZone = 'Asia/Shanghai') =>
     invoke<DayDetail>('get_day_detail', { day, platform, account, source, timeZone }),
+  difficultyDetail: (platform: Platform, label: string, account: string | null = null, source: string | null = null) =>
+    invoke<DifficultyDetail>('get_difficulty_detail', { platform, label, account, source }),
   checkForUpdates: () => invoke<UpdateInfo>('check_for_updates'),
   openExternal: (url: string) => invoke<void>('open_external', { url }),
 };

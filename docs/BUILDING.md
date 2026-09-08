@@ -38,7 +38,7 @@ OJ Insight/
 
 Release 构建使用 Windows GUI subsystem，不会额外弹出控制台窗口。
 
-## macOS
+## MacOS
 
 额外安装 Xcode Command Line Tools。正式发布使用 Universal target，同时包含 Intel `x86_64` 与 Apple Silicon `arm64`：
 
@@ -53,19 +53,26 @@ npm run tauri build -- --target universal-apple-darwin
 lipo -archs "src-tauri/target/universal-apple-darwin/release/bundle/macos/OJ Insight.app/Contents/MacOS/oj-insight"
 ```
 
-输出必须同时包含 `x86_64` 与 `arm64`。v0.5.1 的最低目标系统为 macOS 11。
+输出必须同时包含 `x86_64` 与 `arm64`。v0.6.0 的最低目标系统为 MacOS 11。
 
-macOS 数据保存在：
+MacOS 数据保存在：
 
 ```text
 ~/Library/Application Support/com.ojinsight.app/
 ```
 
-### macOS 常见提示
+### MacOS 常见提示
 
-- “这台 Mac 不支持此应用程序”：通常是下载了错误 CPU 架构的包。优先下载文件名包含 `universal` 的 v0.5.1 或更高版本。
+- “这台 Mac 不支持此应用程序”：通常是下载了错误 CPU 架构的包。优先下载文件名包含 `universal` 的 v0.6.0 或更高版本。
 - “无法验证开发者”：这是签名或公证提示，不是架构不兼容。在 Finder 中右键应用并选择“打开”，或在“系统设置 → 隐私与安全性”中允许。
-- 未签名测试包仍可能被 Gatekeeper 阻止。稳定发布应完成 Developer ID 签名与 Apple notarization。
+- “App 已损坏，无法打开”：开源未公证构建被 Gatekeeper 加上隔离标记时也会出现，并不代表程序文件实际损坏。确认安装包来自本项目 Release，保持 DMG 已挂载，然后对 DMG 中的实际 App 路径执行：
+
+```bash
+xattr -cr "/Volumes/OJ Insight/OJ Insight.app"
+```
+
+  DMG 卷名或 App 路径不同时应使用 Finder 中看到的实际路径。只对可信来源下载的软件执行此命令。
+- CI 会对社区构建执行临时签名和完整性检查，但这不能替代 Apple Developer ID 签名与 notarization；配置正式证书后应以签名、公证彻底消除 Gatekeeper 提示。
 
 ## Linux
 
@@ -101,7 +108,7 @@ OJ_INSIGHT_GDK_BACKEND=x11 ./OJ\ Insight_*.AppImage
 
 1. `package.json`、`src/lib/version.ts`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 版本一致。
 2. `npm run check`、前端生产构建及 Rust 测试通过。
-3. Windows、macOS Universal 和 Linux 三个平台产物均已生成。
-4. macOS `lipo` 检查包含两个架构。
+3. Windows、MacOS Universal 和 Linux 三个平台产物均已生成。
+4. MacOS `lipo` 检查包含两个架构。
 5. 三档字号、亮暗主题、最小窗口和同步部分成功状态通过检查。
-6. 发布文件附带 SHA-256 校验清单。
+6. `OJ-Insight-All-Platforms.zip` 根目录只包含 `.exe`、`.dmg` 与 `.AppImage` 各一个。

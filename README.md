@@ -2,16 +2,18 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.5.1 是一个 Windows / macOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.6.0 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
-> v0.5.1 修复版：集中修复字号、主题、难度图、洛谷部分同步和 macOS 架构兼容问题。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
+> v0.6.0：增加 Rating 比赛详情与跳转、难度分布逐题抽屉、个人信息导出，并更新三平台发布包。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 功能
 
 - 总览和每个 OJ 的独立页面；各 OJ 页面同时保留活动砖与难度足迹。
 - 每个平台支持配置多个用户 ID，可查看聚合数据或筛选单个账号；移除 ID 时同步清理其本地缓存，其他 ID 不受影响。
-- Rating 总览：按 OJ/ID 查看当前、最高、最近变化和曲线。当前接入 CF、AtCoder Algorithm、LeetCode 国际站；未接入的平台明确留空。
+- Rating 总览：按 OJ/ID 查看当前、最高、最近变化和曲线；悬停曲线点显示比赛摘要，点击可打开对应比赛。当前接入 CF、AtCoder Algorithm、LeetCode 国际站；未接入的平台明确留空。
+- 难度分布柱形可点击，使用与活动砖一致的侧边抽屉列出该档全部去重题目；只有汇总数据的平台会明确说明逐题数据边界。
 - 设置分为账号设置/个性化；亮暗/系统主题、三级字号、密度、活动砖配色、减少动效、时区与启动页。
+- 账号设置支持导出版本化 JSON 个人信息；默认不含 Cookie / Session，也可在明确警告后导出完整凭据。个性化设置和训练记录不包含在内。
 - Career 生涯统计与当前时间范围统计严格分开。
 - `< [ 2026 ▼ ] >` 年份控件；`至今（近一年）` 显示截至今天最近 365 天，活动砖最右列包含今天。
 - 可选择统计时区；今日进度、问候、砖块日期、连续打卡和零点换日统一按该时区换算。
@@ -24,7 +26,7 @@ OJ Insight v0.5.1 是一个 Windows / macOS / Linux 多 OJ 训练数据面板，
 - 同步进度显示完成站点数、新增记录与失败站点数；每次全同步固定展示一条随机竞赛 Tips。
 - 指定年份区间或 Until now 的 Activity 导出；All OJs/单 OJ；PNG/SVG。
 - About 页提供版本、GitHub Releases 更新检查、仓库和 Issue 入口。
-- Windows Release 使用 GUI subsystem；macOS Release 使用原生 `.app`；Linux 提供 AppImage、DEB 与 RPM。启动、同步、检查更新、导出均不创建 console / shell 子进程。
+- Windows Release 使用 GUI subsystem；MacOS Release 使用原生 `.app`；Linux 提供 AppImage、DEB 与 RPM。启动、同步、检查更新、导出均不创建 console / shell 子进程。
 
 ## 便携目录（Windows）
 
@@ -48,9 +50,9 @@ OJ Insight/
 
 复制整个目录即可备份或迁移。目录必须可写，不建议把便携版放在普通用户不可写的 `Program Files`。
 
-## 数据目录（macOS）
+## 数据目录（MacOS）
 
-macOS 应用包是只读的，因此持久数据保存在用户应用支持目录：
+MacOS 应用包是只读的，因此持久数据保存在用户应用支持目录：
 
 ```text
 ~/Library/Application Support/com.ojinsight.app/
@@ -84,7 +86,7 @@ Linux 安装目录通常不可写，因此数据保存在 Tauri 返回的当前�
 
 ## 第一次使用
 
-1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；macOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`；Linux：安装 DEB/RPM 或运行 AppImage。
+1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；MacOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`；Linux：安装 DEB/RPM 或运行 AppImage。
 2. 打开「设置」，填写需要使用的平台账号并保存。
 3. 打开「数据源」，对新账号执行「重建」。
 4. 以后使用「增量」或「同步全部」。
@@ -138,7 +140,7 @@ Cookie 等价于登录凭据。不要上传 `data/`，也不要把数据库或�
 cn:admiring-sutherlanduel
 ```
 
-v0.5.1 会按站点公开能力分别同步：
+v0.6.0 会按站点公开能力分别同步：
 
 - `leetcode.com` 使用 `matchedUser(username)` 获取公开日历与统计；
 - `leetcode.cn` 使用自己的 `userProfileUserQuestionProgress(userSlug)` 获取解题总数与 Easy / Medium / Hard，并尝试独立的 `userProfileCalendar` 与最近 AC 查询；
@@ -202,7 +204,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.5.1`。Check for Updates 请求：
+About 显示当前版本 `0.6.0`。Check for Updates 请求：
 
 ```text
 https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
@@ -215,7 +217,7 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 诊断日志位于对应平台数据目录中的 `logs/oj-insight.log`：
 
 - Windows：`OJ Insight.exe` 同级的 `logs/oj-insight.log`。
-- macOS：`~/Library/Application Support/com.ojinsight.app/logs/oj-insight.log`。
+- MacOS：`~/Library/Application Support/com.ojinsight.app/logs/oj-insight.log`。
 
 日志记录同步开始、完成、insert/update 数与错误分类，不记录明文平台 Secret/Cookie。若同步源报「结构变化」，可在确认日志已脱敏后附上相关错误行提交 Issue；不要附带数据库。
 
@@ -224,7 +226,7 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 要求：Node.js 22+、Rust stable。沿用当前 GitHub 仓库的 npm 构建方式。
 
 - Windows：Visual Studio C++ Build Tools、WebView2 Runtime。
-- macOS：Xcode Command Line Tools（WKWebView 由系统提供）。
+- MacOS：Xcode Command Line Tools（WKWebView 由系统提供）。
 - Linux：WebKitGTK 4.1、AppIndicator、librsvg、OpenSSL 与常用编译工具。
 
 ```bash
@@ -237,18 +239,18 @@ npm run tauri build
 开发模式数据位置：
 
 - Windows：当前可执行文件旁，通常是 `src-tauri/target/debug/{data,exports,logs,webview}`。
-- macOS：`~/Library/Application Support/com.ojinsight.app/`。
+- MacOS：`~/Library/Application Support/com.ojinsight.app/`。
 - Linux：通常为 `~/.local/share/com.ojinsight.app/`，以应用显示路径为准。
 
 ## GitHub Actions 与发布
 
 `.github/workflows/build.yml` 是统一的三端构建工作流。手动运行、推送 `v*` tag 或发起 Pull Request 时会并行构建：
 
-- `OJ-Insight-Windows`：NSIS EXE 与 MSI；
-- `OJ-Insight-macOS`：DMG 与 `.app.zip`；
-- `OJ-Insight-Linux`：AppImage、DEB 与 RPM。
+- `OJ-Insight-Windows`：Windows 构建产物；
+- `OJ-Insight-MacOS`：Universal DMG；
+- `OJ-Insight-Linux`：Linux 构建产物。
 
-三个构建完成后还会生成 `OJ-Insight-All-Platforms.zip`：压缩包内按 Windows、macOS、Linux 分目录保存全部安装包，并附带 `SHA256SUMS.txt`。创建 Release 时只需下载并上传这一份总包。
+三个构建完成后会生成 `OJ-Insight-All-Platforms.zip`。压缩包根目录只包含 `.exe`、`.dmg` 与 `.AppImage` 各一个，创建 Release 时直接上传这一份总包即可。
 
 发布前确保下列版本一致：
 
@@ -259,11 +261,11 @@ npm run tauri build
 然后推送 tag：
 
 ```bash
-git tag v0.5.1
-git push origin v0.5.1
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
-Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；macOS 使用 `.app`；Linux 使用原生安装包或 AppImage。
+Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；MacOS 使用 DMG；Linux 使用 AppImage。
 
 ## 数据源边界
 

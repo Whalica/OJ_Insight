@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import DayDrawer from './components/DayDrawer';
+import DifficultyDrawer from './components/DifficultyDrawer';
 import DashboardPage from './pages/DashboardPage';
 import AboutPage from './pages/AboutPage';
 import DataPage from './pages/DataPage';
@@ -11,7 +12,7 @@ import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
 import { emptyAccounts, emptySnapshot, initialMetric, initialScope, scopeRange, SYNC_TIPS, type AccountMap, type TimeScope } from './lib/ui';
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
-import type { DayDetail, Metric, Platform, Snapshot, SyncStatus } from './types';
+import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncStatus } from './types';
 
 type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
@@ -39,6 +40,8 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
   const [dayLoading, setDayLoading] = useState(false);
+  const [difficultyDetail, setDifficultyDetail] = useState<DifficultyDetail | null>(null);
+  const [difficultyLoading, setDifficultyLoading] = useState(false);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
   const range = useMemo(() => scopeRange(timeScope, timeZone), [timeScope, selectedDay, timeZone]);
@@ -76,9 +79,22 @@ export default function App() {
   const loadStatuses = useCallback(async () => setStatuses(await api.getStatuses()), []);
   const snapshotRequest = useRef(0);
   const dayRequest = useRef(0);
+  const difficultyRequest = useRef(0);
   const query = useRef({ selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone });
   query.current = { selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone };
   const closeDay = () => { dayRequest.current += 1; setDayDetail(null); setDayLoading(false); };
+  const closeDifficulty = () => { difficultyRequest.current += 1; setDifficultyDetail(null); setDifficultyLoading(false); };
+  const openDifficulty = async (platform: Platform, label: string) => {
+    const request = ++difficultyRequest.current;
+    setDifficultyDetail(null); setDifficultyLoading(true);
+    try {
+      const account = selectedPlatform === platform ? accountFilter || null : null;
+      const source = selectedPlatform === 'nowcoder' && platform === 'nowcoder' ? sourceFilter || null : null;
+      const detail = await api.difficultyDetail(platform, label, account, source);
+      if (request === difficultyRequest.current) setDifficultyDetail(detail);
+    } catch (error) { if (request === difficultyRequest.current) notify(String(error)); }
+    finally { if (request === difficultyRequest.current) setDifficultyLoading(false); }
+  };
   const loadSnapshot = useCallback(async () => {
     const request = ++snapshotRequest.current;
     const { selectedPlatform: platform, range: dates, metric: mode, accountFilter: account, sourceFilter: source, timeZone: zone } = query.current;
@@ -92,7 +108,7 @@ export default function App() {
 
   useEffect(() => { Promise.all([loadAccounts(), loadStatuses()]).catch((error) => notify(String(error))); }, [loadAccounts, loadStatuses]);
   useEffect(() => { setAccountFilter(''); setSourceFilter(''); }, [selectedPlatform]);
-  useEffect(() => { closeDay(); window.scrollTo({ top: 0, behavior: 'auto' }); localStorage.setItem('oj-insight.last-page', page); }, [page]);
+  useEffect(() => { closeDay(); closeDifficulty(); window.scrollTo({ top: 0, behavior: 'auto' }); localStorage.setItem('oj-insight.last-page', page); }, [page]);
   useEffect(() => { loadSnapshot(); closeDay(); return () => { snapshotRequest.current += 1; }; }, [loadSnapshot]);
 
   const chooseTip = () => setSyncTip(SYNC_TIPS[Math.floor(Math.random() * SYNC_TIPS.length)]);
@@ -134,9 +150,10 @@ export default function App() {
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage /> :
-       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onPlatform={(platform) => setPage(platform)} />}
+      <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} />}
     </main>
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />
+    <DifficultyDrawer detail={difficultyDetail} loading={difficultyLoading} timeZone={timeZone} onClose={closeDifficulty} />
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }

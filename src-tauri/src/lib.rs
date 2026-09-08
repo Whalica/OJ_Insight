@@ -401,6 +401,30 @@ fn get_day_detail(
 }
 
 #[tauri::command]
+fn get_difficulty_detail(
+    state: State<'_, AppState>,
+    platform: String,
+    label: String,
+    account: Option<String>,
+    source: Option<String>,
+) -> Result<DifficultyDetail, String> {
+    if !PLATFORMS.contains(&platform.as_str()) {
+        return Err("不支持的平台".into());
+    }
+    if label.trim().is_empty() {
+        return Err("难度不能为空".into());
+    }
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::difficulty_detail(
+        &*conn,
+        &platform,
+        &label,
+        account.as_deref(),
+        source.as_deref(),
+    )
+}
+
+#[tauri::command]
 fn write_export_file(path: String, data: Vec<u8>) -> Result<(), String> {
     if path.trim().is_empty() {
         return Err("导出路径为空".into());
@@ -529,6 +553,7 @@ pub fn run() {
             clear_all_records,
             get_snapshot,
             get_day_detail,
+            get_difficulty_detail,
             write_export_file,
             check_for_updates,
             open_external

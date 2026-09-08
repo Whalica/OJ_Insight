@@ -1,6 +1,6 @@
 [package]
 name = "oj-insight"
-version = "0.5.1"
+version = "0.6.0"
 description = "Unified competitive programming analytics desktop app"
 authors = ["OJ Insight"]
 edition = "2021"

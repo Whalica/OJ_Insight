@@ -67,6 +67,7 @@ export interface DifficultyDayPoint {
 }
 
 export interface RatingHistoryPoint {
+  contest_id: string;
   contest_name: string;
   epoch_second: number;
   old_rating: number;
@@ -125,4 +126,12 @@ export interface SyncResult {
   message: string;
   status: string;
   partial: boolean;
+}
+
+export interface DifficultyDetail {
+  platform: Platform;
+  label: string;
+  count: number;
+  items: SubmissionItem[];
+  note: string | null;
 }

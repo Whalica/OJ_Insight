@@ -162,6 +162,7 @@ pub struct RatingSummary {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RatingHistoryPoint {
+    pub contest_id: String,
     pub contest_name: String,
     pub epoch_second: i64,
     pub old_rating: i64,
@@ -223,4 +224,13 @@ pub struct DayDetail {
     pub day: String,
     pub items: Vec<Submission>,
     pub aggregates: Vec<AggregateDetail>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DifficultyDetail {
+    pub platform: String,
+    pub label: String,
+    pub count: i64,
+    pub items: Vec<Submission>,
+    pub note: Option<String>,
 }

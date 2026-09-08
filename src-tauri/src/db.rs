@@ -753,7 +753,7 @@ fn ratings_for_platform(
     let account_filter = account.unwrap_or("");
     let mut stmt = conn
         .prepare(
-            "SELECT account,contest_name,epoch_second,old_rating,new_rating,rank FROM rating_history WHERE platform=? AND (?='' OR account=?) ORDER BY account,epoch_second,contest_id",
+            "SELECT account,contest_id,contest_name,epoch_second,old_rating,new_rating,rank FROM rating_history WHERE platform=? AND (?='' OR account=?) ORDER BY account,epoch_second,contest_id",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
@@ -761,11 +761,12 @@ fn ratings_for_platform(
             Ok((
                 row.get::<_, String>(0)?,
                 RatingHistoryPoint {
-                    contest_name: row.get(1)?,
-                    epoch_second: row.get(2)?,
-                    old_rating: row.get(3)?,
-                    new_rating: row.get(4)?,
-                    rank: row.get(5)?,
+                    contest_id: row.get(1)?,
+                    contest_name: row.get(2)?,
+                    epoch_second: row.get(3)?,
+                    old_rating: row.get(4)?,
+                    new_rating: row.get(5)?,
+                    rank: row.get(6)?,
                 },
             ))
         })
@@ -1493,6 +1494,61 @@ pub fn day_detail(
     })
 }
 
+pub fn difficulty_detail(
+    conn: &Connection,
+    platform: &str,
+    label: &str,
+    account: Option<&str>,
+    source: Option<&str>,
+) -> Result<DifficultyDetail, String> {
+    let account = account.unwrap_or("");
+    let source = source.unwrap_or("");
+    let explicit_count = if source.is_empty() {
+        conn.query_row(
+            "SELECT COALESCE(SUM(count),0) FROM difficulty_stats_accounts WHERE platform=? AND label=? AND (?='' OR account=?)",
+            params![platform, label, account, account],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
+    } else {
+        0
+    };
+    let mut stmt = conn.prepare(
+        "SELECT platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND difficulty IS NOT NULL AND TRIM(difficulty)<>'' AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC,submission_id DESC"
+    ).map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(
+        params![platform, account, account, source, source],
+        row_submission,
+    ).map_err(|e| e.to_string())?;
+    let mut seen = HashSet::new();
+    let mut items = Vec::new();
+    for row in rows {
+        let item = row.map_err(|e| e.to_string())?;
+        let matches = item.difficulty.as_deref()
+            .map(|difficulty| bucket_label(platform, difficulty).1 == label)
+            .unwrap_or(false);
+        if matches && seen.insert(format!("{}\0{}", item.account, item.problem_key)) {
+            items.push(item);
+        }
+    }
+    let item_count = items.len() as i64;
+    let count = explicit_count.max(item_count);
+    let note = if explicit_count > item_count {
+        Some(format!(
+            "当前数据源只提供部分逐题记录：共 {explicit_count} 题，可显示 {item_count} 题。"
+        ))
+    } else {
+        None
+    };
+    Ok(DifficultyDetail {
+        platform: platform.into(),
+        label: label.into(),
+        count,
+        items,
+        note,
+    })
+}
+
 fn platform_name(p: &str) -> &'static str {
     match p {
         "codeforces" => "Codeforces",
@@ -1617,6 +1673,22 @@ mod tests {
         data.ratings = Some(vec![]);
         apply_remote(&mut conn,&data).unwrap();
         assert_eq!(count(&conn,"rating_history","codeforces","alice"),0);
+    }
+
+    #[test]
+    fn difficulty_detail_returns_each_account_problem_once() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","alice")]).unwrap();
+        let mut data = remote("codeforces","alice");
+        let mut duplicate = data.submissions[0].clone();
+        duplicate.submission_id = "second-ac".into();
+        duplicate.epoch_second += 60;
+        data.submissions.push(duplicate);
+        apply_remote(&mut conn,&data).unwrap();
+        let detail = difficulty_detail(&conn,"codeforces","1200",None,None).unwrap();
+        assert_eq!(detail.count,1);
+        assert_eq!(detail.items.len(),1);
+        assert_eq!(detail.items[0].submission_id,"second-ac");
     }
 
     #[test]
