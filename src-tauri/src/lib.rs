@@ -3,7 +3,7 @@ mod models;
 mod operation;
 mod sync;
 
-use reqwest::Client;
+use reqwest::{Client, Url};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -482,12 +482,17 @@ fn version_tuple(v: &str) -> (u64, u64, u64) {
 
 #[tauri::command]
 fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    let allowed = [
-        "https://github.com/Whalica/OJ_Insight",
-        "https://github.com/Whalica/OJ_Insight/issues",
-        "https://github.com/Whalica/OJ_Insight/releases",
-    ];
-    if !allowed.iter().any(|prefix| url.starts_with(prefix)) {
+    let parsed = Url::parse(&url).map_err(|_| "链接格式无效".to_string())?;
+    let host = parsed.host_str().unwrap_or_default();
+    let path = parsed.path();
+    let allowed = parsed.scheme() == "https" && match host {
+        "github.com" => path.starts_with("/Whalica/OJ_Insight"),
+        "codeforces.com" | "www.codeforces.com" => path.starts_with("/contest/"),
+        "atcoder.jp" | "www.atcoder.jp" => path.starts_with("/contests/"),
+        "leetcode.com" | "www.leetcode.com" => path.starts_with("/contest/"),
+        _ => false,
+    };
+    if !allowed {
         return Err("不允许打开该链接".into());
     }
     app.opener()
