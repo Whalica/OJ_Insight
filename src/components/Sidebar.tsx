@@ -1,8 +1,8 @@
-import { CircleHelp, Database, Download, LayoutDashboard, Settings2 } from 'lucide-react';
+import { CircleHelp, Database, Download, LayoutDashboard, Settings2, TableProperties } from 'lucide-react';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 
-type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
+type Page = 'overview' | 'xcpc' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
 export default function Sidebar({ page, onChange }: { page: Page; onChange: (page: Page) => void }) {
   return (
@@ -19,6 +19,8 @@ export default function Sidebar({ page, onChange }: { page: Page; onChange: (pag
             <span className="oj-dot" style={{ background: PLATFORM_META[p].accent }} />{PLATFORM_META[p].name}
           </button>
         ))}
+        <div className="nav-title">TRACKERS</div>
+        <button className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><TableProperties size={17} />XCPC Tracker</button>
         <div className="nav-title">TOOLS</div>
         <button className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} />导出</button>
         <button className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} />数据源</button>

@@ -8,6 +8,7 @@ import AboutPage from './pages/AboutPage';
 import DataPage from './pages/DataPage';
 import ExportPage from './pages/ExportPage';
 import SettingsPage from './pages/SettingsPage';
+import XcpcTrackerPage from './pages/XcpcTrackerPage';
 import { api } from './lib/api';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
@@ -16,14 +17,14 @@ import { applyPreferences, loadPreferences, savePreferences, type Preferences } 
 import { checkForAppUpdate, discardAppUpdate, installAppUpdate } from './lib/updater';
 import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncStatus, UpdateInfo } from './types';
 
-type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
+type Page = 'overview' | 'xcpc' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
 export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
-    const valid = ['overview', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
+    const valid = ['overview', 'xcpc', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
     return saved.startupPage === 'last' && last && valid ? last : 'overview';
   });
   const [timeZone, setTimeZoneState] = useState(initialTimeZone);
@@ -193,6 +194,7 @@ export default function App() {
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage syncing={syncing} /> :
+       page === 'xcpc' ? <XcpcTrackerPage syncing={syncing === 'qoj'} onSync={() => void syncOne('qoj')} notify={notify} /> :
       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} />}
     </main>
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />
