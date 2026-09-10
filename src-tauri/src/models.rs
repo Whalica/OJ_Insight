@@ -103,6 +103,36 @@ impl std::fmt::Display for SyncError {
 }
 impl std::error::Error for SyncError {}
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XcpcProblem {
+    pub index: String,
+    pub name: String,
+    pub url: String,
+    pub problem_id: String,
+    pub tier: Option<String>,
+    pub accepted_teams: Option<i64>,
+    pub total_teams: Option<i64>,
+    #[serde(default)]
+    pub solved: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XcpcContest {
+    pub id: String,
+    pub name: String,
+    pub short_name: String,
+    pub url: String,
+    pub date: String,
+    pub year: String,
+    pub series: Vec<String>,
+    pub stage: String,
+    pub site: String,
+    pub board_source: Option<String>,
+    pub problems: Vec<XcpcProblem>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SyncResult {
     pub platform: String,

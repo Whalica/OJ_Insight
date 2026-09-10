@@ -2,6 +2,7 @@ mod db;
 mod models;
 mod operation;
 mod sync;
+mod xcpc;
 
 use reqwest::{Client, Url};
 use std::io::Write;
@@ -166,6 +167,38 @@ fn save_all_accounts(state: State<'_, AppState>, accounts: Vec<AccountConfig>) -
 fn get_sync_statuses(state: State<'_, AppState>) -> Result<Vec<SyncStatus>, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::statuses(&*conn)
+}
+
+#[tauri::command]
+async fn get_xcpc_contests(
+    state: State<'_, AppState>,
+    force_refresh: Option<bool>,
+) -> Result<Vec<XcpcContest>, String> {
+    let cookie = {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        db::get_accounts(&conn)?
+            .into_iter()
+            .find(|entry| entry.platform == "qoj")
+            .map(|entry| entry.secret)
+            .unwrap_or_default()
+    };
+    let mut contests = xcpc::load_catalog(
+        &state.client,
+        &state.data_dir.join("xcpc-catalog.json"),
+        &cookie,
+        force_refresh.unwrap_or(false),
+    )
+    .await?;
+    let solved = {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        db::solved_problem_keys(&conn, "qoj")?
+    };
+    for contest in &mut contests {
+        for problem in &mut contest.problems {
+            problem.solved = solved.contains(&problem.problem_id);
+        }
+    }
+    Ok(contests)
 }
 
 async fn sync_one_inner(
@@ -490,6 +523,9 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
         "codeforces.com" | "www.codeforces.com" => path.starts_with("/contest/"),
         "atcoder.jp" | "www.atcoder.jp" => path.starts_with("/contests/"),
         "leetcode.com" | "www.leetcode.com" => path.starts_with("/contest/"),
+        "qoj.ac" | "www.qoj.ac" => {
+            path.starts_with("/problem/") || path.starts_with("/contest/")
+        }
         _ => false,
     };
     if !allowed {
@@ -550,6 +586,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_storage_info,
             get_accounts,
+            get_xcpc_contests,
             save_account,
             save_accounts,
             save_all_accounts,

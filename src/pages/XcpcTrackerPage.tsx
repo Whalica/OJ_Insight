@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, RefreshCw, Search, X } from 'lucide-react';
-import { XCPC_CONTESTS, XCPC_MAX_PROBLEMS, type XcpcContest, type XcpcTier } from '../lib/xcpc';
+import { api } from '../lib/api';
+import { problemColumns, type XcpcContest, type XcpcTier } from '../lib/xcpc';
 
 type Series = 'all' | 'ICPC' | 'CCPC' | '省赛' | '其他';
 type Progress = 'all' | 'todo' | 'doing' | 'done';
 
 const tierLabels: Record<XcpcTier, string> = { gold: '金题', silver: '银题', bronze: '铜题', iron: '铁题' };
-const problemIndexes = Array.from({ length: XCPC_MAX_PROBLEMS }, (_, index) => String.fromCharCode(65 + index));
-
 function contestProgress(contest: XcpcContest): Progress {
   const solved = contest.problems.filter((problem) => problem.solved).length;
   return solved === 0 ? 'todo' : solved === contest.problems.length ? 'done' : 'doing';
 }
 
-export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: boolean; onSync: () => void; notify: (message: string) => void }) {
+export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: boolean; onSync: () => Promise<void>; notify: (message: string) => void }) {
+  const [contests, setContests] = useState<XcpcContest[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState('');
   const [query, setQuery] = useState('');
   const [series, setSeries] = useState<Series>('all');
   const [stage, setStage] = useState('all');
@@ -28,6 +30,15 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
   const filterRef = useRef<HTMLDivElement>(null);
   const pageSize = 6;
 
+  const loadCatalog = async (forceRefresh = false) => {
+    setCatalogLoading(true); setCatalogError('');
+    try { setContests(await api.getXcpcContests(forceRefresh)); }
+    catch (error) { setCatalogError(String(error)); }
+    finally { setCatalogLoading(false); }
+  };
+
+  useEffect(() => { void loadCatalog(); }, []);
+
   useEffect(() => {
     const close = (event: MouseEvent) => { if (!filterRef.current?.contains(event.target as Node)) setFiltersOpen(false); };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setFiltersOpen(false); };
@@ -37,7 +48,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    return XCPC_CONTESTS.filter((contest) => {
+    return contests.filter((contest) => {
       const haystack = `${contest.name} ${contest.shortName} ${contest.site} ${contest.year}`.toLowerCase();
       return (!keyword || haystack.includes(keyword)) &&
         (series === 'all' || contest.series.includes(series)) &&
@@ -46,13 +57,19 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
         (site === 'all' || contest.site === site) &&
         (progress === 'all' || contestProgress(contest) === progress);
     });
-  }, [progress, query, series, site, stage, year]);
+  }, [contests, progress, query, series, site, stage, year]);
+
+  const problemIndexes = useMemo(() => problemColumns(contests), [contests]);
+  const years = useMemo(() => [...new Set(contests.map((contest) => contest.year))].sort((a, b) => b.localeCompare(a)), [contests]);
+  const sites = useMemo(() => [...new Set(contests.map((contest) => contest.site))].sort((a, b) => a.localeCompare(b, 'zh-CN')), [contests]);
+  const stages = useMemo(() => [...new Set(contests.map((contest) => contest.stage))], [contests]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize);
   const solvedContests = filtered.filter((contest) => contestProgress(contest) === 'done').length;
   const solvedProblems = filtered.reduce((sum, contest) => sum + contest.problems.filter((problem) => problem.solved).length, 0);
   const totalProblems = filtered.reduce((sum, contest) => sum + contest.problems.length, 0);
+  const ratedContests = filtered.filter((contest) => contest.boardSource).length;
   const activeFilterCount = [stage, year, site, progress].filter((value) => value !== 'all').length;
 
   const updatePreference = (key: string, value: boolean, setter: (value: boolean) => void) => {
@@ -64,8 +81,8 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
     <header className="topbar xcpc-topbar">
       <div><small>XCPC · CONTEST TRACKER</small><h1>XCPC Tracker</h1><p>浏览 ICPC、CCPC 与省赛题集，追踪 QOJ 补题进度。</p></div>
       <div className="xcpc-top-actions">
-        <button className="xcpc-action" onClick={() => notify('赛事目录已是当前内置版本')}><RefreshCw size={13} />更新目录</button>
-        <button className="xcpc-action primary" disabled={syncing} onClick={onSync}><RefreshCw className={syncing ? 'spin' : ''} size={13} />{syncing ? '同步中' : '同步 QOJ'}</button>
+        <button className="xcpc-action" disabled={catalogLoading} onClick={() => void loadCatalog(true)}><RefreshCw className={catalogLoading ? 'spin' : ''} size={13} />{catalogLoading ? '更新中' : '更新目录'}</button>
+        <button className="xcpc-action primary" disabled={syncing} onClick={async () => { await onSync(); await loadCatalog(); }}><RefreshCw className={syncing ? 'spin' : ''} size={13} />{syncing ? '同步中' : '同步 QOJ'}</button>
       </div>
     </header>
 
@@ -73,7 +90,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       <div><span>收录比赛</span><strong>{filtered.length} 场</strong><small>当前筛选</small></div>
       <div><span>完成比赛</span><strong>{solvedContests} 场</strong><small>全部题目 AC</small></div>
       <div><span>完成题目</span><strong>{solvedProblems} / {totalProblems}</strong><small>按比赛题目统计</small></div>
-      <div><span>榜单覆盖</span><strong>{filtered.length} / {filtered.length}</strong><small>RankLand · XCPCIO</small></div>
+      <div><span>榜单覆盖</span><strong>{ratedContests} / {filtered.length}</strong><small>有公开榜单评级</small></div>
     </section>
 
     <section className="xcpc-search-row" ref={filterRef}>
@@ -82,9 +99,9 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       {filtersOpen && <div className="xcpc-filter-popover">
         <header><strong>筛选条件</strong><span>选择后即时更新</span></header>
         <div className="xcpc-filter-grid">
-          <label>阶段<span><select value={stage} onChange={(event) => { setStage(event.target.value); setPage(1); }}><option value="all">全部阶段</option><option>区域赛</option><option>分站赛</option><option>网络赛</option><option>邀请赛</option><option>省赛</option></select><ChevronDown size={13} /></span></label>
-          <label>年份<span><select value={year} onChange={(event) => { setYear(event.target.value); setPage(1); }}><option value="all">全部年份</option><option>2025</option><option>2024</option><option>2023</option></select><ChevronDown size={13} /></span></label>
-          <label>省份 / 赛站<span><select value={site} onChange={(event) => { setSite(event.target.value); setPage(1); }}><option value="all">全部地区</option>{['上海', '南京', '哈尔滨', '南昌', '成都', '昆明', '全国'].map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
+          <label>阶段<span><select value={stage} onChange={(event) => { setStage(event.target.value); setPage(1); }}><option value="all">全部阶段</option>{stages.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
+          <label>年份<span><select value={year} onChange={(event) => { setYear(event.target.value); setPage(1); }}><option value="all">全部年份</option>{years.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
+          <label>省份 / 赛站<span><select value={site} onChange={(event) => { setSite(event.target.value); setPage(1); }}><option value="all">全部地区</option>{sites.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
           <label>进度<span><select value={progress} onChange={(event) => { setProgress(event.target.value as Progress); setPage(1); }}><option value="all">全部进度</option><option value="todo">未开始</option><option value="doing">进行中</option><option value="done">已完成</option></select><ChevronDown size={13} /></span></label>
         </div>
         <footer><button onClick={clearFilters}>清除筛选</button></footer>
@@ -103,20 +120,25 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       </div>
 
       <div className="xcpc-table-scroll">
+        {catalogLoading && !contests.length && <div className="empty">正在从 QOJ 载入赛事目录…</div>}
+        {catalogError && <div className="empty">目录载入失败：{catalogError} <button onClick={() => void loadCatalog(true)}>重试</button></div>}
         <table className="xcpc-table">
           <thead><tr><th className="xcpc-contest-column">比赛</th><th className="xcpc-date-column">日期</th><th className="xcpc-progress-column">进度</th>{problemIndexes.map((index) => <th key={index}>{index}</th>)}</tr></thead>
           <tbody>{visible.map((contest) => {
             const solved = contest.problems.filter((problem) => problem.solved).length;
             const percentage = Math.round(solved / contest.problems.length * 100);
             return <tr key={contest.id} className={solved === contest.problems.length ? 'complete' : ''}>
-              <td className="xcpc-contest-column"><button title={contest.name}>{shortContestNames ? contest.shortName : contest.name}</button><div>{contest.series.map((value) => <span className="series" key={value}>{value}</span>)}<span>{contest.stage}</span><span>{contest.site}</span><span className="board">{contest.boardSource}</span></div></td>
-              <td className="xcpc-date-column"><strong>{contest.date.slice(5)}</strong><small>{contest.year}</small></td>
+              <td className="xcpc-contest-column"><button title={`${contest.name} · 在 QOJ 打开`} onClick={() => void api.openExternal(contest.url)}>{shortContestNames ? contest.shortName : contest.name}</button><div>{contest.series.map((value) => <span className="series" key={value}>{value}</span>)}<span>{contest.stage}</span><span>{contest.site}</span>{contest.boardSource && <span className="board">{contest.boardSource}</span>}</div></td>
+              <td className="xcpc-date-column"><strong>{contest.date ? contest.date.slice(5) : '—'}</strong><small>{contest.year}</small></td>
               <td className="xcpc-progress-column"><strong>{solved} / {contest.problems.length}</strong><i><b style={{ width: `${percentage}%` }} /></i></td>
               {problemIndexes.map((index) => {
                 const problem = contest.problems.find((item) => item.index === index);
                 if (!problem) return <td className="xcpc-problem missing" key={index}>—</td>;
-                return <td key={index} className={`xcpc-problem ${problem.solved ? 'solved' : ''} tier-${problem.tier}`} title={`${problem.index}. ${problem.name} · ${tierLabels[problem.tier]} · ${problem.acceptedTeams}/${problem.totalTeams} 队通过`}>
-                  <button><strong>{showProblemNames ? `${problem.index}. ${problem.name}` : problem.index}</strong>{showProblemNames && <small>{problem.acceptedTeams} 队通过</small>}</button>
+                const rating = problem.tier ? ` · ${tierLabels[problem.tier]}` : '';
+                const accepted = problem.acceptedTeams == null ? '' : ` · ${problem.acceptedTeams}${problem.totalTeams == null ? '' : `/${problem.totalTeams}`} 队通过`;
+                const displayName = problem.name || '题目';
+                return <td key={index} className={`xcpc-problem ${problem.solved ? 'solved' : ''} ${problem.tier ? `tier-${problem.tier}` : 'tier-unrated'}`} title={`${problem.index}. ${displayName}${rating}${accepted} · 点击打开 QOJ`}>
+                  <button onClick={() => void api.openExternal(problem.url)}><strong>{showProblemNames ? `${problem.index}. ${displayName}` : problem.index}</strong>{showProblemNames && <small>{problem.acceptedTeams == null ? `QOJ #${problem.problemId}` : `${problem.acceptedTeams} 队通过`}</small>}</button>
                 </td>;
               })}
             </tr>;

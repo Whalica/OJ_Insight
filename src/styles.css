@@ -279,7 +279,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .xcpc-problem.solved>button::after { content: "✓"; position: absolute; top: 4px; right: 5px; color: #6ddd91; font-size: 9px; font-weight: 900; }
 .xcpc-problem>button { position: relative; }
 .xcpc-problem.missing { color: #34404a; background: color-mix(in srgb,var(--panel) 65%,var(--bg)); }
-.xcpc-problem.tier-gold { --tier-color: #e5b94e; }.xcpc-problem.tier-silver { --tier-color: #aab5c1; }.xcpc-problem.tier-bronze { --tier-color: #bd7a4e; }.xcpc-problem.tier-iron { --tier-color: #6f7b87; }
+.xcpc-problem.tier-gold { --tier-color: #e5b94e; }.xcpc-problem.tier-silver { --tier-color: #aab5c1; }.xcpc-problem.tier-bronze { --tier-color: #bd7a4e; }.xcpc-problem.tier-iron { --tier-color: #6f7b87; }.xcpc-problem.tier-unrated { --tier-color: #9da7b0; }
 .hide-difficulty .xcpc-problem { --tier-color: #a7b0b8; }
 .xcpc-footer { min-height: 44px; padding: 8px 13px; display: flex; align-items: center; justify-content: space-between; gap: 14px; background: color-mix(in srgb,var(--panel) 82%,var(--bg)); }
 .xcpc-legend { display: flex; align-items: center; gap: 10px; color: #68747e; font-size: var(--font-meta); }

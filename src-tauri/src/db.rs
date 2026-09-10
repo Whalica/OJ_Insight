@@ -1289,6 +1289,16 @@ fn difficulty_for_platform(
         .collect())
 }
 
+pub fn solved_problem_keys(conn: &Connection, platform: &str) -> Result<HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT problem_key FROM submissions WHERE platform=?")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([platform], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<HashSet<_>, _>>().map_err(|e| e.to_string())
+}
+
 fn bucket_label(p: &str, difficulty: &str) -> (i64, String) {
     let d = difficulty.trim();
     if d.is_empty() || d.eq_ignore_ascii_case("unknown") || d.eq_ignore_ascii_case("unrated") {

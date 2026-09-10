@@ -8,6 +8,7 @@ export interface StorageInfo {
 
 import { invoke } from '@tauri-apps/api/core';
 import type { AccountConfig, DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncResult, SyncStatus, UpdateInfo } from '../types';
+import type { XcpcContest } from './xcpc';
 
 export const api = {
   storageInfo: () => invoke<StorageInfo>('get_storage_info'),
@@ -16,6 +17,7 @@ export const api = {
   saveAccounts: (platform: Platform, accounts: AccountConfig[]) => invoke<void>('save_accounts', { platform, accounts }),
   saveAllAccounts: (accounts: AccountConfig[]) => invoke<void>('save_all_accounts', { accounts }),
   getStatuses: () => invoke<SyncStatus[]>('get_sync_statuses'),
+  getXcpcContests: (forceRefresh = false) => invoke<XcpcContest[]>('get_xcpc_contests', { forceRefresh }),
   syncPlatform: (platform: Platform, full = false) => invoke<SyncResult>('sync_platform', { platform, full }),
   syncAll: () => invoke<SyncResult[]>('sync_all'),
   clearPlatform: (platform: Platform) => invoke<void>('clear_platform_records', { platform }),
