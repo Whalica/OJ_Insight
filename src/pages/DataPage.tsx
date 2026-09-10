@@ -30,7 +30,7 @@ export default function DataPage({ statuses, syncing, timeZone, onSync, onSyncAl
   };
 
   return <>
-    <header className="topbar"><div><small>SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>同步失败不会删除旧记录；“重建”用于重新读取该平台的完整历史。</p></div><button className="primary" onClick={onSyncAll} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>
+    <header className="topbar"><div><small>SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>同步失败不会删除旧记录；“重建”用于重新读取该平台的完整历史。</p></div><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>
     <section className="panel source-list">{PLATFORM_ORDER.map((platform) => {
       const status = by.get(platform);
       const needsAttention = status?.status === 'warning' || status?.status === 'error' || status?.status === 'auth_required';
