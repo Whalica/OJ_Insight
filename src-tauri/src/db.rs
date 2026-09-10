@@ -1212,6 +1212,9 @@ fn row_submission(r: &rusqlite::Row<'_>) -> rusqlite::Result<Submission> {
     })
 }
 
+const UNRATED_LABEL: &str = "未评级";
+const UNRATED_ORDER: i64 = 10_000;
+
 fn difficulty_for_platform(
     conn: &Connection,
     p: &str,
@@ -1233,19 +1236,32 @@ fn difficulty_for_platform(
         let mut stmt=conn.prepare("SELECT label,SUM(count),sort_order FROM difficulty_stats_accounts WHERE platform=? AND (?='' OR account=?) GROUP BY label,sort_order ORDER BY sort_order,label").map_err(|e|e.to_string())?;
         let rows = stmt
             .query_map(params![p, account, account], |r| {
-                Ok(DifficultyBucket {
-                    platform: p.into(),
-                    label: r.get(0)?,
-                    count: r.get(1)?,
-                    order: r.get(2)?,
-                })
+                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
             })
             .map_err(|e| e.to_string())?;
-        let mut out = Vec::new();
-        for r in rows {
-            out.push(r.map_err(|e| e.to_string())?);
+        let mut buckets: BTreeMap<(i64, String), i64> = BTreeMap::new();
+        for row in rows {
+            let (raw_label, count) = row.map_err(|e| e.to_string())?;
+            let (order, label) = bucket_label(p, &raw_label);
+            *buckets.entry((order, label)).or_default() += count;
         }
-        return Ok(out.into_iter().filter(|item| item.count > 0).collect());
+        let solved: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(CAST(value AS INTEGER)),0) FROM platform_stats_accounts WHERE platform=? AND key='solved_count' AND (?='' OR account=?)",
+            params![p, account, account],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        let rated = buckets.iter()
+            .filter(|((order, _), _)| *order != UNRATED_ORDER)
+            .map(|(_, count)| *count)
+            .sum::<i64>();
+        if solved > rated {
+            let unrated = buckets.entry((UNRATED_ORDER, UNRATED_LABEL.into())).or_default();
+            *unrated = (*unrated).max(solved - rated);
+        }
+        return Ok(buckets.into_iter()
+            .filter(|(_, count)| *count > 0)
+            .map(|((order, label), count)| DifficultyBucket { platform: p.into(), label, count, order })
+            .collect());
     }
     let mut stmt=conn.prepare("SELECT account,problem_key,difficulty FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second,submission_id").map_err(|e|e.to_string())?;
     let rows = stmt
@@ -1260,26 +1276,24 @@ fn difficulty_for_platform(
     let mut seen = HashSet::new();
     let mut bucket: BTreeMap<(i64, String), i64> = BTreeMap::new();
     for row in rows {
-        let (row_account, problem, diff) = row.map_err(|e| e.to_string())?;
+        let (row_account, problem, difficulty) = row.map_err(|e| e.to_string())?;
         if !seen.insert(format!("{row_account}\0{problem}")) {
             continue;
         }
-        if let Some(d) = diff {
-            let (order, label) = bucket_label(p, &d);
-            *bucket.entry((order, label)).or_default() += 1;
-        }
+        let (order, label) = bucket_label(p, difficulty.as_deref().unwrap_or(""));
+        *bucket.entry((order, label)).or_default() += 1;
     }
     Ok(bucket
         .into_iter()
-        .map(|((order, label), count)| DifficultyBucket {
-            platform: p.into(),
-            label,
-            count,
-            order,
-        })
+        .map(|((order, label), count)| DifficultyBucket { platform: p.into(), label, count, order })
         .collect())
 }
-fn bucket_label(p: &str, d: &str) -> (i64, String) {
+
+fn bucket_label(p: &str, difficulty: &str) -> (i64, String) {
+    let d = difficulty.trim();
+    if d.is_empty() || d.eq_ignore_ascii_case("unknown") || d.eq_ignore_ascii_case("unrated") {
+        return (UNRATED_ORDER, UNRATED_LABEL.into());
+    }
     if p == "codeforces" {
         if let Ok(x) = d.parse::<i64>() {
             let rating = (x / 100) * 100;
@@ -1297,6 +1311,14 @@ fn bucket_label(p: &str, d: &str) -> (i64, String) {
             return (x, x.to_string());
         }
     }
+    if p == "leetcode" {
+        return match d.to_ascii_lowercase().as_str() {
+            "easy" => (1, "Easy".into()),
+            "medium" => (2, "Medium".into()),
+            "hard" => (3, "Hard".into()),
+            _ => (UNRATED_ORDER, UNRATED_LABEL.into()),
+        };
+    }
     if p == "luogu" {
         let order = match d {
             "入门" | "1" => 1,
@@ -1307,7 +1329,7 @@ fn bucket_label(p: &str, d: &str) -> (i64, String) {
             "提高+/省选-" | "6" => 6,
             "省选/NOI-" | "7" => 7,
             "NOI/NOI+/CTS" | "8" => 8,
-            _ => 0,
+            _ => UNRATED_ORDER,
         };
         let label = match order {
             1 => "入门",
@@ -1318,11 +1340,11 @@ fn bucket_label(p: &str, d: &str) -> (i64, String) {
             6 => "提高+/省选-",
             7 => "省选/NOI-",
             8 => "NOI/NOI+/CTS",
-            _ => d,
+            _ => UNRATED_LABEL,
         };
         return (order, label.into());
     }
-    (9999, d.into())
+    (UNRATED_ORDER, UNRATED_LABEL.into())
 }
 
 fn difficulty_daily_for_platform(
@@ -1338,12 +1360,12 @@ fn difficulty_daily_for_platform(
     let e = end.unwrap_or("9999-99-99");
     let account = account.unwrap_or("");
     let source = source.unwrap_or("");
-    let mut stmt = conn.prepare("SELECT epoch_second,difficulty,source_day FROM submissions WHERE platform=? AND difficulty IS NOT NULL AND TRIM(difficulty)<>'' AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second").map_err(|e|e.to_string())?;
+    let mut stmt = conn.prepare("SELECT epoch_second,difficulty,source_day FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second").map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map(params![p, account, account, source, source], |r| {
             Ok((
                 r.get::<_, i64>(0)?,
-                r.get::<_, String>(1)?,
+                r.get::<_, Option<String>>(1)?,
                 r.get::<_, Option<String>>(2)?,
             ))
         })
@@ -1355,12 +1377,10 @@ fn difficulty_daily_for_platform(
         if day.as_str() < s || day.as_str() > e {
             continue;
         }
-        let (order, label) = bucket_label(p, &difficulty);
-        if order == 9999 {
-            continue;
-        }
+        let (order, label) = bucket_label(p, difficulty.as_deref().unwrap_or(""));
+        let rank = if order == UNRATED_ORDER { -1 } else { order };
         match days.get(&day) {
-            Some((current, _)) if *current >= order => {}
+            Some((current, _)) if (if *current == UNRATED_ORDER { -1 } else { *current }) >= rank => {}
             _ => {
                 days.insert(day, (order, label));
             }
@@ -1504,17 +1524,23 @@ pub fn difficulty_detail(
     let account = account.unwrap_or("");
     let source = source.unwrap_or("");
     let explicit_count = if source.is_empty() {
-        conn.query_row(
-            "SELECT COALESCE(SUM(count),0) FROM difficulty_stats_accounts WHERE platform=? AND label=? AND (?='' OR account=?)",
-            params![platform, label, account, account],
-            |row| row.get::<_, i64>(0),
-        )
+        difficulty_for_platform(
+            conn,
+            platform,
+            None,
+            None,
+            (!account.is_empty()).then_some(account),
+            None,
+        )?
+        .into_iter()
+        .find(|bucket| bucket.label == label)
+        .map(|bucket| bucket.count)
         .unwrap_or(0)
     } else {
         0
     };
     let mut stmt = conn.prepare(
-        "SELECT platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND difficulty IS NOT NULL AND TRIM(difficulty)<>'' AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC,submission_id DESC"
+        "SELECT platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second DESC,submission_id DESC"
     ).map_err(|e| e.to_string())?;
     let rows = stmt.query_map(
         params![platform, account, account, source, source],
@@ -1524,9 +1550,7 @@ pub fn difficulty_detail(
     let mut items = Vec::new();
     for row in rows {
         let item = row.map_err(|e| e.to_string())?;
-        let matches = item.difficulty.as_deref()
-            .map(|difficulty| bucket_label(platform, difficulty).1 == label)
-            .unwrap_or(false);
+        let matches = bucket_label(platform, item.difficulty.as_deref().unwrap_or("")).1 == label;
         if matches && seen.insert(format!("{}\0{}", item.account, item.problem_key)) {
             items.push(item);
         }
@@ -1692,6 +1716,47 @@ mod tests {
     }
 
     #[test]
+    fn difficulty_includes_unrated_problems() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","alice")]).unwrap();
+        let mut data = remote("codeforces","alice");
+        let mut unrated = data.submissions[0].clone();
+        unrated.submission_id = "unrated-ac".into();
+        unrated.problem_key = "B".into();
+        unrated.problem_id = "B".into();
+        unrated.problem_name = "Unrated".into();
+        unrated.difficulty = None;
+        data.submissions.push(unrated);
+        data.solved_count = Some(2);
+        apply_remote(&mut conn,&data).unwrap();
+        let buckets = difficulty_for_platform(&conn,"codeforces",None,None,None,None).unwrap();
+        assert_eq!(buckets.iter().find(|item| item.label == UNRATED_LABEL).map(|item| item.count),Some(1));
+        let detail = difficulty_detail(&conn,"codeforces",UNRATED_LABEL,None,None).unwrap();
+        assert_eq!(detail.count,1);
+        assert_eq!(detail.items.len(),1);
+    }
+
+    #[test]
+    fn daily_difficulty_prefers_rated_problem_over_unrated_problem() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn,"codeforces",&[entry("codeforces","alice")]).unwrap();
+        let mut data = remote("codeforces","alice");
+        let mut unrated = data.submissions[0].clone();
+        unrated.submission_id = "unrated-ac".into();
+        unrated.problem_key = "B".into();
+        unrated.problem_id = "B".into();
+        unrated.problem_name = "Unrated".into();
+        unrated.difficulty = None;
+        data.submissions.push(unrated);
+        data.solved_count = Some(2);
+        apply_remote(&mut conn,&data).unwrap();
+        let daily = difficulty_daily_for_platform(&conn,"codeforces",None,None,None,None).unwrap();
+        assert_eq!(daily.len(),1);
+        assert_eq!(daily[0].order,1200);
+        assert_eq!(daily[0].label,"1200");
+    }
+
+    #[test]
     fn reopening_does_not_reimport_legacy_caches() {
         let path = std::env::temp_dir().join(format!("oj-insight-test-{}-{}.sqlite3",
             std::process::id(), Utc::now().timestamp_nanos_opt().unwrap()));
@@ -1741,5 +1806,8 @@ mod tests {
         assert_eq!(bucket_label("codeforces", "1350"), (1300, "1300".into()));
         assert_eq!(bucket_label("luogu", "7"), (7, "省选/NOI-".into()));
         assert_eq!(bucket_label("luogu", "提高"), (5, "提高".into()));
+        assert_eq!(bucket_label("leetcode", "Medium"), (2, "Medium".into()));
+        assert_eq!(bucket_label("codeforces", ""), (UNRATED_ORDER, UNRATED_LABEL.into()));
+        assert_eq!(bucket_label("atcoder", "unknown"), (UNRATED_ORDER, UNRATED_LABEL.into()));
     }
 }

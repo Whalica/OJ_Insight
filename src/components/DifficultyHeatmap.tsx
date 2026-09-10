@@ -43,7 +43,7 @@ export default function DifficultyHeatmap({ platform, startDay, endDay, daily, o
       <div className="weekday-labels"><span>一</span><span>三</span><span>五</span></div>
       <div className="cells" style={{ width: weeks * STEP, height: 7 * STEP }}>{days.map((item) => {
         const color = item.point ? colorFor(platform, item.point.label, item.point.order) : undefined;
-        return <button key={item.day} className="heat-cell difficulty-cell" style={{ left: item.week * STEP, top: item.dow * STEP, width: CELL, height: CELL, background: color || 'var(--brick-empty)' }} aria-label={`${item.day}: ${item.point?.label || '无难度记录'}`} onClick={() => onDay?.(item.day)} onMouseEnter={(event) => setHover({ day: item.day, label: item.point?.label || '无难度记录', x: event.clientX, y: event.clientY })} onMouseMove={(event) => setHover((value) => value ? { ...value, x: event.clientX, y: event.clientY } : value)} onMouseLeave={() => setHover(null)} />;
+        return <button key={item.day} className={`heat-cell difficulty-cell ${item.point?.label === '未评级' ? 'unrated' : ''}`} style={{ left: item.week * STEP, top: item.dow * STEP, width: CELL, height: CELL, background: color || 'var(--brick-empty)' }} aria-label={`${item.day}: ${item.point?.label || '无难度记录'}`} onClick={() => onDay?.(item.day)} onMouseEnter={(event) => setHover({ day: item.day, label: item.point?.label || '无难度记录', x: event.clientX, y: event.clientY })} onMouseMove={(event) => setHover((value) => value ? { ...value, x: event.clientX, y: event.clientY } : value)} onMouseLeave={() => setHover(null)} />;
       })}</div>
     </div></div>
     <div className="difficulty-map-note">每格显示当天 AC 题目的最高难度；点击可查看当天全部题目</div>

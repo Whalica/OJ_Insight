@@ -1,19 +1,21 @@
 {
   "name": "oj-insight",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "check": "npm run check:version && tsc --noEmit",
+    "check": "node scripts/check-version.mjs && tsc --noEmit",
     "check:version": "node scripts/check-version.mjs",
-    "build": "npm run check:version && tsc && vite build --configLoader runner",
+    "build": "node scripts/check-version.mjs && tsc && vite build --configLoader runner",
     "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

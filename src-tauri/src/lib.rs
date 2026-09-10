@@ -504,6 +504,8 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Portable-data layout: every piece of persistent application data lives
             // in one root directory. On Windows that root sits next to the

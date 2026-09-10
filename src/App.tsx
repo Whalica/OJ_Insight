@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, X } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import DayDrawer from './components/DayDrawer';
 import DifficultyDrawer from './components/DifficultyDrawer';
@@ -12,7 +13,8 @@ import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
 import { emptyAccounts, emptySnapshot, initialMetric, initialScope, scopeRange, SYNC_TIPS, type AccountMap, type TimeScope } from './lib/ui';
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
-import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncStatus } from './types';
+import { checkForAppUpdate, discardAppUpdate, installAppUpdate } from './lib/updater';
+import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncStatus, UpdateInfo } from './types';
 
 type Page = 'overview' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
@@ -34,6 +36,7 @@ export default function App() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [selectedDay, setSelectedDay] = useState(() => today(timeZone));
   const [loading, setLoading] = useState(true);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncTip, setSyncTip] = useState('');
   const [syncProgress, setSyncProgress] = useState<{ done: number; total: number; added: number; partial: number; failed: number } | null>(null);
@@ -42,6 +45,9 @@ export default function App() {
   const [dayLoading, setDayLoading] = useState(false);
   const [difficultyDetail, setDifficultyDetail] = useState<DifficultyDetail | null>(null);
   const [difficultyLoading, setDifficultyLoading] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
   const range = useMemo(() => scopeRange(timeScope, timeZone), [timeScope, selectedDay, timeZone]);
@@ -75,11 +81,15 @@ export default function App() {
     const next = emptyAccounts();
     for (const entry of await api.getAccounts()) next[entry.platform].push(entry);
     setAccounts(next);
+    setAccountsLoaded(true);
+    return next;
   }, []);
   const loadStatuses = useCallback(async () => setStatuses(await api.getStatuses()), []);
   const snapshotRequest = useRef(0);
   const dayRequest = useRef(0);
   const difficultyRequest = useRef(0);
+  const startupSyncStarted = useRef(false);
+  const startupUpdateStarted = useRef(false);
   const query = useRef({ selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone });
   query.current = { selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone };
   const closeDay = () => { dayRequest.current += 1; setDayDetail(null); setDayLoading(false); };
@@ -121,9 +131,10 @@ export default function App() {
     } catch (error) { notify(`${PLATFORM_META[platform].name}：${String(error)}`); await loadStatuses(); }
     finally { setSyncing(null); }
   };
-  const syncAll = async () => {
+  const syncAll = async (sourceAccounts: AccountMap = accounts, automatic = false) => {
+    const configured = PLATFORM_ORDER.filter((platform) => sourceAccounts[platform].some((entry) => entry.account.trim()));
+    if (!configured.length && automatic) return;
     setSyncing('all'); chooseTip();
-    const configured = PLATFORM_ORDER.filter((platform) => accounts[platform].some((entry) => entry.account.trim()));
     let done = 0; let added = 0; let partial = 0; let failed = 0;
     setSyncProgress({ done, total: configured.length, added, partial, failed });
     try {
@@ -131,9 +142,41 @@ export default function App() {
         try { const result = await api.syncPlatform(platform); added += result.inserted; if (result.partial) partial += 1; else if (result.status !== 'ok' && result.status !== 'warning') failed += 1; } catch { failed += 1; }
         done += 1; setSyncProgress({ done, total: configured.length, added, partial, failed }); await loadStatuses();
       }
-      notify(configured.length ? `同步完成：新增 ${added} 条，部分可用 ${partial}，失败 ${failed}` : '还没有配置账号，请先到设置页填写');
+      if (!automatic || added > 0 || partial > 0 || failed > 0) {
+        notify(configured.length ? `同步完成：新增 ${added} 条，部分可用 ${partial}，失败 ${failed}` : '还没有配置账号，请先到设置页填写');
+      }
       await Promise.all([loadSnapshot(), loadStatuses()]);
     } finally { setSyncing(null); window.setTimeout(() => setSyncProgress(null), 2600); }
+  };
+  useEffect(() => {
+    if (!accountsLoaded || !preferences.autoSync || startupSyncStarted.current) return;
+    startupSyncStarted.current = true;
+    void syncAll(accounts, true);
+  }, [accountsLoaded, preferences.autoSync]);
+  useEffect(() => {
+    if (!preferences.autoCheckUpdates || startupUpdateStarted.current) return;
+    startupUpdateStarted.current = true;
+    const timer = window.setTimeout(() => {
+      checkForAppUpdate().then((result) => {
+        if (result.updateAvailable && result.latestVersion !== preferences.skippedUpdateVersion) setAvailableUpdate(result);
+      }).catch(() => undefined);
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [preferences.autoCheckUpdates, preferences.skippedUpdateVersion]);
+  const installUpdate = async () => {
+    if (syncing) { notify('请等待当前同步完成后再安装更新'); return; }
+    setInstallingUpdate(true); setUpdateProgress(0);
+    let downloaded = 0; let total = 0;
+    try {
+      await installAppUpdate((event) => {
+        if (event.event === 'Started') total = event.data.contentLength || 0;
+        if (event.event === 'Progress') downloaded += event.data.chunkLength;
+        if (event.event === 'Progress') setUpdateProgress(total ? Math.min(100, Math.round(downloaded / total * 100)) : null);
+        if (event.event === 'Finished') setUpdateProgress(100);
+      });
+    } catch (error) {
+      notify(`更新失败：${String(error)}`); setInstallingUpdate(false); setUpdateProgress(null);
+    }
   };
   const openDay = async (day: string) => {
     const request = ++dayRequest.current;
@@ -149,11 +192,12 @@ export default function App() {
       {page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
-       page === 'about' ? <AboutPage /> :
+       page === 'about' ? <AboutPage syncing={syncing} /> :
       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} />}
     </main>
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />
     <DifficultyDrawer detail={difficultyDetail} loading={difficultyLoading} timeZone={timeZone} onClose={closeDifficulty} />
+    {availableUpdate && <aside className="update-notice" aria-live="polite"><button className="update-dismiss" aria-label="稍后提醒" disabled={installingUpdate} onClick={() => setAvailableUpdate(null)}><X size={15} /></button><small>UPDATE AVAILABLE</small><strong>OJ Insight v{availableUpdate.latestVersion}</strong><span>{installingUpdate ? `正在下载${updateProgress == null ? '…' : ` · ${updateProgress}%`}` : syncing ? '当前正在同步数据，完成后即可安装更新。' : '新版本已经准备好，可以直接在应用内完成更新。'}</span>{installingUpdate && <i><b style={{ width: `${updateProgress || 4}%` }} /></i>}<div><button disabled={installingUpdate} onClick={() => { updatePreferences({ skippedUpdateVersion: availableUpdate.latestVersion }); setAvailableUpdate(null); void discardAppUpdate(); }}>跳过此版本</button><button className="primary" disabled={installingUpdate || !!syncing} onClick={installUpdate}><Download size={14} />{installingUpdate ? '更新中' : syncing ? '等待同步' : '立即更新'}</button></div></aside>}
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }

@@ -2,9 +2,9 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.6.0 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.7.0 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
-> v0.6.0：增加 Rating 比赛详情与跳转、难度分布逐题抽屉、个人信息导出，并更新三平台发布包。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
+> v0.7.0：增加灰色主题、未评级难度、启动自动同步与应用内签名更新，并保持原有页面布局和组件设计。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 功能
 
@@ -12,7 +12,7 @@ OJ Insight v0.6.0 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，
 - 每个平台支持配置多个用户 ID，可查看聚合数据或筛选单个账号；移除 ID 时同步清理其本地缓存，其他 ID 不受影响。
 - Rating 总览：按 OJ/ID 查看当前、最高、最近变化和曲线；悬停曲线点显示比赛摘要，点击可打开对应比赛。当前接入 CF、AtCoder Algorithm、LeetCode 国际站；未接入的平台明确留空。
 - 难度分布柱形可点击，使用与活动砖一致的侧边抽屉列出该档全部去重题目；只有汇总数据的平台会明确说明逐题数据边界。
-- 设置分为账号设置/个性化；亮暗/系统主题、三级字号、密度、活动砖配色、减少动效、时区与启动页。
+- 设置分为账号设置/个性化；亮色、灰色、暗色、跟随系统主题，三级字号、密度、活动砖配色、减少动效、时区、启动页与启动行为。
 - 账号设置支持导出版本化 JSON 个人信息；默认不含 Cookie / Session，也可在明确警告后导出完整凭据。个性化设置和训练记录不包含在内。
 - Career 生涯统计与当前时间范围统计严格分开。
 - `< [ 2026 ▼ ] >` 年份控件；`至今（近一年）` 显示截至今天最近 365 天，活动砖最右列包含今天。
@@ -20,13 +20,13 @@ OJ Insight v0.6.0 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，
 - Activity 四种口径：First AC、Unique AC、AC Submissions、Platform Activity。
 - 今日进度固定展示六个 OJ；问候语按凌晨、早晨、中午、傍晚和夜间切换。
 - Platform Summary、Recent Accepted、Data Sources；点击任意活动砖可查看当天全部提交。
-- Difficulty Profile 按平台自身体系分别绘制 histogram，不跨 OJ 强行统一难度；难度足迹按当天最高难度着色。
+- Difficulty Profile 按平台自身体系分别绘制 histogram，不跨 OJ 强行统一难度；缺少可靠难度的已知题目归入“未评级”，难度足迹也会显示只有未评级题目的日期。
 - 增量同步、全量重建、清空单 OJ、清空所有同步数据。
 - 缓存数据与最近一次同步错误分离；同步失败不会删除旧缓存。
 - 同步进度显示完成站点数、新增记录与失败站点数；每次全同步固定展示一条随机竞赛 Tips。
 - 指定年份区间或 Until now 的 Activity 导出；All OJs/单 OJ；PNG/SVG。
-- About 页提供版本、GitHub Releases 更新检查、仓库和 Issue 入口。
-- Windows Release 使用 GUI subsystem；MacOS Release 使用原生 `.app`；Linux 提供 AppImage、DEB 与 RPM。启动、同步、检查更新、导出均不创建 console / shell 子进程。
+- 启动时默认在后台增量同步全部已配置平台并检查更新；设置中可分别关闭。About 页保留手动检查、应用内签名更新、仓库和 Issue 入口。
+- 面向新用户只发布 Windows EXE、MacOS Universal DMG 与 Linux AppImage。启动、同步、检查更新、导出均不创建 console / shell 子进程。
 
 ## 便携目录（Windows）
 
@@ -86,7 +86,7 @@ Linux 安装目录通常不可写，因此数据保存在 Tauri 返回的当前�
 
 ## 第一次使用
 
-1. Windows：将程序放到可写目录，例如 `D:\Tools\OJ Insight\`；MacOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`；Linux：安装 DEB/RPM 或运行 AppImage。
+1. Windows：将 EXE 放到可写目录，例如 `D:\Tools\OJ Insight\`；MacOS：打开 DMG，把 `OJ Insight.app` 拖入 `Applications`；Linux：运行 AppImage。
 2. 打开「设置」，填写需要使用的平台账号并保存。
 3. 打开「数据源」，对新账号执行「重建」。
 4. 以后使用「增量」或「同步全部」。
@@ -204,13 +204,13 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.6.0`。Check for Updates 请求：
+About 显示当前版本 `0.7.0`。更新器读取：
 
 ```text
-https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
+https://github.com/Whalica/OJ_Insight/releases/latest/download/latest.json
 ```
 
-这里只检查并跳转到 GitHub Release，不自动下载安装。Repository、Report an Issue 和 Release 均从 About 打开。
+检测到新版本后可直接下载、验证签名并安装；失败时可回到 GitHub Release 手动下载。Repository 与 Report an Issue 仍从 About 打开。
 
 ## 日志与故障排查
 
@@ -223,17 +223,17 @@ https://api.github.com/repos/Whalica/OJ_Insight/releases/latest
 
 ## 源码开发
 
-要求：Node.js 22+、Rust stable。沿用当前 GitHub 仓库的 npm 构建方式。
+要求：Node.js 22+、pnpm 11+、Rust stable。
 
 - Windows：Visual Studio C++ Build Tools、WebView2 Runtime。
 - MacOS：Xcode Command Line Tools（WKWebView 由系统提供）。
 - Linux：WebKitGTK 4.1、AppIndicator、librsvg、OpenSSL 与常用编译工具。
 
 ```bash
-npm install
-npm run build
+pnpm install --frozen-lockfile
+pnpm build
 cargo check --manifest-path src-tauri/Cargo.toml
-npm run tauri build
+pnpm tauri build
 ```
 
 开发模式数据位置：
@@ -261,8 +261,8 @@ npm run tauri build
 然后推送 tag：
 
 ```bash
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.7.0
+git push origin v0.7.0
 ```
 
 Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；MacOS 使用 DMG；Linux 使用 AppImage。
@@ -282,7 +282,7 @@ OJ Insight 尊重上游公开数据能力，不虚构统一精度：
 ## 回归检查
 
 ```bash
-npm run build
+pnpm build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 

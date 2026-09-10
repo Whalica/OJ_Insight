@@ -24,6 +24,7 @@ const LUOGU_COLORS: Record<string, string> = {
 };
 
 export function difficultyColor(platform: Platform, label: string, order = 0) {
+  if (label === '未评级') return 'var(--unrated-difficulty)';
   if (platform === 'luogu') return LUOGU_COLORS[label] || '#68737d';
   if (platform === 'codeforces') {
     const rating = Number(label) || order;

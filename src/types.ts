@@ -111,7 +111,14 @@ export interface Snapshot {
   warnings: string[];
 }
 
-export interface UpdateInfo { currentVersion: string; latestVersion: string; releaseUrl: string; updateAvailable: boolean; }
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  releaseUrl: string;
+  updateAvailable: boolean;
+  notes?: string;
+  publishedAt?: string;
+}
 
 export interface DayDetail {
   day: string;

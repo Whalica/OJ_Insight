@@ -1,4 +1,4 @@
-export type ThemeMode = 'system' | 'light' | 'dark';
+export type ThemeMode = 'system' | 'light' | 'gray' | 'dark';
 export type FontSize = 'standard' | 'large' | 'xlarge';
 export type InterfaceDensity = 'comfortable' | 'compact';
 export type HeatmapPalette = 'green' | 'blue' | 'accessible';
@@ -11,6 +11,9 @@ export interface Preferences {
   heatmapPalette: HeatmapPalette;
   reduceMotion: boolean;
   startupPage: StartupPage;
+  autoCheckUpdates: boolean;
+  autoSync: boolean;
+  skippedUpdateVersion: string;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -20,6 +23,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   heatmapPalette: 'green',
   reduceMotion: false,
   startupPage: 'overview',
+  autoCheckUpdates: true,
+  autoSync: true,
+  skippedUpdateVersion: '',
 };
 
 const STORAGE_KEY = 'oj-insight.preferences';
@@ -32,12 +38,15 @@ export function loadPreferences(): Preferences {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Partial<Preferences>;
     return {
-      theme: member(value.theme, ['system', 'light', 'dark'], 'system'),
+      theme: member(value.theme, ['system', 'light', 'gray', 'dark'], 'system'),
       fontSize: member(value.fontSize, ['standard', 'large', 'xlarge'], 'standard'),
       density: member(value.density, ['comfortable', 'compact'], 'comfortable'),
       heatmapPalette: member(value.heatmapPalette, ['green', 'blue', 'accessible'], 'green'),
       reduceMotion: value.reduceMotion === true,
       startupPage: member(value.startupPage, ['overview', 'last'], 'overview'),
+      autoCheckUpdates: value.autoCheckUpdates !== false,
+      autoSync: value.autoSync !== false,
+      skippedUpdateVersion: typeof value.skippedUpdateVersion === 'string' ? value.skippedUpdateVersion : '',
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };
@@ -55,5 +64,5 @@ export function applyPreferences(value: Preferences, systemDark: boolean) {
   root.dataset.density = value.density;
   root.dataset.heatmapPalette = value.heatmapPalette;
   root.dataset.reduceMotion = String(value.reduceMotion);
-  root.style.colorScheme = root.dataset.theme;
+  root.style.colorScheme = root.dataset.theme === 'gray' ? 'dark' : root.dataset.theme;
 }
