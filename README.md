@@ -2,9 +2,9 @@
 
 **Unified Online Judge statistics & visualization.**
 
-OJ Insight v0.7.0 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
+OJ Insight v0.7.1 是一个 Windows / MacOS / Linux 多 OJ 训练数据面板，把 Codeforces、AtCoder、Luogu、NowCoder、QOJ 与 LeetCode 的个人训练数据集中整理，并用活动砖、难度足迹、时间范围统计、平台概览和难度分布展示。
 
-> v0.7.0：增加灰色主题、未评级难度、启动自动同步与应用内签名更新，并保持原有页面布局和组件设计。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
+> v0.7.1：增加灰色主题、未评级难度、启动自动同步与应用内签名更新，并保持原有页面布局和组件设计。详细改动见 [CHANGELOG.md](CHANGELOG.md)，构建说明见 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 功能
 
@@ -204,7 +204,7 @@ Until now 固定为截至今天最近 365 天；自然年模式展示 1 月 1 �
 
 ## About 与更新检查
 
-About 显示当前版本 `0.7.0`。更新器读取：
+About 显示当前版本 `0.7.1`。更新器读取：
 
 ```text
 https://github.com/Whalica/OJ_Insight/releases/latest/download/latest.json
@@ -244,7 +244,7 @@ pnpm tauri build
 
 ## GitHub Actions 与发布
 
-`.github/workflows/build.yml` 是统一的三端构建工作流。手动运行、推送 `v*` tag 或发起 Pull Request 时会并行构建：
+`.github/workflows/build.yml` 是统一的三端构建工作流。发起 Pull Request、推送 `v*` tag 或在 Actions 页面手动运行时会并行构建：
 
 - `OJ-Insight-Windows`：Windows 构建产物；
 - `OJ-Insight-MacOS`：Universal DMG；
@@ -258,12 +258,7 @@ pnpm tauri build
 - `src-tauri/Cargo.toml`
 - `src-tauri/tauri.conf.json`
 
-然后推送 tag：
-
-```bash
-git tag v0.7.0
-git push origin v0.7.0
-```
+推荐直接在 GitHub 网页进入 `Actions → Build desktop apps → Run workflow`：普通测试时将 `release_tag` 留空；准备发布时填写与源码一致的版本号（例如 `v0.7.1`）。正式模式会生成签名更新文件、创建对应 tag 和 Draft Release，并上传全部产物。检查三个安装包后，再到 Releases 页面手动点击 `Publish release`。
 
 Windows Release 构建使用 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`，正式版双击不会出现黑色 console 窗口；MacOS 使用 DMG；Linux 使用 AppImage。
 

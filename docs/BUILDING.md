@@ -15,7 +15,7 @@ pnpm build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-`.github/workflows/build.yml` 是唯一的三平台构建入口。工作流在 Pull Request、`v*` 标签和手动触发时运行；正式标签构建还会生成签名更新包和 `latest.json`。
+`.github/workflows/build.yml` 是唯一的三平台构建入口。工作流在 Pull Request、`v*` 标签和手动触发时运行。在 Actions 页面手动运行时，`release_tag` 留空表示普通测试构建；填写与源码一致的版本号（如 `v0.7.1`）会生成签名更新包和 `latest.json`，并创建等待人工确认的 Draft Release。
 
 ## Windows
 
@@ -53,7 +53,7 @@ pnpm tauri build --target universal-apple-darwin
 lipo -archs "src-tauri/target/universal-apple-darwin/release/bundle/macos/OJ Insight.app/Contents/MacOS/oj-insight"
 ```
 
-输出必须同时包含 `x86_64` 与 `arm64`。v0.7.0 的最低目标系统为 MacOS 11。
+输出必须同时包含 `x86_64` 与 `arm64`。v0.7.1 的最低目标系统为 MacOS 11。
 
 MacOS 数据保存在：
 
@@ -63,7 +63,7 @@ MacOS 数据保存在：
 
 ### MacOS 常见提示
 
-- “这台 Mac 不支持此应用程序”：通常是下载了错误 CPU 架构的包。优先下载文件名包含 `universal` 的 v0.7.0 或更高版本。
+- “这台 Mac 不支持此应用程序”：通常是下载了错误 CPU 架构的包。优先下载文件名包含 `universal` 的 v0.7.1 或更高版本。
 - “无法验证开发者”：这是签名或公证提示，不是架构不兼容。在 Finder 中右键应用并选择“打开”，或在“系统设置 → 隐私与安全性”中允许。
 - “App 已损坏，无法打开”：开源未公证构建被 Gatekeeper 加上隔离标记时也会出现，并不代表程序文件实际损坏。确认安装包来自本项目 Release，保持 DMG 已挂载，然后对 DMG 中的实际 App 路径执行：
 
@@ -117,4 +117,4 @@ OJ_INSIGHT_GDK_BACKEND=x11 ./OJ\ Insight_*.AppImage
 
 Tauri updater 使用独立的更新签名密钥。私钥不能提交到仓库；将私钥内容配置为 GitHub Actions Secret `TAURI_SIGNING_PRIVATE_KEY`，如密钥有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。公钥已经写入 `src-tauri/tauri.conf.json`。
 
-推送 `v*` 标签后，CI 会继续生成 EXE、Universal DMG、AppImage 三种用户安装包，同时生成 updater 内部需要的签名文件、MacOS 更新归档和 `latest.json`，并自动创建 GitHub Release。丢失私钥后，已经安装的客户端将无法验证后续更新，因此必须离线备份。
+在 Actions 页面填写 `release_tag`，或推送 `v*` 标签后，CI 会生成 EXE、Universal DMG、AppImage 三种用户安装包，同时生成 updater 内部需要的签名文件、MacOS 更新归档和 `latest.json`，并自动创建 Draft Release。检查安装包后需在 Releases 页面手动发布。丢失私钥后，已经安装的客户端将无法验证后续更新，因此必须离线备份。
