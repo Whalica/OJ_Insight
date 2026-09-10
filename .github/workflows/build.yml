@@ -221,7 +221,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            test "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .draft)" = "true"
+            test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = "true"
           else
             gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --draft --title "OJ Insight $RELEASE_TAG" --generate-notes
           fi
