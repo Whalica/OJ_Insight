@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '留空为普通测试构建；填写 v0.7.1 这类版本号会创建签名更新和 Draft Release'
+        description: '留空为普通测试构建；填写 v0.8.0 这类版本号会创建签名更新和 Draft Release'
         required: false
         type: string
   push:
