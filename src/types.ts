@@ -116,6 +116,7 @@ export interface UpdateInfo {
   latestVersion: string;
   releaseUrl: string;
   updateAvailable: boolean;
+  installable?: boolean;
   notes?: string;
   publishedAt?: string;
 }

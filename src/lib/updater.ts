@@ -1,5 +1,6 @@
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater';
+import { api } from './api';
 import type { UpdateInfo } from '../types';
 
 let pendingUpdate: Update | null = null;
@@ -12,6 +13,7 @@ function info(update: Update | null): UpdateInfo {
       latestVersion: '',
       releaseUrl: 'https://github.com/Whalica/OJ_Insight/releases',
       updateAvailable: false,
+      installable: false,
     };
   }
   return {
@@ -19,6 +21,7 @@ function info(update: Update | null): UpdateInfo {
     latestVersion: update.version,
     releaseUrl: `https://github.com/Whalica/OJ_Insight/releases/tag/v${update.version}`,
     updateAvailable: true,
+    installable: true,
     notes: update.body || '',
     publishedAt: update.date || '',
   };
@@ -32,6 +35,14 @@ export function checkForAppUpdate() {
       if (pendingUpdate && pendingUpdate !== update) await pendingUpdate.close();
       pendingUpdate = update;
       return info(update);
+    })
+    .catch(async () => {
+      try {
+        const release = await api.checkForUpdates();
+        return { ...release, installable: false };
+      } catch {
+        throw new Error('暂时无法连接更新服务，请稍后重试');
+      }
     })
     .finally(() => { checking = null; });
   return checking;

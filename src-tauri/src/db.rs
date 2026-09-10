@@ -1213,7 +1213,7 @@ fn row_submission(r: &rusqlite::Row<'_>) -> rusqlite::Result<Submission> {
 }
 
 const UNRATED_LABEL: &str = "未评级";
-const UNRATED_ORDER: i64 = 10_000;
+const UNRATED_ORDER: i64 = -1;
 
 fn difficulty_for_platform(
     conn: &Connection,
@@ -1730,6 +1730,7 @@ mod tests {
         data.solved_count = Some(2);
         apply_remote(&mut conn,&data).unwrap();
         let buckets = difficulty_for_platform(&conn,"codeforces",None,None,None,None).unwrap();
+        assert_eq!(buckets.first().map(|item| item.label.as_str()),Some(UNRATED_LABEL));
         assert_eq!(buckets.iter().find(|item| item.label == UNRATED_LABEL).map(|item| item.count),Some(1));
         let detail = difficulty_detail(&conn,"codeforces",UNRATED_LABEL,None,None).unwrap();
         assert_eq!(detail.count,1);
