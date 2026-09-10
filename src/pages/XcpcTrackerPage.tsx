@@ -28,7 +28,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const filterRef = useRef<HTMLDivElement>(null);
-  const pageSize = 6;
+  const pageSize = 15;
 
   const loadCatalog = async (forceRefresh = false) => {
     setCatalogLoading(true); setCatalogError('');
@@ -122,6 +122,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       <div className="xcpc-table-scroll">
         {catalogLoading && !contests.length && <div className="empty">正在从 QOJ 载入赛事目录…</div>}
         {catalogError && <div className="empty">目录载入失败：{catalogError} <button onClick={() => void loadCatalog(true)}>重试</button></div>}
+        {!catalogLoading && contests.length > 0 && !contests.some((contest) => contest.problems.length > 0) && <div className="empty">QOJ 当前只返回了比赛索引，没有返回题目链接。请在设置中填写 QOJ 的 UOJSESSID Cookie 后重新更新目录。</div>}
         <table className="xcpc-table">
           <thead><tr><th className="xcpc-contest-column">比赛</th><th className="xcpc-date-column">日期</th><th className="xcpc-progress-column">进度</th>{problemIndexes.map((index) => <th key={index}>{index}</th>)}</tr></thead>
           <tbody>{visible.map((contest) => {

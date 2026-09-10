@@ -13,8 +13,15 @@ const ROOT_CATEGORIES: [(&str, usize); 3] = [("21", 1), ("205", 1), ("212", 1)];
 pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, force_refresh: bool) -> Result<Vec<XcpcContest>, String> {
     if !force_refresh {
         if let Ok(text) = std::fs::read_to_string(cache_path) {
-            if let Ok(items) = serde_json::from_str::<Vec<XcpcContest>>(&text) {
-                if !items.is_empty() { return Ok(items); }
+            if let Ok(mut items) = serde_json::from_str::<Vec<XcpcContest>>(&text) {
+                if !items.is_empty() {
+                    if !cookie.trim().is_empty() && items.iter().any(|contest| contest.problems.is_empty()) {
+                        enrich_contest_problems(client, cookie, &mut items).await;
+                        let json = serde_json::to_string(&items).map_err(|e| format!("更新 XCPC 缓存失败：{e}"))?;
+                        std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 缓存失败：{e}"))?;
+                    }
+                    return Ok(items);
+                }
             }
         }
     }
@@ -66,7 +73,62 @@ async fn fetch_catalog(client: &Client, cookie: &str) -> Result<Vec<XcpcContest>
         items = fetch_contest_list(client, cookie).await?;
     }
     if items.is_empty() { return Err("QOJ 页面已返回，但没有识别到 XCPC 比赛；请稍后重试".into()); }
+    if !cookie.trim().is_empty() {
+        enrich_contest_problems(client, cookie, &mut items).await;
+    }
     Ok(items)
+}
+
+async fn enrich_contest_problems(client: &Client, cookie: &str, contests: &mut [XcpcContest]) {
+    let missing: Vec<_> = contests.iter().enumerate()
+        .filter(|(_, contest)| contest.problems.is_empty())
+        .map(|(index, contest)| (index, contest.id.clone()))
+        .collect();
+    for chunk in missing.chunks(8) {
+        let mut tasks = tokio::task::JoinSet::new();
+        for (index, contest_id) in chunk.iter().cloned() {
+            let client = client.clone();
+            let cookie = cookie.to_string();
+            tasks.spawn(async move {
+                let url = format!("https://qoj.ac/contest/{contest_id}");
+                let problems = fetch_contest_problems(&client, &url, &cookie).await?;
+                Ok::<_, String>((index, problems))
+            });
+        }
+        while let Some(result) = tasks.join_next().await {
+            if let Ok(Ok((index, problems))) = result {
+                if !problems.is_empty() { contests[index].problems = problems; }
+            }
+        }
+    }
+}
+
+async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Result<Vec<XcpcProblem>, String> {
+    let html = get_text(client, url, with_cookie(browser_headers(), cookie)).await
+        .map_err(|e| e.to_string())?;
+    let doc = Html::parse_document(&html);
+    let anchor_sel = Selector::parse("a[href]").unwrap();
+    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/problem/(\d+)(?:$|[/?#])").unwrap();
+    let mut problems = Vec::new();
+    let mut seen = HashSet::new();
+    for anchor in doc.select(&anchor_sel) {
+        let Some(href) = anchor.value().attr("href") else { continue };
+        let Some(problem_id) = problem_re.captures(href).map(|capture| capture[1].to_string()) else { continue };
+        if !seen.insert(problem_id.clone()) { continue; }
+        let raw = text_of(&anchor);
+        let mut parts = raw.splitn(2, |ch: char| ch == '.' || ch == ':' || ch.is_whitespace());
+        let first = parts.next().unwrap_or_default().trim();
+        let index = if first.len() <= 3 && first.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+            first.to_string()
+        } else {
+            String::from_utf8(vec![b'A' + problems.len() as u8]).unwrap_or_default()
+        };
+        let title = anchor.value().attr("title").or_else(|| anchor.value().attr("data-original-title")).unwrap_or_default().trim();
+        let name = if !title.is_empty() { title.to_string() } else { parts.next().unwrap_or_default().trim().to_string() };
+        problems.push(XcpcProblem { index, name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
+    }
+    problems.sort_by(|a, b| a.index.cmp(&b.index));
+    Ok(problems)
 }
 
 struct ParsedCategory { contests: Vec<XcpcContest>, child_categories: Vec<String> }
@@ -108,6 +170,43 @@ fn parse_category(html: &str) -> ParsedCategory {
             id: contest_id.clone(), name: name.clone(), short_name: short_name(&name, &year), url: format!("https://qoj.ac/contest/{contest_id}"),
             date: String::new(), year, series: classify_series(&name), stage: classify_stage(&name), site: classify_site(&name), board_source: None, problems,
         });
+    }
+    let parsed = ParsedCategory { contests, child_categories };
+    if parsed.contests.is_empty() || parsed.contests.iter().all(|contest| contest.problems.is_empty()) {
+        let fallback = parse_category_rows_from_html(html);
+        if !fallback.contests.is_empty() || !fallback.child_categories.is_empty() { return fallback; }
+    }
+    parsed
+}
+
+fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
+    let row_re = Regex::new(r"(?is)<tr\b[^>]*>(.*?)</tr>").unwrap();
+    let anchor_re = Regex::new(r#"(?is)<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
+    let tag_re = Regex::new(r"(?is)<[^>]+>").unwrap();
+    let contest_re = Regex::new(r"^(?:https?://qoj\.ac)?/contest/(\d+)(?:$|[/?#])").unwrap();
+    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/problem/(\d+)(?:$|[/?#])").unwrap();
+    let category_re = Regex::new(r"^(?:https?://qoj\.ac)?/category/(\d+)(?:$|[/?#])").unwrap();
+    let mut contests = Vec::new();
+    let mut child_categories = Vec::new();
+    for row in row_re.captures_iter(html).map(|capture| &capture[1]) {
+        let anchors: Vec<_> = anchor_re.captures_iter(row).collect();
+        let contest = anchors.iter().find(|anchor| contest_re.is_match(&anchor[1]));
+        let Some(contest) = contest else {
+            for anchor in anchors { if let Some(id) = category_re.captures(&anchor[1]).map(|capture| capture[1].to_string()) { child_categories.push(id); } }
+            continue;
+        };
+        let Some(id) = contest_re.captures(&contest[1]).map(|capture| capture[1].to_string()) else { continue };
+        let name = tag_re.replace_all(&contest[2], " ").split_whitespace().collect::<Vec<_>>().join(" ");
+        if name.is_empty() { continue; }
+        let mut problems = Vec::new();
+        for anchor in anchors {
+            let Some(problem_id) = problem_re.captures(&anchor[1]).map(|capture| capture[1].to_string()) else { continue };
+            let raw = tag_re.replace_all(&anchor[2], " ").split_whitespace().collect::<Vec<_>>().join(" ");
+            let index = if raw.len() <= 3 && !raw.is_empty() { raw } else { String::from_utf8(vec![b'A' + problems.len() as u8]).unwrap_or_default() };
+            problems.push(XcpcProblem { index, name: String::new(), url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
+        }
+        let year = extract_year(&name);
+        contests.push(XcpcContest { id: id.clone(), name: name.clone(), short_name: short_name(&name, &year), url: format!("https://qoj.ac/contest/{id}"), date: String::new(), year, series: classify_series(&name), stage: classify_stage(&name), site: classify_site(&name), board_source: None, problems });
     }
     ParsedCategory { contests, child_categories }
 }

@@ -209,8 +209,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .xcpc-summary small { color: #596570; margin-left: 7px; }
 .xcpc-search-row { position: relative; display: flex; gap: 8px; margin-bottom: 12px; }
 .xcpc-search { height: 35px; flex: 1; display: flex; align-items: center; gap: 9px; border: 1px solid #2a333d; background: #0f141a; border-radius: 8px; padding: 0 11px; color: #68747f; }
-.xcpc-search:focus-within { border-color: #3f7450; box-shadow: 0 0 0 2px rgba(88,210,129,.07); }
+.xcpc-search:focus-within { border-color: #3f7450; box-shadow: 0 0 0 1px rgba(88,210,129,.05); }
 .xcpc-search input { flex: 1; min-width: 0; height: 33px; padding: 0; border: 0; background: transparent; box-shadow: none !important; }
+.xcpc-search input:focus-visible { outline: none; }
 .xcpc-search>button { width: 24px; height: 24px; border: 0; background: transparent; color: #65717c; display: grid; place-items: center; cursor: pointer; }
 .xcpc-filter-trigger { min-width: 82px; height: 35px; border: 1px solid #2a333d; background: #11171d; color: #929da7; border-radius: 8px; padding: 0 11px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font-size: var(--font-meta); }
 .xcpc-filter-trigger:hover, .xcpc-filter-trigger.active { border-color: #3b694a; background: #142019; color: #a9dfb9; }
