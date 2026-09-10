@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '留空为普通测试构建；填写 v0.7.0 这类版本号会创建签名更新和 Draft Release'
+        description: '留空为普通测试构建；填写 v0.7.1 这类版本号会创建签名更新和 Draft Release'
         required: false
         type: string
   push:
@@ -209,13 +209,28 @@ jobs:
         with:
           pattern: OJ-Insight-*
           path: release
-      - name: Generate updater manifest
-        run: node scripts/generate-latest-json.mjs --version "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --directory release --output release/latest.json
       - name: Prepare release files
         run: |
+          version="${RELEASE_TAG#v}"
           mkdir publish
-          find release -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.AppImage' -o -iname '*.sig' -o -iname '*.app.tar.gz' -o -iname 'OJ-Insight-All-Platforms.zip' \) -exec cp {} publish/ \;
-          cp release/latest.json publish/latest.json
+          windows="$(find release -type f -iname '*.exe' -print -quit)"
+          mac_dmg="$(find release -type f -iname '*.dmg' -print -quit)"
+          mac_update="$(find release -type f -iname '*.app.tar.gz' -print -quit)"
+          linux="$(find release -type f -name '*.AppImage' -print -quit)"
+          bundle="$(find release -type f -name 'OJ-Insight-All-Platforms.zip' -print -quit)"
+          test -n "$windows" && test -f "${windows}.sig"
+          test -n "$mac_dmg" && test -n "$mac_update" && test -f "${mac_update}.sig"
+          test -n "$linux" && test -f "${linux}.sig" && test -n "$bundle"
+          cp "$windows" "publish/OJ.Insight_${version}_x64-setup-Windows.exe"
+          cp "${windows}.sig" "publish/OJ.Insight_${version}_x64-setup-Windows.exe.sig"
+          cp "$mac_dmg" "publish/OJ.Insight_${version}_universal-MacOS.dmg"
+          cp "$mac_update" "publish/OJ.Insight.app.tar.gz"
+          cp "${mac_update}.sig" "publish/OJ.Insight.app.tar.gz.sig"
+          cp "$linux" "publish/OJ.Insight_${version}_amd64-Linux.AppImage"
+          cp "${linux}.sig" "publish/OJ.Insight_${version}_amd64-Linux.AppImage.sig"
+          cp "$bundle" publish/OJ-Insight-All-Platforms.zip
+      - name: Generate updater manifest
+        run: node scripts/generate-latest-json.mjs --version "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --directory publish --output publish/latest.json
       - name: Create Draft Release
         env:
           GH_TOKEN: ${{ github.token }}
