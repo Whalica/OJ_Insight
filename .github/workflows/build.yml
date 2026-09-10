@@ -36,7 +36,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Build Windows packages
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: pnpm tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: pnpm tauri build --bundles nsis --config src-tauri/tauri.ci.conf.json
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -74,7 +74,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Build MacOS packages
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config src-tauri/tauri.ci.conf.json
         env:
           APPLE_SIGNING_IDENTITY: '-'
       - name: Verify MacOS app signature
@@ -128,7 +128,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Build Linux packages
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: pnpm tauri build --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: pnpm tauri build --bundles appimage --config src-tauri/tauri.ci.conf.json
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
