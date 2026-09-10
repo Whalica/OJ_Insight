@@ -188,7 +188,8 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
     let category_re = Regex::new(r"^(?:https?://qoj\.ac)?/category/(\d+)(?:$|[/?#])").unwrap();
     let mut contests = Vec::new();
     let mut child_categories = Vec::new();
-    for row in row_re.captures_iter(html).map(|capture| &capture[1]) {
+    for capture in row_re.captures_iter(html) {
+        let row = capture.get(1).map(|match_| match_.as_str()).unwrap_or_default();
         let anchors: Vec<_> = anchor_re.captures_iter(row).collect();
         let contest = anchors.iter().find(|anchor| contest_re.is_match(&anchor[1]));
         let Some(contest) = contest else {
