@@ -6,7 +6,7 @@ use reqwest::Client;
 use scraper::{Html, Selector};
 
 use crate::models::{XcpcContest, XcpcProblem};
-use crate::sync::{browser_headers, get_text, polite_sleep, with_cookie};
+use crate::sync::{browser_headers, get_text, with_cookie};
 
 const ROOT_CATEGORIES: [(&str, usize); 3] = [("21", 1), ("205", 1), ("212", 1)];
 
@@ -29,24 +29,43 @@ async fn fetch_catalog(client: &Client, cookie: &str) -> Result<Vec<XcpcContest>
     let mut queue = VecDeque::new();
     let mut visited = HashSet::new();
     for (id, depth) in ROOT_CATEGORIES { queue.push_back((id.to_string(), depth)); }
-    while let Some((category_id, depth)) = queue.pop_front() {
-        if !visited.insert(category_id.clone()) { continue; }
-        let url = format!("https://qoj.ac/category/{category_id}");
-        let html = get_text(client, &url, with_cookie(browser_headers(), cookie)).await
-            .map_err(|e| format!("更新 XCPC 目录失败：{e}"))?;
-        let page = parse_category(&html);
-        for contest in page.contests { contests.entry(contest.id.clone()).or_insert(contest); }
-        if depth > 0 {
-            for child in page.child_categories {
-                if !visited.contains(&child) { queue.push_back((child, depth - 1)); }
+    while !queue.is_empty() {
+        let mut batch = Vec::new();
+        while let Some((category_id, depth)) = queue.pop_front() {
+            if visited.insert(category_id.clone()) { batch.push((category_id, depth)); }
+        }
+        for chunk in batch.chunks(8) {
+            let mut tasks = tokio::task::JoinSet::new();
+            for (category_id, depth) in chunk.iter().cloned() {
+                let client = client.clone();
+                let cookie = cookie.to_string();
+                tasks.spawn(async move {
+                    let url = format!("https://qoj.ac/category/{category_id}");
+                    let html = get_text(&client, &url, with_cookie(browser_headers(), &cookie)).await
+                        .map_err(|e| format!("更新 XCPC 目录失败：{e}"))?;
+                    Ok::<_, String>((depth, parse_category(&html)))
+                });
+            }
+            while let Some(result) = tasks.join_next().await {
+                let (depth, page) = result.map_err(|e| format!("更新 XCPC 目录任务失败：{e}"))??;
+                for contest in page.contests { contests.entry(contest.id.clone()).or_insert(contest); }
+                if depth > 0 {
+                    for child in page.child_categories {
+                        if !visited.contains(&child) { queue.push_back((child, depth - 1)); }
+                    }
+                }
             }
         }
-        polite_sleep(120).await;
     }
     let mut items: Vec<_> = contests.into_values().collect();
     items.retain(|contest| !is_warmup(&contest.name));
     items.sort_by(|a, b| b.year.cmp(&a.year).then_with(|| numeric_id(&b.id).cmp(&numeric_id(&a.id))).then_with(|| a.name.cmp(&b.name)));
-    if items.is_empty() { return Err("QOJ 分类页已返回，但没有识别到 XCPC 比赛".into()); }
+    if items.is_empty() {
+        // QOJ occasionally serves the category table without the problem-column
+        // markup. Keep the tracker usable by falling back to its public contest list.
+        items = fetch_contest_list(client, cookie).await?;
+    }
+    if items.is_empty() { return Err("QOJ 页面已返回，但没有识别到 XCPC 比赛；请稍后重试".into()); }
     Ok(items)
 }
 
@@ -56,9 +75,9 @@ fn parse_category(html: &str) -> ParsedCategory {
     let doc = Html::parse_document(html);
     let row_sel = Selector::parse("table tr").unwrap();
     let anchor_sel = Selector::parse("a[href]").unwrap();
-    let contest_re = Regex::new(r"^/contest/(\d+)(?:$|[/?#])").unwrap();
-    let problem_re = Regex::new(r"^/problem/(\d+)(?:$|[/?#])").unwrap();
-    let category_re = Regex::new(r"^/category/(\d+)(?:$|[/?#])").unwrap();
+    let contest_re = Regex::new(r"^(?:https?://qoj\.ac)?/contest/(\d+)(?:$|[/?#])").unwrap();
+    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/problem/(\d+)(?:$|[/?#])").unwrap();
+    let category_re = Regex::new(r"^(?:https?://qoj\.ac)?/category/(\d+)(?:$|[/?#])").unwrap();
     let mut contests = Vec::new();
     let mut child_categories = Vec::new();
     for row in doc.select(&row_sel) {
@@ -84,7 +103,6 @@ fn parse_category(html: &str) -> ParsedCategory {
             let problem_name = if !title.is_empty() { title.to_string() } else if raw_index != index { raw_index } else { String::new() };
             problems.push(XcpcProblem { index, name: problem_name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
         }
-        if problems.is_empty() { continue; }
         let year = extract_year(&name);
         contests.push(XcpcContest {
             id: contest_id.clone(), name: name.clone(), short_name: short_name(&name, &year), url: format!("https://qoj.ac/contest/{contest_id}"),
@@ -92,6 +110,28 @@ fn parse_category(html: &str) -> ParsedCategory {
         });
     }
     ParsedCategory { contests, child_categories }
+}
+
+async fn fetch_contest_list(client: &Client, cookie: &str) -> Result<Vec<XcpcContest>, String> {
+    let html = get_text(client, "https://qoj.ac/contests?tab=icpc", with_cookie(browser_headers(), cookie))
+        .await
+        .map_err(|e| format!("更新 XCPC 目录失败：{e}"))?;
+    let doc = Html::parse_document(&html);
+    let row_sel = Selector::parse("table tr").unwrap();
+    let anchor_sel = Selector::parse("a[href]").unwrap();
+    let contest_re = Regex::new(r"^(?:https?://qoj\.ac)?/contest/(\d+)(?:$|[/?#])").unwrap();
+    let mut items = Vec::new();
+    for row in doc.select(&row_sel) {
+        let Some(anchor) = row.select(&anchor_sel).find(|a| a.value().attr("href").is_some_and(|h| contest_re.is_match(h))) else { continue };
+        let Some(id) = anchor.value().attr("href").and_then(|h| contest_re.captures(h)).map(|c| c[1].to_string()) else { continue };
+        let name = text_of(&anchor);
+        if name.is_empty() { continue; }
+        let year = extract_year(&name);
+        items.push(XcpcContest { id: id.clone(), name: name.clone(), short_name: short_name(&name, &year), url: format!("https://qoj.ac/contest/{id}"), date: String::new(), year, series: classify_series(&name), stage: classify_stage(&name), site: classify_site(&name), board_source: None, problems: Vec::new() });
+    }
+    items.retain(|contest| !is_warmup(&contest.name));
+    items.sort_by(|a, b| b.year.cmp(&a.year).then_with(|| numeric_id(&b.id).cmp(&numeric_id(&a.id))));
+    Ok(items)
 }
 
 fn text_of(element: &scraper::ElementRef<'_>) -> String { element.text().collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ") }
