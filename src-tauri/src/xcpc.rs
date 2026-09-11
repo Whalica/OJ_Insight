@@ -32,7 +32,14 @@ pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, forc
         .map(|cache| cache.contests)
         .filter(|items| !items.is_empty());
     if !force_refresh {
-        if let Some(items) = cached.as_ref() { return Ok(items.clone()); }
+        if let Some(items) = cached.as_ref() {
+            let mut items = items.clone();
+            if !cookie.trim().is_empty() && items.iter().any(contest_needs_problem_details) {
+                enrich_contest_problems(client, cookie, &mut items).await;
+                save_catalog(cache_path, &items)?;
+            }
+            return Ok(items);
+        }
     }
     let mut items = fetch_catalog(client, cookie).await?;
     if let Some(cached) = cached {
@@ -233,7 +240,7 @@ async fn fetch_catalog(client: &Client, cookie: &str) -> Result<Vec<XcpcContest>
 
 async fn enrich_contest_problems(client: &Client, cookie: &str, contests: &mut [XcpcContest]) {
     let missing: Vec<_> = contests.iter().enumerate()
-        .filter(|(_, contest)| contest.problems.is_empty())
+        .filter(|(_, contest)| contest_needs_problem_details(contest))
         .map(|(index, contest)| (index, contest.id.clone()))
         .collect();
     for chunk in missing.chunks(8) {
@@ -249,10 +256,32 @@ async fn enrich_contest_problems(client: &Client, cookie: &str, contests: &mut [
         }
         while let Some(result) = tasks.join_next().await {
             if let Ok(Ok((index, problems))) = result {
-                if !problems.is_empty() { contests[index].problems = problems; }
+                if !problems.is_empty() {
+                    let previous: HashMap<_, _> = contests[index].problems.iter()
+                        .map(|problem| (problem.problem_id.clone(), problem.clone()))
+                        .collect();
+                    contests[index].problems = problems.into_iter().map(|mut problem| {
+                        if let Some(old) = previous.get(&problem.problem_id) {
+                            problem.tier = old.tier.clone();
+                            problem.accepted_teams = old.accepted_teams;
+                            problem.total_teams = old.total_teams;
+                            problem.solved = old.solved;
+                        }
+                        problem
+                    }).collect();
+                }
             }
         }
     }
+}
+
+fn contest_needs_problem_details(contest: &XcpcContest) -> bool {
+    contest.problems.is_empty() || contest.problems.iter().any(|problem| problem_name_is_missing(&problem.name))
+}
+
+fn problem_name_is_missing(raw: &str) -> bool {
+    let name = clean_problem_name(raw);
+    name.is_empty() || name == "题目" || name.eq_ignore_ascii_case("problem")
 }
 
 async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Result<Vec<XcpcProblem>, String> {
@@ -262,11 +291,10 @@ async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Res
     let anchor_sel = Selector::parse("a[href]").unwrap();
     let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/(?:contest/\d+/)?problem/(\d+)(?:$|[/?#])").unwrap();
     let mut problems = Vec::new();
-    let mut seen = HashSet::new();
+    let mut positions = HashMap::<String, usize>::new();
     for anchor in doc.select(&anchor_sel) {
         let Some(href) = anchor.value().attr("href") else { continue };
         let Some(problem_id) = problem_re.captures(href).map(|capture| capture[1].to_string()) else { continue };
-        if !seen.insert(problem_id.clone()) { continue; }
         let raw = text_of(&anchor);
         let (mut index, parsed_name) = problem_label(&raw, problems.len());
         let title = anchor.value().attr("title").or_else(|| anchor.value().attr("data-original-title")).unwrap_or_default().trim();
@@ -278,7 +306,16 @@ async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Res
         } else {
             parsed_name
         };
-        problems.push(XcpcProblem { index, name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
+        let mut candidate = XcpcProblem { index, name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id: problem_id.clone(), tier: None, accepted_teams: None, total_teams: None, solved: false };
+        if let Some(position) = positions.get(&problem_id).copied() {
+            if problem_name_is_missing(&problems[position].name) && !problem_name_is_missing(&candidate.name) {
+                candidate.index = problems[position].index.clone();
+                problems[position] = candidate;
+            }
+        } else {
+            positions.insert(problem_id, problems.len());
+            problems.push(candidate);
+        }
     }
     sort_problems(&mut problems);
     Ok(problems)
@@ -505,5 +542,16 @@ mod tests {
     fn removes_any_problem_label_from_titles() {
         assert_eq!(clean_problem_name("D. Dynamic Graph"), "Dynamic Graph");
         assert_eq!(explicit_problem_label("Problem K: Knowledge").unwrap().0, "K");
+    }
+
+    #[test]
+    fn requests_details_for_placeholder_problem_names() {
+        let contest = XcpcContest {
+            id: "1".into(), name: "Contest".into(), short_name: "Contest".into(), url: String::new(),
+            date: String::new(), year: "2026".into(), series: vec!["ICPC".into()], stage: "区域赛".into(),
+            site: "全国".into(), board_source: None,
+            problems: vec![XcpcProblem { index: "B".into(), name: "题目".into(), url: String::new(), problem_id: "2".into(), tier: None, accepted_teams: None, total_teams: None, solved: false }],
+        };
+        assert!(contest_needs_problem_details(&contest));
     }
 }
