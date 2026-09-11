@@ -108,7 +108,7 @@ async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Res
         .map_err(|e| e.to_string())?;
     let doc = Html::parse_document(&html);
     let anchor_sel = Selector::parse("a[href]").unwrap();
-    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/problem/(\d+)(?:$|[/?#])").unwrap();
+    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/(?:contest/\d+/)?problem/(\d+)(?:$|[/?#])").unwrap();
     let mut problems = Vec::new();
     let mut seen = HashSet::new();
     for anchor in doc.select(&anchor_sel) {
@@ -138,7 +138,7 @@ fn parse_category(html: &str) -> ParsedCategory {
     let row_sel = Selector::parse("table tr").unwrap();
     let anchor_sel = Selector::parse("a[href]").unwrap();
     let contest_re = Regex::new(r"^(?:https?://qoj\.ac)?/contest/(\d+)(?:$|[/?#])").unwrap();
-    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/problem/(\d+)(?:$|[/?#])").unwrap();
+    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/(?:contest/\d+/)?problem/(\d+)(?:$|[/?#])").unwrap();
     let category_re = Regex::new(r"^(?:https?://qoj\.ac)?/category/(\d+)(?:$|[/?#])").unwrap();
     let mut contests = Vec::new();
     let mut child_categories = Vec::new();
@@ -184,7 +184,7 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
     let anchor_re = Regex::new(r#"(?is)<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
     let tag_re = Regex::new(r"(?is)<[^>]+>").unwrap();
     let contest_re = Regex::new(r"^(?:https?://qoj\.ac)?/contest/(\d+)(?:$|[/?#])").unwrap();
-    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/problem/(\d+)(?:$|[/?#])").unwrap();
+    let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/(?:contest/\d+/)?problem/(\d+)(?:$|[/?#])").unwrap();
     let category_re = Regex::new(r"^(?:https?://qoj\.ac)?/category/(\d+)(?:$|[/?#])").unwrap();
     let mut contests = Vec::new();
     let mut child_categories = Vec::new();
@@ -282,7 +282,7 @@ mod tests {
     use super::*;
     #[test]
     fn parses_realistic_category_rows() {
-        let html = r#"<table><tr><td><a href="/contest/2513">The 2025 ICPC Asia Nanjing Regional Contest</a></td><td><a title="Array" href="/problem/14001">A</a><a href="/problem/14002">B</a></td></tr><tr><td><a href="/category/84">Nanjing</a></td></tr></table>"#;
+        let html = r#"<table><tr><td><a href="/contest/2513">The 2025 ICPC Asia Nanjing Regional Contest</a></td><td><a title="Array" href="/contest/2513/problem/14001/statement/zh_cn">A</a><a href="/problem/14002">B</a></td></tr><tr><td><a href="/category/84">Nanjing</a></td></tr></table>"#;
         let parsed = parse_category(html);
         assert_eq!(parsed.child_categories, vec!["84"]);
         assert_eq!(parsed.contests.len(), 1);
