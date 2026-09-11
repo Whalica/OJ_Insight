@@ -469,7 +469,7 @@ async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Res
     let doc = Html::parse_document(&html);
     let anchor_sel = Selector::parse("a[href]").unwrap();
     let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/(?:contest/\d+/)?problem/(\d+)(?:$|[/?#])").unwrap();
-    let mut problems = Vec::new();
+    let mut problems: Vec<XcpcProblem> = Vec::new();
     let mut positions = HashMap::<String, usize>::new();
     for anchor in doc.select(&anchor_sel) {
         let Some(href) = anchor.value().attr("href") else { continue };
