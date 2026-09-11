@@ -533,6 +533,7 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
         "qoj.ac" | "www.qoj.ac" => {
             path.starts_with("/problem/") || path.starts_with("/contest/")
         }
+        "cftracker.netlify.app" | "kenkoooo.com" | "www.nowcoder.com" | "ac.nowcoder.com" => true,
         _ => false,
     };
     if !allowed {
@@ -541,49 +542,6 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn open_tracker(app: tauri::AppHandle, tracker: String) -> Result<(), String> {
-    let (label, title, raw_url, allowed_hosts): (&str, &str, &str, &[&str]) = match tracker.as_str() {
-        "codeforces" => (
-            "tracker-codeforces",
-            "Codeforces Tracker · OJ Insight",
-            "https://cftracker.netlify.app/contests",
-            &["cftracker.netlify.app", "codeforces.com", "www.codeforces.com"],
-        ),
-        "atcoder" => (
-            "tracker-atcoder",
-            "AtCoder Tracker · OJ Insight",
-            "https://kenkoooo.com/atcoder#/table",
-            &["kenkoooo.com", "atcoder.jp", "www.atcoder.jp"],
-        ),
-        "nowcoder" => (
-            "tracker-nowcoder",
-            "NowCoder Tracker · OJ Insight",
-            "https://www.nowcoder.com/problem/tracker",
-            &["nowcoder.com", "www.nowcoder.com", "ac.nowcoder.com"],
-        ),
-        _ => return Err("不支持的 Tracker".into()),
-    };
-    if let Some(window) = app.get_webview_window(label) {
-        window.show().map_err(|error| error.to_string())?;
-        window.set_focus().map_err(|error| error.to_string())?;
-        return Ok(());
-    }
-    let url = Url::parse(raw_url).map_err(|error| error.to_string())?;
-    let hosts = allowed_hosts.iter().map(|host| host.to_string()).collect::<Vec<_>>();
-    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
-        .title(title)
-        .inner_size(1280.0, 820.0)
-        .min_inner_size(860.0, 600.0)
-        .center()
-        .on_navigation(move |url| {
-            url.scheme() == "https" && url.host_str().is_some_and(|host| hosts.iter().any(|allowed| allowed == host))
-        })
-        .build()
-        .map_err(|error| error.to_string())?;
-    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -650,8 +608,7 @@ pub fn run() {
             get_difficulty_detail,
             write_export_file,
             check_for_updates,
-            open_external,
-            open_tracker
+            open_external
         ])
         .run(tauri::generate_context!())
         .expect("error while running OJ Insight");

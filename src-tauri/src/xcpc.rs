@@ -9,7 +9,7 @@ use crate::models::{XcpcContest, XcpcProblem};
 use crate::sync::{browser_headers, get_text, with_cookie};
 
 const ROOT_CATEGORIES: [(&str, usize); 3] = [("21", 1), ("205", 1), ("212", 1)];
-const CATALOG_CACHE_VERSION: u32 = 2;
+const CATALOG_CACHE_VERSION: u32 = 3;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct CatalogCache {
@@ -118,11 +118,14 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
 pub async fn sync_public_ratings(client: &Client, cache_path: &Path, contests: &mut [XcpcContest]) -> Result<usize, String> {
     let mut updated = 0;
     let mut errors = Vec::new();
-    match sync_rankland_ratings(client, cache_path, contests).await {
+    // XCPCIO is purpose-built for ICPC/CCPC boards and covers many contests
+    // that are also present in RankLand. Prefer it, then use RankLand as the
+    // fallback for the remaining contests.
+    match sync_xcpcio_ratings(client, cache_path, contests).await {
         Ok(count) => updated += count,
         Err(error) => errors.push(error),
     }
-    match sync_xcpcio_ratings(client, cache_path, contests).await {
+    match sync_rankland_ratings(client, cache_path, contests).await {
         Ok(count) => updated += count,
         Err(error) => errors.push(error),
     }
@@ -150,7 +153,7 @@ async fn sync_xcpcio_ratings(client: &Client, cache_path: &Path, contests: &mut 
         Some(XcpcioBoard { text: directory.replace(['/', '-', '_'], " "), directory })
     }).collect();
     let targets: Vec<_> = contests.iter().enumerate()
-        .filter(|(_, contest)| !contest.problems.is_empty() && contest.board_source.as_deref() != Some("RankLand"))
+        .filter(|(_, contest)| !contest.problems.is_empty())
         .filter_map(|(index, contest)| best_xcpcio_board(contest, &boards).map(|board| (index, board.clone())))
         .collect();
     let mut updated = 0;
@@ -185,7 +188,9 @@ fn best_xcpcio_board<'a>(contest: &XcpcContest, boards: &'a [XcpcioBoard]) -> Op
     let mut scored: Vec<_> = boards.iter().filter_map(|board| xcpcio_match_score(contest, board).map(|score| (score, board))).collect();
     scored.sort_by(|left, right| right.0.cmp(&left.0));
     match scored.as_slice() {
-        [(score, board), ..] if *score >= 10 && (scored.len() == 1 || *score > scored[1].0) => Some(*board),
+        // A national ICPC/CCPC board scores 5 (year) + 4 (series) without a
+        // provincial site or stage qualifier. Keep that common case eligible.
+        [(score, board), ..] if *score >= 9 && (scored.len() == 1 || *score > scored[1].0) => Some(*board),
         _ => None,
     }
 }
@@ -559,6 +564,7 @@ fn parse_category(html: &str) -> ParsedCategory {
 fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
     let row_re = Regex::new(r"(?is)<tr\b[^>]*>(.*?)</tr>").unwrap();
     let anchor_re = Regex::new(r#"(?is)<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
+    let title_re = Regex::new(r#"(?is)\b(?:title|data-original-title|aria-label)\s*=\s*["']([^"']+)["']"#).unwrap();
     let tag_re = Regex::new(r"(?is)<[^>]+>").unwrap();
     let contest_re = Regex::new(r"^(?:https?://qoj\.ac)?/contest/(\d+)(?:$|[/?#])").unwrap();
     let problem_re = Regex::new(r"^(?:https?://qoj\.ac)?/(?:contest/\d+/)?problem/(\d+)(?:$|[/?#])").unwrap();
@@ -580,7 +586,16 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
         for anchor in anchors {
             let Some(problem_id) = problem_re.captures(&anchor[1]).map(|capture| capture[1].to_string()) else { continue };
             let raw = tag_re.replace_all(&anchor[2], " ").split_whitespace().collect::<Vec<_>>().join(" ");
-            let (index, name) = problem_label(&raw, problems.len());
+            let (mut index, parsed_name) = problem_label(&raw, problems.len());
+            let title = title_re.captures(&anchor[0]).map(|capture| capture[1].trim()).unwrap_or_default();
+            let name = if let Some((title_index, title_name)) = explicit_problem_label(title) {
+                index = title_index;
+                title_name
+            } else if !title.is_empty() {
+                clean_problem_name(title)
+            } else {
+                parsed_name
+            };
             problems.push(XcpcProblem { index, name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
         }
         sort_problems(&mut problems);
@@ -618,9 +633,12 @@ fn fallback_problem_index(position: usize) -> String {
 }
 fn problem_label(raw: &str, position: usize) -> (String, String) {
     let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    let label_re = Regex::new(r"(?i)^(?:problem\s+)?([a-z][a-z0-9]{0,2})(?:\s*[.．:：]\s*|\s+)(.+)$").unwrap();
+    // A label without the word "Problem" must have punctuation. Otherwise a
+    // title such as "A Perfect Match" loses its article and becomes problem A.
+    let label_re = Regex::new(r"(?i)^(?:(?:problem\s+([a-z][a-z0-9]{0,2})(?:\s*[.．:：]\s*|\s+))|(?:([a-z][a-z0-9]{0,2})\s*[.．:：]\s*))(.+)$").unwrap();
     if let Some(capture) = label_re.captures(&text) {
-        return (capture[1].to_ascii_uppercase(), capture[2].trim().to_string());
+        let index = capture.get(1).or_else(|| capture.get(2)).unwrap().as_str();
+        return (index.to_ascii_uppercase(), capture[3].trim().to_string());
     }
     if !text.is_empty() && text.len() <= 3 && text.chars().all(|ch| ch.is_ascii_alphanumeric()) {
         return (text.to_ascii_uppercase(), String::new());
@@ -722,6 +740,13 @@ mod tests {
     fn removes_any_problem_label_from_titles() {
         assert_eq!(clean_problem_name("D. Dynamic Graph"), "Dynamic Graph");
         assert_eq!(explicit_problem_label("Problem K: Knowledge").unwrap().0, "K");
+    }
+
+    #[test]
+    fn keeps_indefinite_article_as_part_of_problem_name() {
+        assert_eq!(problem_label("A Perfect Match", 3), ("D".into(), "A Perfect Match".into()));
+        assert_eq!(problem_label("A. Perfect Match", 0), ("A".into(), "Perfect Match".into()));
+        assert_eq!(problem_label("Problem B A Long Journey", 1), ("B".into(), "A Long Journey".into()));
     }
 
     #[test]

@@ -30,5 +30,4 @@ export const api = {
     invoke<DifficultyDetail>('get_difficulty_detail', { platform, label, account, source }),
   checkForUpdates: () => invoke<UpdateInfo>('check_for_updates'),
   openExternal: (url: string) => invoke<void>('open_external', { url }),
-  openTracker: (tracker: 'codeforces' | 'atcoder' | 'nowcoder') => invoke<void>('open_tracker', { tracker }),
 };

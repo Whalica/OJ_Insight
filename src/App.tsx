@@ -9,6 +9,7 @@ import DataPage from './pages/DataPage';
 import ExportPage from './pages/ExportPage';
 import SettingsPage from './pages/SettingsPage';
 import XcpcTrackerPage from './pages/XcpcTrackerPage';
+import ExternalTrackerPage, { type ExternalTracker } from './pages/ExternalTrackerPage';
 import { api } from './lib/api';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
@@ -17,7 +18,7 @@ import { applyPreferences, loadPreferences, savePreferences, type Preferences } 
 import { checkForAppUpdate, discardAppUpdate, installAppUpdate } from './lib/updater';
 import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncStatus, UpdateInfo } from './types';
 
-type Page = 'overview' | 'xcpc' | 'export' | 'data' | 'settings' | 'about' | Platform;
+type Page = 'overview' | 'xcpc' | 'tracker-codeforces' | 'tracker-atcoder' | 'tracker-nowcoder' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
 export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
@@ -25,7 +26,7 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
-    const valid = ['overview', 'xcpc', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
+    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'tracker-nowcoder', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
     return saved.startupPage === 'last' && last && valid ? last : 'overview';
   });
   const [timeZone, setTimeZoneState] = useState(initialTimeZone);
@@ -193,15 +194,17 @@ export default function App() {
     localStorage.setItem('oj-insight.sidebar-collapsed', String(!current));
     return !current;
   });
+  const embeddedTracker = page.startsWith('tracker-') ? page.slice('tracker-'.length) as ExternalTracker : null;
 
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-    <Sidebar page={page} onChange={setPage} onOpenTracker={(tracker) => { void api.openTracker(tracker).catch((error) => notify(`打开 Tracker 失败：${String(error)}`)); }} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
     <main className="main">
       {page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage syncing={syncing} /> :
        page === 'xcpc' ? <XcpcTrackerPage syncing={syncing === 'qoj'} onSync={() => syncOne('qoj').then(() => undefined)} notify={notify} /> :
+       embeddedTracker ? <ExternalTrackerPage tracker={embeddedTracker} accounts={accounts[embeddedTracker] || []} /> :
       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} />}
     </main>
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />

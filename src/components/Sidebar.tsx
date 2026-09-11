@@ -3,14 +3,13 @@ import { ChevronDown, CircleHelp, Database, Download, Layers3, LayoutDashboard, 
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 
-type Page = 'overview' | 'xcpc' | 'export' | 'data' | 'settings' | 'about' | Platform;
+type Page = 'overview' | 'xcpc' | 'tracker-codeforces' | 'tracker-atcoder' | 'tracker-nowcoder' | 'export' | 'data' | 'settings' | 'about' | Platform;
 type NavGroup = 'platforms' | 'trackers';
-type ExternalTracker = 'codeforces' | 'atcoder' | 'nowcoder';
 
-export default function Sidebar({ page, onChange, onOpenTracker, collapsed, onToggle }: { page: Page; onChange: (page: Page) => void; onOpenTracker: (tracker: ExternalTracker) => void; collapsed: boolean; onToggle: () => void }) {
-  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' ? 'trackers' : null;
+export default function Sidebar({ page, onChange, collapsed, onToggle }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void }) {
+  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : null;
   const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
-  const [openGroup, setOpenGroup] = useState<NavGroup>(() => pageGroup || (savedGroup === 'trackers' ? 'trackers' : 'platforms'));
+  const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' ? 'trackers' : savedGroup === 'platforms' ? 'platforms' : null));
 
   useEffect(() => {
     if (!pageGroup) return;
@@ -20,8 +19,9 @@ export default function Sidebar({ page, onChange, onOpenTracker, collapsed, onTo
 
   const toggleGroup = (group: NavGroup) => {
     if (collapsed) onToggle();
-    setOpenGroup(group);
-    localStorage.setItem('oj-insight.sidebar-group', group);
+    const next = openGroup === group ? null : group;
+    setOpenGroup(next);
+    if (next) localStorage.setItem('oj-insight.sidebar-group', next); else localStorage.removeItem('oj-insight.sidebar-group');
   };
 
   return (
@@ -48,10 +48,10 @@ export default function Sidebar({ page, onChange, onOpenTracker, collapsed, onTo
         <section className={`nav-group ${openGroup === 'trackers' && !collapsed ? 'open' : ''}`}>
           <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
           <div className="nav-group-items tracker-items">
-            <button title={collapsed ? 'XCPC Tracker' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="tracker-mark">XC</span><span className="nav-label">XCPC Tracker</span></button>
-            <button onClick={() => onOpenTracker('codeforces')}><span className="tracker-mark cf">CF</span><span className="nav-label">Codeforces Tracker</span></button>
-            <button onClick={() => onOpenTracker('atcoder')}><span className="tracker-mark at">AT</span><span className="nav-label">AtCoder Tracker</span></button>
-            <button onClick={() => onOpenTracker('nowcoder')}><span className="tracker-mark nc">NC</span><span className="nav-label">NowCoder Tracker</span></button>
+            <button title={collapsed ? 'ICPC/CCPC' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="oj-dot" style={{ background: '#48d0c0' }} /><span className="nav-label">ICPC / CCPC</span></button>
+            <button className={page === 'tracker-codeforces' ? 'active' : ''} onClick={() => onChange('tracker-codeforces')}><span className="oj-dot" style={{ background: '#5aa6e8' }} /><span className="nav-label">Codeforces</span></button>
+            <button className={page === 'tracker-atcoder' ? 'active' : ''} onClick={() => onChange('tracker-atcoder')}><span className="oj-dot" style={{ background: '#9aa4ad' }} /><span className="nav-label">AtCoder</span></button>
+            <button className={page === 'tracker-nowcoder' ? 'active' : ''} onClick={() => onChange('tracker-nowcoder')}><span className="oj-dot" style={{ background: '#00b96b' }} /><span className="nav-label">NowCoder</span></button>
           </div>
         </section>
 
