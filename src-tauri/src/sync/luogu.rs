@@ -3,12 +3,9 @@ use reqwest::{
     Client,
 };
 use serde_json::Value;
-use std::collections::HashMap;
 
-use super::{get_json, get_text, now_epoch, polite_sleep};
-use crate::models::{
-    AccountConfig, AggregateDay, DifficultyStat, RemoteData, Submission, SyncError,
-};
+use super::{get_json, get_text, now_epoch};
+use crate::models::{AccountConfig, AggregateDay, DifficultyStat, RemoteData, SyncError};
 
 fn base_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
@@ -125,8 +122,8 @@ async fn resolve_uid(client: &Client, input: &str) -> Result<(String, String), S
 pub async fn fetch(
     client: &Client,
     account: &AccountConfig,
-    full: bool,
-    cursor: i64,
+    _full: bool,
+    _cursor: i64,
 ) -> Result<RemoteData, SyncError> {
     let input = account.account.trim();
     if input.is_empty() {
@@ -176,7 +173,6 @@ pub async fn fetch(
 
     let mut solved_count = None;
     let mut difficulty = Vec::new();
-    let mut problem_difficulties = HashMap::new();
     if let Ok(practice_text) = get_text(
         client,
         &format!("https://www.luogu.com.cn/user/{uid}/practice"),
@@ -196,11 +192,6 @@ pub async fn fetch(
                     if let Some(d) = p.get("difficulty").and_then(Value::as_i64) {
                         if (1..=8).contains(&d) {
                             buckets[d as usize] += 1;
-                            if let Some(pid) = p.get("pid").and_then(Value::as_str) {
-                                if let Some(label) = luogu_difficulty(d) {
-                                    problem_difficulties.insert(pid.to_string(), label);
-                                }
-                            }
                         }
                     }
                 }
@@ -228,174 +219,27 @@ pub async fn fetch(
         }
     }
 
-    let records = fetch_records(
-        client,
-        &uid,
-        input,
-        full,
-        cursor,
-        &problem_difficulties,
-    )
-    .await;
-    let (submissions, record_note, record_available) = match records {
-        Ok(items) => (
-            items,
-            "洛谷公开提交记录 · 使用原始 submitTime".to_string(),
-            true,
-        ),
-        Err(error) => (
-            Vec::new(),
-            format!(
-                "提交记录不可用，已同步公开活动与题目统计（{}）",
-                error.message
-            ),
-            false,
-        ),
-    };
-    let activity_only = !record_available;
-    if activity_only && aggregates.is_empty() && solved_count.is_none() && difficulty.is_empty() {
+    if aggregates.is_empty() && solved_count.is_none() && difficulty.is_empty() {
         return Err(SyncError::error("洛谷没有返回可用的提交、活动或题目统计数据"));
     }
 
     Ok(RemoteData {
         platform: "luogu".into(),
         account: display,
-        submissions,
+        submissions: Vec::new(),
         aggregates,
         solved_count,
         difficulty,
         ratings: None,
-        activity_only,
-        notes: vec![format!("洛谷个人页热度图 · UID {uid}"), record_note],
+        activity_only: true,
+        notes: vec![
+            format!("洛谷个人页 dailyCounts · UID {uid}"),
+            "遵循洛谷规则，不请求提交记录；活动数据通常仅覆盖近期，且没有逐题明细".into(),
+        ],
         cursor_epoch: now_epoch().saturating_sub(48 * 3600),
-        replace_submissions: full,
+        replace_submissions: false,
         replace_aggregates: true,
     })
-}
-
-async fn fetch_records(
-    client: &Client,
-    uid: &str,
-    account: &str,
-    full: bool,
-    cursor: i64,
-    known_difficulties: &HashMap<String, String>,
-) -> Result<Vec<Submission>, SyncError> {
-    let cutoff = if full {
-        0
-    } else {
-        cursor.saturating_sub(48 * 3600)
-    };
-    let mut out = Vec::new();
-    for page in 1..=5000 {
-        let url = format!(
-            "https://www.luogu.com.cn/record/list?user={}&status=12&orderBy=0&page={page}",
-            urlencoding::encode(uid)
-        );
-        let text = get_text(client, &url, lentille_headers()).await?;
-        let payload = parse_payload(&text)?;
-        let data = payload
-            .get("data")
-            .or_else(|| payload.get("currentData"))
-            .unwrap_or(&payload);
-        let records = data
-            .pointer("/records/result")
-            .or_else(|| data.pointer("/records/results"))
-            .or_else(|| data.get("records"))
-            .and_then(|value| {
-                value
-                    .as_array()
-                    .or_else(|| value.get("result").and_then(Value::as_array))
-            })
-            .ok_or_else(|| SyncError::error("record/list 未返回记录列表"))?;
-        if records.is_empty() {
-            break;
-        }
-        let mut reached_old = false;
-        for record in records {
-            let ts = record
-                .get("submitTime")
-                .and_then(Value::as_i64)
-                .unwrap_or(0);
-            if ts <= 0 {
-                continue;
-            }
-            if !full && ts <= cutoff {
-                reached_old = true;
-                continue;
-            }
-            let problem = record.get("problem").unwrap_or(&Value::Null);
-            let pid = problem.get("pid").and_then(Value::as_str).unwrap_or("");
-            if pid.is_empty() {
-                continue;
-            }
-            let difficulty = problem
-                .get("difficulty")
-                .and_then(Value::as_i64)
-                .and_then(luogu_difficulty)
-                .or_else(|| known_difficulties.get(pid).cloned());
-            let id = record
-                .get("id")
-                .and_then(Value::as_i64)
-                .map(|x| x.to_string())
-                .unwrap_or_else(|| format!("{uid}-{ts}-{pid}"));
-            out.push(Submission {
-                platform: "luogu".into(),
-                account: account.into(),
-                source: "oj".into(),
-                source_day: None,
-                submission_id: id,
-                problem_key: pid.into(),
-                problem_id: pid.into(),
-                problem_name: problem
-                    .get("title")
-                    .and_then(Value::as_str)
-                    .unwrap_or(pid)
-                    .into(),
-                problem_url: format!("https://www.luogu.com.cn/problem/{pid}"),
-                epoch_second: ts,
-                language: record
-                    .get("language")
-                    .and_then(Value::as_i64)
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                difficulty,
-            });
-        }
-        if reached_old {
-            break;
-        }
-        let count = data
-            .pointer("/records/count")
-            .and_then(Value::as_i64)
-            .unwrap_or(0);
-        let per_page = data
-            .pointer("/records/perPage")
-            .and_then(Value::as_i64)
-            .unwrap_or(records.len() as i64);
-        if per_page <= 0 || page as i64 * per_page >= count {
-            break;
-        }
-        polite_sleep(320).await;
-    }
-    Ok(out)
-}
-
-fn luogu_difficulty(value: i64) -> Option<String> {
-    Some(
-        match value {
-            1 => "入门",
-            2 => "普及-",
-            3 => "普及",
-            4 => "普及+/提高-",
-            5 => "提高",
-            6 => "提高+/省选-",
-            7 => "省选/NOI-",
-            8 => "NOI/NOI+/CTS",
-            _ => return None,
-        }
-        .into(),
-    )
 }
 
 fn normalize_day(raw: &str) -> String {

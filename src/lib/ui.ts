@@ -29,6 +29,10 @@ export function scopeRange(scope: TimeScope, timeZone = 'Asia/Shanghai') {
   const end = new Date(`${today(timeZone)}T00:00:00Z`); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 364);
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
+export function recentHalfYearRange(timeZone = 'Asia/Shanghai') {
+  const end = new Date(`${today(timeZone)}T00:00:00Z`); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 182);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
 export function initialScope(timeZone = 'Asia/Shanghai'): TimeScope {
   const saved = localStorage.getItem('oj-insight.time-scope');
   if (saved === 'until') return 'until';

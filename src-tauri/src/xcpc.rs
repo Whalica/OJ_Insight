@@ -25,6 +25,12 @@ struct RanklandBoard {
     date: String,
 }
 
+#[derive(Clone)]
+struct XcpcioBoard {
+    directory: String,
+    text: String,
+}
+
 pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, force_refresh: bool) -> Result<Vec<XcpcContest>, String> {
     let cached = std::fs::read_to_string(cache_path).ok()
         .and_then(|text| serde_json::from_str::<CatalogCache>(&text).ok())
@@ -78,7 +84,7 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
     }).collect();
 
     let targets: Vec<_> = contests.iter().enumerate()
-        .filter(|(_, contest)| !contest.problems.is_empty() && contest.board_source.is_none())
+        .filter(|(_, contest)| !contest.problems.is_empty() && contest.board_source.as_deref() != Some("XCPCIO"))
         .filter_map(|(index, contest)| best_rankland_board(contest, &boards).map(|board| (index, board.clone())))
         .collect();
     let mut updated = 0;
@@ -109,10 +115,179 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
     Ok(updated)
 }
 
+pub async fn sync_public_ratings(client: &Client, cache_path: &Path, contests: &mut [XcpcContest]) -> Result<usize, String> {
+    let mut updated = 0;
+    let mut errors = Vec::new();
+    match sync_rankland_ratings(client, cache_path, contests).await {
+        Ok(count) => updated += count,
+        Err(error) => errors.push(error),
+    }
+    match sync_xcpcio_ratings(client, cache_path, contests).await {
+        Ok(count) => updated += count,
+        Err(error) => errors.push(error),
+    }
+    if updated == 0 && errors.len() == 2 && !contests.iter().any(|contest| contest.board_source.is_some()) {
+        return Err(format!("公开榜单源均不可用：{}", errors.join("；")));
+    }
+    save_catalog(cache_path, contests)?;
+    Ok(updated)
+}
+
 fn save_catalog(cache_path: &Path, contests: &[XcpcContest]) -> Result<(), String> {
     let json = serde_json::to_string(&CatalogCache { version: CATALOG_CACHE_VERSION, contests: contests.to_vec() })
         .map_err(|e| format!("序列化 XCPC 目录失败：{e}"))?;
     std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 目录失败：{e}"))
+}
+
+async fn sync_xcpcio_ratings(client: &Client, cache_path: &Path, contests: &mut [XcpcContest]) -> Result<usize, String> {
+    let tree_text = get_text(client, "https://api.github.com/repos/xcpcio/board-data/git/trees/main?recursive=1", browser_headers()).await
+        .map_err(|error| format!("读取 XCPCIO 榜单目录失败：{error}"))?;
+    let tree: serde_json::Value = serde_json::from_str(&tree_text).map_err(|error| format!("解析 XCPCIO 榜单目录失败：{error}"))?;
+    let boards: Vec<_> = tree.get("tree").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(|item| {
+        let path = item.get("path")?.as_str()?;
+        if !path.starts_with("data/") || !path.ends_with("/config.json") || path.contains("warmup") { return None; }
+        let directory = path.trim_end_matches("/config.json").to_string();
+        Some(XcpcioBoard { text: directory.replace(['/', '-', '_'], " "), directory })
+    }).collect();
+    let targets: Vec<_> = contests.iter().enumerate()
+        .filter(|(_, contest)| !contest.problems.is_empty() && contest.board_source.as_deref() != Some("RankLand"))
+        .filter_map(|(index, contest)| best_xcpcio_board(contest, &boards).map(|board| (index, board.clone())))
+        .collect();
+    let mut updated = 0;
+    for chunk in targets.chunks(6) {
+        let mut tasks = tokio::task::JoinSet::new();
+        for (index, board) in chunk.iter().cloned() {
+            let client = client.clone();
+            tasks.spawn(async move { fetch_xcpcio_stats(&client, &board).await.map(|result| (index, result)) });
+        }
+        while let Some(result) = tasks.join_next().await {
+            let Ok(Ok((index, (stats, date)))) = result else { continue };
+            let contest = &mut contests[index];
+            for problem in &mut contest.problems {
+                if let Some((accepted, total, tier)) = stats.get(&problem.index) {
+                    problem.accepted_teams = Some(*accepted);
+                    problem.total_teams = Some(*total);
+                    problem.tier = Some(tier.clone());
+                }
+            }
+            if contest.problems.iter().any(|problem| problem.tier.is_some()) {
+                contest.board_source = Some("XCPCIO".into());
+                if contest.date.is_empty() { contest.date = date; }
+                updated += 1;
+            }
+        }
+        save_catalog(cache_path, contests)?;
+    }
+    Ok(updated)
+}
+
+fn best_xcpcio_board<'a>(contest: &XcpcContest, boards: &'a [XcpcioBoard]) -> Option<&'a XcpcioBoard> {
+    let mut scored: Vec<_> = boards.iter().filter_map(|board| xcpcio_match_score(contest, board).map(|score| (score, board))).collect();
+    scored.sort_by(|left, right| right.0.cmp(&left.0));
+    match scored.as_slice() {
+        [(score, board), ..] if *score >= 10 && (scored.len() == 1 || *score > scored[1].0) => Some(*board),
+        _ => None,
+    }
+}
+
+fn xcpcio_match_score(contest: &XcpcContest, board: &XcpcioBoard) -> Option<i32> {
+    let path = normalize_match_text(&board.text);
+    let year = contest.year.parse::<i32>().ok()?;
+    let ccpc_edition_matches = contest.series.iter().any(|series| series == "CCPC") && (1..=30).any(|edition| {
+        year == 2014 + edition && ["st", "nd", "rd", "th"].iter().any(|suffix| path.contains(&format!("{edition}{suffix}")))
+    });
+    if !path.contains(&contest.year) && !ccpc_edition_matches { return None; }
+    let mut score = 5;
+    if contest.series.iter().any(|series| series == "ICPC") {
+        if !path.contains("icpc") { return None; }
+        score += 4;
+    } else if contest.series.iter().any(|series| series == "CCPC") {
+        if !path.contains("ccpc") { return None; }
+        score += 4;
+    } else if contest.series.iter().any(|series| series == "省赛") {
+        if !path.contains("provincialcontest") { return None; }
+        score += 3;
+    }
+    if contest.site != "全国" {
+        if site_match_aliases(&contest.site).iter().any(|alias| path.contains(alias)) { score += 6; } else { return None; }
+    }
+    let stage_terms: &[&str] = match contest.stage.as_str() {
+        "网络赛" => &["onlinequalification", "qualificationround", "online"],
+        "邀请赛" => &["invitational"],
+        "总决赛" => &["final", "finals"],
+        _ => &[],
+    };
+    if !stage_terms.is_empty() {
+        if stage_terms.iter().any(|term| path.contains(term)) { score += 4; } else { return None; }
+    } else if ["warmup", "onlinequalification", "qualificationround"].iter().any(|term| path.contains(term)) {
+        return None;
+    }
+    Some(score)
+}
+
+fn json_id(value: &serde_json::Value) -> Option<String> {
+    value.as_str().map(str::to_string).or_else(|| value.as_i64().map(|id| id.to_string()))
+}
+
+async fn fetch_xcpcio_stats(client: &Client, board: &XcpcioBoard) -> Result<(HashMap<String, (i64, i64, String)>, String), String> {
+    let base = format!("https://raw.githubusercontent.com/xcpcio/board-data/main/{}/", board.directory);
+    let config: serde_json::Value = fetch_json_file(client, &format!("{base}config.json")).await?;
+    let teams: serde_json::Value = fetch_json_file(client, &format!("{base}team.json")).await?;
+    let runs: serde_json::Value = fetch_json_file(client, &format!("{base}run.json")).await?;
+    let all_teams: Vec<&serde_json::Value> = if let Some(items) = teams.as_array() {
+        items.iter().collect()
+    } else if let Some(items) = teams.as_object() {
+        items.values().collect()
+    } else {
+        return Err("XCPCIO 队伍数据格式异常".to_string());
+    };
+    let official = xcpcio_team_ids(&all_teams, true);
+    let included = if official.is_empty() { xcpcio_team_ids(&all_teams, false) } else { official };
+    let total = included.len() as i64;
+    if total <= 0 { return Ok((HashMap::new(), String::new())); }
+    let labels: HashMap<_, _> = config.get("problems").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(|problem| {
+        Some((json_id(problem.get("id")?)?, problem.get("label")?.as_str()?.to_ascii_uppercase()))
+    }).collect();
+    let stats = xcpcio_problem_stats(&runs, &labels, &included, total);
+    let date = config.get("start_time").and_then(serde_json::Value::as_i64)
+        .map(|timestamp| if timestamp > 10_000_000_000 { timestamp / 1000 } else { timestamp })
+        .and_then(|timestamp| chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0))
+        .map(|value| value.format("%Y-%m-%d").to_string()).unwrap_or_default();
+    Ok((stats, date))
+}
+
+async fn fetch_json_file(client: &Client, url: &str) -> Result<serde_json::Value, String> {
+    let text = get_text(client, url, browser_headers()).await.map_err(|error| error.to_string())?;
+    serde_json::from_str(&text).map_err(|error| error.to_string())
+}
+
+fn xcpcio_team_ids(teams: &[&serde_json::Value], official_only: bool) -> HashSet<String> {
+    teams.iter().filter(|team| {
+        !official_only || team.get("official").is_some_and(|value| value.as_i64().unwrap_or(1) != 0)
+            || team.get("group").and_then(serde_json::Value::as_array)
+                .is_some_and(|groups| groups.iter().any(|group| group.as_str() == Some("official")))
+    }).filter_map(|team| team.get("team_id").and_then(json_id)).collect()
+}
+
+fn xcpcio_problem_stats(
+    runs: &serde_json::Value,
+    labels: &HashMap<String, String>,
+    included: &HashSet<String>,
+    total: i64,
+) -> HashMap<String, (i64, i64, String)> {
+    let mut solved = HashMap::<String, HashSet<String>>::new();
+    for run in runs.as_array().into_iter().flatten() {
+        let status = run.get("status").and_then(serde_json::Value::as_str).unwrap_or_default();
+        if !status.eq_ignore_ascii_case("accepted") && !status.eq_ignore_ascii_case("correct") { continue; }
+        let Some(team_id) = run.get("team_id").and_then(json_id) else { continue };
+        if !included.contains(&team_id) { continue; }
+        let Some(problem_id) = run.get("problem_id").and_then(json_id) else { continue };
+        solved.entry(problem_id).or_default().insert(team_id);
+    }
+    labels.iter().map(|(problem_id, label)| {
+        let accepted = solved.get(problem_id).map(|teams| teams.len() as i64).unwrap_or_default();
+        (label.clone(), (accepted, total, rating_tier(accepted, total).into()))
+    }).collect()
 }
 
 fn best_rankland_board<'a>(contest: &XcpcContest, boards: &'a [RanklandBoard]) -> Option<&'a RanklandBoard> {
@@ -179,6 +354,7 @@ async fn fetch_rankland_stats(client: &Client, board: &RanklandBoard) -> Result<
     let srk_text = get_text(client, file_url, browser_headers()).await.map_err(|e| e.to_string())?;
     let srk: serde_json::Value = serde_json::from_str(&srk_text).map_err(|e| e.to_string())?;
     let total = srk.get("rows").and_then(serde_json::Value::as_array).map(|rows| rows.len() as i64).unwrap_or_default();
+    if total <= 0 { return Ok(HashMap::new()); }
     let mut stats = HashMap::new();
     for problem in srk.get("problems").and_then(serde_json::Value::as_array).into_iter().flatten() {
         let Some(alias) = problem.get("alias").and_then(serde_json::Value::as_str) else { continue };
@@ -189,8 +365,11 @@ async fn fetch_rankland_stats(client: &Client, board: &RanklandBoard) -> Result<
 }
 
 fn rating_tier(accepted: i64, total: i64) -> &'static str {
-    let percent = if total > 0 { accepted.saturating_mul(100) / total } else { 100 };
-    if percent <= 5 { "gold" } else if percent <= 15 { "silver" } else if percent <= 35 { "bronze" } else { "iron" }
+    let scaled = accepted.max(0).saturating_mul(100);
+    if scaled <= total.saturating_mul(10) { "gold" }
+    else if scaled <= total.saturating_mul(30) { "silver" }
+    else if scaled <= total.saturating_mul(60) { "bronze" }
+    else { "iron" }
 }
 
 async fn fetch_catalog(client: &Client, cookie: &str) -> Result<Vec<XcpcContest>, String> {
@@ -532,10 +711,11 @@ mod tests {
 
     #[test]
     fn assigns_rating_tiers_from_acceptance_ratio() {
-        assert_eq!(rating_tier(5, 100), "gold");
-        assert_eq!(rating_tier(15, 100), "silver");
-        assert_eq!(rating_tier(35, 100), "bronze");
-        assert_eq!(rating_tier(36, 100), "iron");
+        assert_eq!(rating_tier(10, 100), "gold");
+        assert_eq!(rating_tier(30, 100), "silver");
+        assert_eq!(rating_tier(60, 100), "bronze");
+        assert_eq!(rating_tier(61, 100), "iron");
+        assert_eq!(rating_tier(11, 101), "silver");
     }
 
     #[test]

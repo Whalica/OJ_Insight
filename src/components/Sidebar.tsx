@@ -1,10 +1,29 @@
-import { CircleHelp, Database, Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings2, TableProperties } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, CircleHelp, Database, Download, Layers3, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings2, TableProperties } from 'lucide-react';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 
 type Page = 'overview' | 'xcpc' | 'export' | 'data' | 'settings' | 'about' | Platform;
+type NavGroup = 'platforms' | 'trackers';
+type ExternalTracker = 'codeforces' | 'atcoder' | 'nowcoder';
 
-export default function Sidebar({ page, onChange, collapsed, onToggle }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void }) {
+export default function Sidebar({ page, onChange, onOpenTracker, collapsed, onToggle }: { page: Page; onChange: (page: Page) => void; onOpenTracker: (tracker: ExternalTracker) => void; collapsed: boolean; onToggle: () => void }) {
+  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' ? 'trackers' : null;
+  const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
+  const [openGroup, setOpenGroup] = useState<NavGroup>(() => pageGroup || (savedGroup === 'trackers' ? 'trackers' : 'platforms'));
+
+  useEffect(() => {
+    if (!pageGroup) return;
+    setOpenGroup(pageGroup);
+    localStorage.setItem('oj-insight.sidebar-group', pageGroup);
+  }, [pageGroup]);
+
+  const toggleGroup = (group: NavGroup) => {
+    if (collapsed) onToggle();
+    setOpenGroup(group);
+    localStorage.setItem('oj-insight.sidebar-group', group);
+  };
+
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-head">
@@ -16,14 +35,26 @@ export default function Sidebar({ page, onChange, collapsed, onToggle }: { page:
       </div>
       <nav>
         <button title={collapsed ? '总览' : undefined} className={page === 'overview' ? 'active' : ''} onClick={() => onChange('overview')}><LayoutDashboard size={17} /><span className="nav-label">总览</span></button>
-        <div className="nav-title">PLATFORMS</div>
-        {PLATFORM_ORDER.map((p) => (
-          <button title={collapsed ? PLATFORM_META[p].name : undefined} key={p} className={page === p ? 'active' : ''} onClick={() => onChange(p)}>
-            <span className="oj-dot" style={{ background: PLATFORM_META[p].accent }} /><span className="nav-label">{PLATFORM_META[p].name}</span>
-          </button>
-        ))}
-        <div className="nav-title">TRACKERS</div>
-        <button title={collapsed ? 'XCPC Tracker' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><TableProperties size={17} /><span className="nav-label">XCPC Tracker</span></button>
+
+        <section className={`nav-group ${openGroup === 'platforms' && !collapsed ? 'open' : ''}`}>
+          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? 'Platforms' : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label">Platforms</span><ChevronDown className="nav-group-chevron" size={14} /></button>
+          <div className="nav-group-items">{PLATFORM_ORDER.map((platform) => (
+            <button title={collapsed ? PLATFORM_META[platform].name : undefined} key={platform} className={page === platform ? 'active' : ''} onClick={() => onChange(platform)}>
+              <span className="oj-dot" style={{ background: PLATFORM_META[platform].accent }} /><span className="nav-label">{PLATFORM_META[platform].name}</span>
+            </button>
+          ))}</div>
+        </section>
+
+        <section className={`nav-group ${openGroup === 'trackers' && !collapsed ? 'open' : ''}`}>
+          <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
+          <div className="nav-group-items tracker-items">
+            <button title={collapsed ? 'XCPC Tracker' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="tracker-mark">XC</span><span className="nav-label">XCPC Tracker</span></button>
+            <button onClick={() => onOpenTracker('codeforces')}><span className="tracker-mark cf">CF</span><span className="nav-label">Codeforces Tracker</span></button>
+            <button onClick={() => onOpenTracker('atcoder')}><span className="tracker-mark at">AT</span><span className="nav-label">AtCoder Tracker</span></button>
+            <button onClick={() => onOpenTracker('nowcoder')}><span className="tracker-mark nc">NC</span><span className="nav-label">NowCoder Tracker</span></button>
+          </div>
+        </section>
+
         <div className="nav-title">TOOLS</div>
         <button title={collapsed ? '导出' : undefined} className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} /><span className="nav-label">导出</span></button>
         <button title={collapsed ? '数据源' : undefined} className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} /><span className="nav-label">数据源</span></button>

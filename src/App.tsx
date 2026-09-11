@@ -12,7 +12,7 @@ import XcpcTrackerPage from './pages/XcpcTrackerPage';
 import { api } from './lib/api';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
-import { emptyAccounts, emptySnapshot, initialMetric, initialScope, scopeRange, SYNC_TIPS, type AccountMap, type TimeScope } from './lib/ui';
+import { emptyAccounts, emptySnapshot, initialMetric, initialScope, recentHalfYearRange, scopeRange, SYNC_TIPS, type AccountMap, type TimeScope } from './lib/ui';
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
 import { checkForAppUpdate, discardAppUpdate, installAppUpdate } from './lib/updater';
 import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SyncStatus, UpdateInfo } from './types';
@@ -52,7 +52,7 @@ export default function App() {
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
-  const range = useMemo(() => scopeRange(timeScope, timeZone), [timeScope, selectedDay, timeZone]);
+  const range = useMemo(() => selectedPlatform === 'luogu' ? recentHalfYearRange(timeZone) : scopeRange(timeScope, timeZone), [selectedPlatform, timeScope, selectedDay, timeZone]);
   const setTimeScope = (value: TimeScope) => { localStorage.setItem('oj-insight.time-scope', String(value)); setTimeScopeState(value); };
   const setMetric = (value: Metric) => { localStorage.setItem('oj-insight.metric', value); setMetricState(value); };
   const setTimeZone = (value: string) => { localStorage.setItem('oj-insight.time-zone', value); setTimeZoneState(value); setSelectedDay(today(value)); };
@@ -120,6 +120,7 @@ export default function App() {
 
   useEffect(() => { Promise.all([loadAccounts(), loadStatuses()]).catch((error) => notify(String(error))); }, [loadAccounts, loadStatuses]);
   useEffect(() => { setAccountFilter(''); setSourceFilter(''); }, [selectedPlatform]);
+  useEffect(() => { if (selectedPlatform === 'luogu' && metric !== 'activity') setMetric('activity'); }, [selectedPlatform, metric]);
   useEffect(() => { closeDay(); closeDifficulty(); window.scrollTo({ top: 0, behavior: 'auto' }); localStorage.setItem('oj-insight.last-page', page); }, [page]);
   useEffect(() => { loadSnapshot(); closeDay(); return () => { snapshotRequest.current += 1; }; }, [loadSnapshot]);
 
@@ -194,7 +195,7 @@ export default function App() {
   });
 
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+    <Sidebar page={page} onChange={setPage} onOpenTracker={(tracker) => { void api.openTracker(tracker).catch((error) => notify(`打开 Tracker 失败：${String(error)}`)); }} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
     <main className="main">
       {page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :

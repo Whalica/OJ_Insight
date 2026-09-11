@@ -15,7 +15,6 @@ function contestProgress(contest: XcpcContest): Progress {
 export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: boolean; onSync: () => Promise<void>; notify: (message: string) => void }) {
   const [contests, setContests] = useState<XcpcContest[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
-  const [ratingLoading, setRatingLoading] = useState(false);
   const [catalogError, setCatalogError] = useState('');
   const [query, setQuery] = useState('');
   const [series, setSeries] = useState<Series>('all');
@@ -81,24 +80,23 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
     setter((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
     setPage(1);
   };
-  const syncRatings = async () => {
+  const updateCatalog = async () => {
     const before = contests.filter((contest) => contest.boardSource).length;
-    setRatingLoading(true);
+    setCatalogLoading(true); setCatalogError('');
     try {
-      const next = await api.getXcpcContests(false, true);
+      const next = await api.getXcpcContests(true, true);
       setContests(next);
       const after = next.filter((contest) => contest.boardSource).length;
-      notify(`公开榜单同步完成：新增 ${Math.max(0, after - before)} 场，当前覆盖 ${after} 场`);
-    } catch (error) { notify(`榜单同步失败：${String(error)}`); }
-    finally { setRatingLoading(false); }
+      notify(`赛事数据更新完成：${next.length} 场，榜单覆盖 ${after} 场${after > before ? `（新增 ${after - before} 场）` : ''}`);
+    } catch (error) { setCatalogError(String(error)); notify(`赛事数据更新失败：${String(error)}`); }
+    finally { setCatalogLoading(false); }
   };
 
   return <>
     <header className="topbar xcpc-topbar">
       <div><small>XCPC · CONTEST TRACKER</small><h1>XCPC Tracker</h1><p>浏览 ICPC、CCPC 与省赛题集，追踪 QOJ 补题进度。</p></div>
       <div className="xcpc-top-actions">
-        <button className="xcpc-action" disabled={catalogLoading} onClick={() => void loadCatalog(true)}><RefreshCw className={catalogLoading ? 'spin' : ''} size={13} />{catalogLoading ? '更新中' : '更新目录'}</button>
-        <button className="xcpc-action" disabled={ratingLoading || catalogLoading} onClick={() => void syncRatings()}><RefreshCw className={ratingLoading ? 'spin' : ''} size={13} />{ratingLoading ? '同步中' : '同步榜单 Rating'}</button>
+        <button className="xcpc-action" disabled={catalogLoading} onClick={() => void updateCatalog()}><RefreshCw className={catalogLoading ? 'spin' : ''} size={13} />{catalogLoading ? '更新赛事数据中' : '更新赛事数据'}</button>
         <button className="xcpc-action primary" disabled={syncing} onClick={async () => { await onSync(); await loadCatalog(); }}><RefreshCw className={syncing ? 'spin' : ''} size={13} />{syncing ? '同步中' : '同步 QOJ'}</button>
       </div>
     </header>
@@ -138,7 +136,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
 
       <div className="xcpc-table-scroll">
         {catalogLoading && !contests.length && <div className="empty">正在从 QOJ 载入赛事目录…</div>}
-        {catalogError && <div className="empty">目录载入失败：{catalogError} <button onClick={() => void loadCatalog(true)}>重试</button></div>}
+        {catalogError && <div className="empty">赛事数据载入失败：{catalogError} <button onClick={() => void updateCatalog()}>重试</button></div>}
         {!catalogLoading && contests.length > 0 && !contests.some((contest) => contest.problems.length > 0) && <div className="empty">QOJ 当前只返回了比赛索引，没有返回题目链接。请在设置中填写 QOJ 的 UOJSESSID Cookie 后重新更新目录。</div>}
         <table className="xcpc-table">
           <thead><tr><th className="xcpc-contest-column">比赛</th><th className="xcpc-date-column">日期</th><th className="xcpc-progress-column">进度</th><th className="xcpc-problems-column">题目</th></tr></thead>
@@ -163,7 +161,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
         {!visible.length && <div className="empty">没有符合当前条件的比赛。</div>}
       </div>
 
-      <footer className="xcpc-footer"><div className="xcpc-legend"><span className="gold"><i />金</span><span className="silver"><i />银</span><span className="bronze"><i />铜</span><span className="iron"><i />铁</span><em /><span className="solved"><i />已 AC</span>{!showProblemNames && <small>开启“题目名称”可查看题名与通过队数</small>}</div><div className="xcpc-pagination"><label>第 <select aria-label="跳转页码" value={Math.min(page, pageCount)} onChange={(event) => setPage(Number(event.target.value))}>{Array.from({ length: pageCount }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select> / {pageCount} 页</label><button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={14} /></button><button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}><ChevronRight size={14} /></button></div></footer>
+      <footer className="xcpc-footer"><div className="xcpc-legend"><span className="gold"><i />金 ≤10%</span><span className="silver"><i />银 ≤30%</span><span className="bronze"><i />铜 ≤60%</span><span className="iron"><i />铁 &gt;60%</span><em /><span className="solved"><i />已 AC</span>{!showProblemNames && <small>开启“题目名称”可查看题名与通过队数</small>}</div><div className="xcpc-pagination"><label>第 <select aria-label="跳转页码" value={Math.min(page, pageCount)} onChange={(event) => setPage(Number(event.target.value))}>{Array.from({ length: pageCount }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select> / {pageCount} 页</label><button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={14} /></button><button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}><ChevronRight size={14} /></button></div></footer>
     </section>
   </>;
 }
