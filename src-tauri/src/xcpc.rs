@@ -11,21 +11,27 @@ use crate::sync::{browser_headers, get_text, with_cookie};
 const ROOT_CATEGORIES: [(&str, usize); 3] = [("21", 1), ("205", 1), ("212", 1)];
 
 pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, force_refresh: bool) -> Result<Vec<XcpcContest>, String> {
+    let cached = std::fs::read_to_string(cache_path).ok()
+        .and_then(|text| serde_json::from_str::<Vec<XcpcContest>>(&text).ok())
+        .filter(|items| !items.is_empty());
     if !force_refresh {
-        if let Ok(text) = std::fs::read_to_string(cache_path) {
-            if let Ok(mut items) = serde_json::from_str::<Vec<XcpcContest>>(&text) {
-                if !items.is_empty() {
-                    if !cookie.trim().is_empty() && items.iter().any(|contest| contest.problems.is_empty()) {
-                        enrich_contest_problems(client, cookie, &mut items).await;
-                        let json = serde_json::to_string(&items).map_err(|e| format!("更新 XCPC 缓存失败：{e}"))?;
-                        std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 缓存失败：{e}"))?;
-                    }
-                    return Ok(items);
+        if let Some(items) = cached.as_ref() { return Ok(items.clone()); }
+    }
+    let mut items = fetch_catalog(client, cookie).await?;
+    if let Some(cached) = cached {
+        let cached_by_id: HashMap<_, _> = cached.into_iter().map(|contest| (contest.id.clone(), contest)).collect();
+        for contest in &mut items {
+            if let Some(previous) = cached_by_id.get(&contest.id) {
+                if !previous.problems.is_empty() {
+                    contest.problems = previous.problems.clone();
                 }
+                if contest.board_source.is_none() { contest.board_source = previous.board_source.clone(); }
             }
         }
     }
-    let items = fetch_catalog(client, cookie).await?;
+    if !cookie.trim().is_empty() {
+        enrich_contest_problems(client, cookie, &mut items).await;
+    }
     let json = serde_json::to_string(&items).map_err(|e| format!("序列化 XCPC 目录失败：{e}"))?;
     std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 目录失败：{e}"))?;
     Ok(items)
@@ -73,9 +79,6 @@ async fn fetch_catalog(client: &Client, cookie: &str) -> Result<Vec<XcpcContest>
         items = fetch_contest_list(client, cookie).await?;
     }
     if items.is_empty() { return Err("QOJ 页面已返回，但没有识别到 XCPC 比赛；请稍后重试".into()); }
-    if !cookie.trim().is_empty() {
-        enrich_contest_problems(client, cookie, &mut items).await;
-    }
     Ok(items)
 }
 
