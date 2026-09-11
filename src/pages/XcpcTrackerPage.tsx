@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, RefreshCw, Search, X } from 'lucide-react';
 import { api } from '../lib/api';
-import { problemColumns, type XcpcContest, type XcpcTier } from '../lib/xcpc';
+import { type XcpcContest, type XcpcTier } from '../lib/xcpc';
 
 type Series = 'all' | 'ICPC' | 'CCPC' | '省赛' | '其他';
 type Progress = 'all' | 'todo' | 'doing' | 'done';
@@ -9,7 +9,7 @@ type Progress = 'all' | 'todo' | 'doing' | 'done';
 const tierLabels: Record<XcpcTier, string> = { gold: '金题', silver: '银题', bronze: '铜题', iron: '铁题' };
 function contestProgress(contest: XcpcContest): Progress {
   const solved = contest.problems.filter((problem) => problem.solved).length;
-  return solved === 0 ? 'todo' : solved === contest.problems.length ? 'done' : 'doing';
+  return solved === 0 ? 'todo' : contest.problems.length > 0 && solved === contest.problems.length ? 'done' : 'doing';
 }
 
 export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: boolean; onSync: () => Promise<void>; notify: (message: string) => void }) {
@@ -59,13 +59,13 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
     });
   }, [contests, progress, query, series, site, stage, year]);
 
-  const problemIndexes = useMemo(() => problemColumns(contests), [contests]);
   const years = useMemo(() => [...new Set(contests.map((contest) => contest.year))].sort((a, b) => b.localeCompare(a)), [contests]);
   const sites = useMemo(() => [...new Set(contests.map((contest) => contest.site))].sort((a, b) => a.localeCompare(b, 'zh-CN')), [contests]);
   const stages = useMemo(() => [...new Set(contests.map((contest) => contest.stage))], [contests]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize);
+  const widestVisibleContest = Math.max(1, ...visible.map((contest) => contest.problems.length));
   const solvedContests = filtered.filter((contest) => contestProgress(contest) === 'done').length;
   const solvedProblems = filtered.reduce((sum, contest) => sum + contest.problems.filter((problem) => problem.solved).length, 0);
   const totalProblems = filtered.reduce((sum, contest) => sum + contest.problems.length, 0);
@@ -108,7 +108,7 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       </div>}
     </section>
 
-    <section className={`panel xcpc-panel ${showProblemNames ? 'show-problem-names' : 'compact-problems'} ${showDifficulty ? '' : 'hide-difficulty'}`}>
+    <section className={`panel xcpc-panel ${showProblemNames ? 'show-problem-names' : 'compact-problems'} ${showDifficulty ? '' : 'hide-difficulty'}`} style={{ '--xcpc-problems-width': `${widestVisibleContest * 128}px` } as CSSProperties}>
       <div className="xcpc-toolbar">
         <div className="source-segments">{(['all', 'ICPC', 'CCPC', '省赛', '其他'] as Series[]).map((value) => <button key={value} className={series === value ? 'active' : ''} onClick={() => { setSeries(value); setPage(1); }}>{value === 'all' ? '全部' : value}</button>)}</div>
         <div className="xcpc-view-options">
@@ -124,24 +124,22 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
         {catalogError && <div className="empty">目录载入失败：{catalogError} <button onClick={() => void loadCatalog(true)}>重试</button></div>}
         {!catalogLoading && contests.length > 0 && !contests.some((contest) => contest.problems.length > 0) && <div className="empty">QOJ 当前只返回了比赛索引，没有返回题目链接。请在设置中填写 QOJ 的 UOJSESSID Cookie 后重新更新目录。</div>}
         <table className="xcpc-table">
-          <thead><tr><th className="xcpc-contest-column">比赛</th><th className="xcpc-date-column">日期</th><th className="xcpc-progress-column">进度</th>{problemIndexes.map((index) => <th key={index}>{index}</th>)}</tr></thead>
+          <thead><tr><th className="xcpc-contest-column">比赛</th><th className="xcpc-date-column">日期</th><th className="xcpc-progress-column">进度</th><th className="xcpc-problems-column">题目</th></tr></thead>
           <tbody>{visible.map((contest) => {
             const solved = contest.problems.filter((problem) => problem.solved).length;
-            const percentage = Math.round(solved / contest.problems.length * 100);
-            return <tr key={contest.id} className={solved === contest.problems.length ? 'complete' : ''}>
+            const percentage = contest.problems.length ? Math.round(solved / contest.problems.length * 100) : 0;
+            return <tr key={contest.id} className={contest.problems.length > 0 && solved === contest.problems.length ? 'complete' : ''}>
               <td className="xcpc-contest-column"><button title={`${contest.name} · 在 QOJ 打开`} onClick={() => void api.openExternal(contest.url)}>{shortContestNames ? contest.shortName : contest.name}</button><div>{contest.series.map((value) => <span className="series" key={value}>{value}</span>)}<span>{contest.stage}</span><span>{contest.site}</span>{contest.boardSource && <span className="board">{contest.boardSource}</span>}</div></td>
               <td className="xcpc-date-column"><strong>{contest.date ? contest.date.slice(5) : '—'}</strong><small>{contest.year}</small></td>
               <td className="xcpc-progress-column"><strong>{solved} / {contest.problems.length}</strong><i><b style={{ width: `${percentage}%` }} /></i></td>
-              {problemIndexes.map((index) => {
-                const problem = contest.problems.find((item) => item.index === index);
-                if (!problem) return <td className="xcpc-problem missing" key={index}>—</td>;
+              <td className="xcpc-problems-cell"><div className="xcpc-problem-list">{contest.problems.map((problem) => {
                 const rating = problem.tier ? ` · ${tierLabels[problem.tier]}` : '';
                 const accepted = problem.acceptedTeams == null ? '' : ` · ${problem.acceptedTeams}${problem.totalTeams == null ? '' : `/${problem.totalTeams}`} 队通过`;
                 const displayName = problem.name || '题目';
-                return <td key={index} className={`xcpc-problem ${problem.solved ? 'solved' : ''} ${problem.tier ? `tier-${problem.tier}` : 'tier-unrated'}`} title={`${problem.index}. ${displayName}${rating}${accepted} · 点击打开 QOJ`}>
+                return <div key={`${problem.index}-${problem.problemId}`} className={`xcpc-problem ${problem.solved ? 'solved' : ''} ${problem.tier ? `tier-${problem.tier}` : 'tier-unrated'}`} title={`${problem.index}. ${displayName}${rating}${accepted} · 点击打开 QOJ`}>
                   <button onClick={() => void api.openExternal(problem.url)}><strong>{showProblemNames ? `${problem.index}. ${displayName}` : problem.index}</strong>{showProblemNames && <small>{problem.acceptedTeams == null ? `QOJ #${problem.problemId}` : `${problem.acceptedTeams} 队通过`}</small>}</button>
-                </td>;
-              })}
+                </div>;
+              })}{contest.problems.length === 0 && <span className="xcpc-no-problems">暂无题目</span>}</div></td>
             </tr>;
           })}</tbody>
         </table>
