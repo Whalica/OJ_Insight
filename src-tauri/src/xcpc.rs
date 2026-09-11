@@ -83,7 +83,7 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
         let date = item.get("startAt").and_then(serde_json::Value::as_str).and_then(|value| value.get(..10)).unwrap_or_default().to_string();
         Some(RanklandBoard { uk, file_id, direct_url: None, text: labels.join(" "), date })
     }).collect();
-    let mut updated = fill_from_srk_boards(client, cache_path, contests, &boards, "RankLand").await?;
+    let mut updated = fill_from_srk_boards(client, cache_path, contests, &boards, "RankLand", false).await?;
 
     // RankLand's public index can lag behind its open-source collection. Read
     // the collection tree as an independent fallback so newly contributed and
@@ -101,15 +101,16 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
                     date: String::new(),
                 })
             }).collect();
-            updated += fill_from_srk_boards(client, cache_path, contests, &collection, "SRK Collection").await?;
+            updated += fill_from_srk_boards(client, cache_path, contests, &collection, "SRK Collection", true).await?;
         }
     }
     Ok(updated)
 }
 
-async fn fill_from_srk_boards(client: &Client, cache_path: &Path, contests: &mut [XcpcContest], boards: &[RanklandBoard], source: &str) -> Result<usize, String> {
+async fn fill_from_srk_boards(client: &Client, cache_path: &Path, contests: &mut [XcpcContest], boards: &[RanklandBoard], source: &str, fallback_only: bool) -> Result<usize, String> {
     let targets: Vec<_> = contests.iter().enumerate()
-        .filter(|(_, contest)| !contest.problems.is_empty() && contest.problems.iter().any(|problem| problem.tier.is_none()))
+        .filter(|(_, contest)| !contest.problems.is_empty())
+        .filter(|(_, contest)| !fallback_only || (contest.problems.iter().any(|problem| problem.tier.is_none()) && !contest.board_source.as_deref().unwrap_or_default().contains("RankLand")))
         .filter_map(|(index, contest)| best_rankland_board(contest, boards).map(|board| (index, board.clone())))
         .collect();
     let mut updated = 0;
@@ -123,17 +124,20 @@ async fn fill_from_srk_boards(client: &Client, cache_path: &Path, contests: &mut
             let Ok(Ok((index, board, stats))) = result else { continue };
             let contest = &mut contests[index];
             let mut filled = false;
+            let mut matched = false;
             for problem in &mut contest.problems {
-                if problem.tier.is_none() {
-                    let Some((accepted, total, tier)) = stats.get(&problem.index) else { continue };
-                    problem.accepted_teams = Some(*accepted);
-                    problem.total_teams = Some(*total);
-                    problem.tier = Some(tier.clone());
-                    filled = true;
+                if let Some((accepted, total, tier)) = stats.get(&problem.index) {
+                    matched = true;
+                    if problem.tier.is_none() {
+                        problem.accepted_teams = Some(*accepted);
+                        problem.total_teams = Some(*total);
+                        problem.tier = Some(tier.clone());
+                        filled = true;
+                    }
                 }
             }
-            if filled {
-                append_board_source(contest, source);
+            let source_added = matched && append_board_source(contest, source);
+            if filled || source_added {
                 if contest.date.is_empty() { contest.date = board.date; }
                 updated += 1;
             }
@@ -169,14 +173,15 @@ fn save_catalog(cache_path: &Path, contests: &[XcpcContest]) -> Result<(), Strin
     std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 目录失败：{e}"))
 }
 
-fn append_board_source(contest: &mut XcpcContest, source: &str) {
+fn append_board_source(contest: &mut XcpcContest, source: &str) -> bool {
     let sources: Vec<_> = contest.board_source.as_deref().unwrap_or_default().split(" + ").collect();
-    if sources.iter().any(|current| *current == source) { return; }
+    if sources.iter().any(|current| *current == source) { return false; }
     contest.board_source = Some(if sources.iter().all(|current| current.is_empty()) {
         source.to_string()
     } else {
         format!("{} + {source}", contest.board_source.as_deref().unwrap_or_default())
     });
+    true
 }
 
 async fn sync_xcpcio_ratings(client: &Client, cache_path: &Path, contests: &mut [XcpcContest]) -> Result<usize, String> {

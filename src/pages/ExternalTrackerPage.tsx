@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw, UserRound } from 'lucide-react';
+import { ExternalLink, LogIn, RefreshCw, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import type { AccountConfig } from '../types';
@@ -21,6 +21,8 @@ export default function ExternalTrackerPage({ tracker, accounts }: { tracker: Ex
     if (tracker === 'codeforces' && account) return `https://cftracker.netlify.app/?oji_handle=${encodeURIComponent(account)}#/contests`;
     return meta.url;
   }, [tracker, account, meta.url]);
+  const nowcoderLoginUrl = 'https://www.nowcoder.com/login?callBack=https%3A%2F%2Fwww.nowcoder.com%2Fproblem%2Ftracker';
+  const [frameUrl, setFrameUrl] = useState(url);
   const [reloadKey, setReloadKey] = useState(0);
   const [sessionReady, setSessionReady] = useState(tracker !== 'nowcoder');
   const [sessionError, setSessionError] = useState('');
@@ -34,6 +36,7 @@ export default function ExternalTrackerPage({ tracker, accounts }: { tracker: Ex
       .finally(() => { if (active) setSessionReady(true); });
     return () => { active = false; };
   }, [tracker, secret, reloadKey]);
+  useEffect(() => { setFrameUrl(url); }, [url]);
 
   const note = sessionError
     ? sessionError
@@ -44,9 +47,9 @@ export default function ExternalTrackerPage({ tracker, accounts }: { tracker: Ex
   return <section className="embedded-tracker-page">
     <header className="embedded-tracker-head">
       <div className="embedded-tracker-title"><div><h1>{meta.name}</h1><small>第三方进度页 · 已嵌入 OJ Insight</small></div></div>
-      <div className="embedded-tracker-actions">{account && <span className="embedded-account"><UserRound size={14} />{account}</span>}<button onClick={() => setReloadKey((value) => value + 1)}><RefreshCw size={14} />刷新</button><button onClick={() => void api.openExternal(meta.url)}><ExternalLink size={14} />浏览器打开</button></div>
+      <div className="embedded-tracker-actions">{account && <span className="embedded-account"><UserRound size={14} />{account}</span>}{tracker === 'nowcoder' && <button onClick={() => setFrameUrl(nowcoderLoginUrl)}><LogIn size={14} />登录牛客</button>}<button onClick={() => setReloadKey((value) => value + 1)}><RefreshCw size={14} />刷新</button><button onClick={() => void api.openExternal(meta.url)}><ExternalLink size={14} />浏览器打开</button></div>
     </header>
     <div className="embedded-tracker-note">{note}</div>
-    <div className="embedded-tracker-frame">{sessionReady && <iframe key={`${url}-${reloadKey}`} src={url} title={meta.name} />}</div>
+    <div className="embedded-tracker-frame">{sessionReady && <iframe key={`${frameUrl}-${reloadKey}`} src={frameUrl} title={meta.name} />}</div>
   </section>;
 }
