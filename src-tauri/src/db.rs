@@ -418,7 +418,7 @@ pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, 
             )
             .map_err(|e| e.to_string())?;
         tx.execute(r#"INSERT INTO submissions(platform,account,source,source_day,submission_id,problem_key,problem_id,problem_name,problem_url,epoch_second,language,difficulty)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,account,submission_id) DO UPDATE SET account=excluded.account,source=excluded.source,source_day=excluded.source_day,problem_key=excluded.problem_key,problem_id=excluded.problem_id,problem_name=excluded.problem_name,problem_url=excluded.problem_url,epoch_second=excluded.epoch_second,language=excluded.language,difficulty=excluded.difficulty"#,
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform,account,submission_id) DO UPDATE SET account=excluded.account,source=excluded.source,source_day=excluded.source_day,problem_key=excluded.problem_key,problem_id=excluded.problem_id,problem_name=excluded.problem_name,problem_url=excluded.problem_url,epoch_second=excluded.epoch_second,language=excluded.language,difficulty=COALESCE(excluded.difficulty,submissions.difficulty)"#,
             params![s.platform,s.account,s.source,s.source_day,s.submission_id,s.problem_key,s.problem_id,s.problem_name,s.problem_url,s.epoch_second,s.language,s.difficulty]).map_err(|e| e.to_string())?;
         if exists {
             submission_updated += 1;
@@ -1299,6 +1299,21 @@ pub fn solved_problem_keys(conn: &Connection, platform: &str) -> Result<HashSet<
     rows.collect::<Result<HashSet<_>, _>>().map_err(|e| e.to_string())
 }
 
+pub fn apply_qoj_problem_ratings(conn: &Connection, contests: &[XcpcContest]) -> Result<usize, String> {
+    let mut updated = 0;
+    for problem in contests.iter().flat_map(|contest| &contest.problems) {
+        let Some(tier) = problem.tier.as_deref() else { continue };
+        let label = match tier {
+            "gold" => "金题", "silver" => "银题", "bronze" => "铜题", "iron" => "铁题", _ => continue,
+        };
+        updated += conn.execute(
+            "UPDATE submissions SET difficulty=? WHERE platform='qoj' AND problem_key=? AND COALESCE(difficulty,'')<>?",
+            params![label, problem.problem_id, label],
+        ).map_err(|e| e.to_string())?;
+    }
+    Ok(updated)
+}
+
 fn bucket_label(p: &str, difficulty: &str) -> (i64, String) {
     let d = difficulty.trim();
     if d.is_empty() || d.eq_ignore_ascii_case("unknown") || d.eq_ignore_ascii_case("unrated") {
@@ -1326,6 +1341,15 @@ fn bucket_label(p: &str, difficulty: &str) -> (i64, String) {
             "easy" => (1, "Easy".into()),
             "medium" => (2, "Medium".into()),
             "hard" => (3, "Hard".into()),
+            _ => (UNRATED_ORDER, UNRATED_LABEL.into()),
+        };
+    }
+    if p == "qoj" {
+        return match d {
+            "铁题" | "iron" => (1, "铁题".into()),
+            "铜题" | "bronze" => (2, "铜题".into()),
+            "银题" | "silver" => (3, "银题".into()),
+            "金题" | "gold" => (4, "金题".into()),
             _ => (UNRATED_ORDER, UNRATED_LABEL.into()),
         };
     }
@@ -1818,6 +1842,8 @@ mod tests {
         assert_eq!(bucket_label("luogu", "7"), (7, "省选/NOI-".into()));
         assert_eq!(bucket_label("luogu", "提高"), (5, "提高".into()));
         assert_eq!(bucket_label("leetcode", "Medium"), (2, "Medium".into()));
+        assert_eq!(bucket_label("qoj", "bronze"), (2, "铜题".into()));
+        assert_eq!(bucket_label("qoj", "金题"), (4, "金题".into()));
         assert_eq!(bucket_label("codeforces", ""), (UNRATED_ORDER, UNRATED_LABEL.into()));
         assert_eq!(bucket_label("atcoder", "unknown"), (UNRATED_ORDER, UNRATED_LABEL.into()));
     }

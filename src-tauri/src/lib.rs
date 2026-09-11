@@ -173,6 +173,7 @@ fn get_sync_statuses(state: State<'_, AppState>) -> Result<Vec<SyncStatus>, Stri
 async fn get_xcpc_contests(
     state: State<'_, AppState>,
     force_refresh: Option<bool>,
+    refresh_ratings: Option<bool>,
 ) -> Result<Vec<XcpcContest>, String> {
     let cookie = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
@@ -191,8 +192,12 @@ async fn get_xcpc_contests(
         force_refresh.unwrap_or(false),
     )
     .await?;
+    if refresh_ratings.unwrap_or(false) {
+        xcpc::sync_rankland_ratings(&state.client, &state.data_dir.join("xcpc-catalog.json"), &mut contests).await?;
+    }
     let solved = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        db::apply_qoj_problem_ratings(&conn, &contests)?;
         db::solved_problem_keys(&conn, "qoj")?
     };
     for contest in &mut contests {

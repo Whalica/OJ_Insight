@@ -17,7 +17,7 @@ export const api = {
   saveAccounts: (platform: Platform, accounts: AccountConfig[]) => invoke<void>('save_accounts', { platform, accounts }),
   saveAllAccounts: (accounts: AccountConfig[]) => invoke<void>('save_all_accounts', { accounts }),
   getStatuses: () => invoke<SyncStatus[]>('get_sync_statuses'),
-  getXcpcContests: (forceRefresh = false) => invoke<XcpcContest[]>('get_xcpc_contests', { forceRefresh }),
+  getXcpcContests: (forceRefresh = false, refreshRatings = false) => invoke<XcpcContest[]>('get_xcpc_contests', { forceRefresh, refreshRatings }),
   syncPlatform: (platform: Platform, full = false) => invoke<SyncResult>('sync_platform', { platform, full }),
   syncAll: () => invoke<SyncResult[]>('sync_all'),
   clearPlatform: (platform: Platform) => invoke<void>('clear_platform_records', { platform }),

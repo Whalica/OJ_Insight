@@ -233,10 +233,18 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .xcpc-filter-popover>header strong { font-size: var(--font-small); }
 .xcpc-filter-popover>header span { color: #65717c; font-size: var(--font-meta); }
 .xcpc-filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.xcpc-filter-grid label { color: #7f8994; font-size: var(--font-meta); display: grid; gap: 6px; }
-.xcpc-filter-grid label>span { position: relative; }
-.xcpc-filter-grid select { width: 100%; }
-.xcpc-filter-grid svg { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: #68737f; pointer-events: none; }
+.xcpc-filter-group { min-width: 0; margin: 0; padding: 9px; border: 1px solid var(--line-soft); border-radius: 8px; }
+.xcpc-filter-group legend { width: 100%; padding: 0 2px; display: flex; align-items: center; justify-content: space-between; color: #89949e; font-size: var(--font-meta); }
+.xcpc-filter-group legend span { display: flex; align-items: center; gap: 5px; }
+.xcpc-filter-group legend b { min-width: 16px; height: 16px; padding: 0 4px; display: grid; place-items: center; border-radius: 8px; background: #39764e; color: #eafff0; font-size: 9px; }
+.xcpc-filter-group legend button { border: 0; background: transparent; color: #74917d; padding: 2px 3px; cursor: pointer; font-size: 10px; }
+.xcpc-filter-group legend button:disabled { color: #49545e; }
+.xcpc-filter-group>div { max-height: 112px; overflow-y: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px; padding-top: 5px; scrollbar-width: thin; }
+.xcpc-filter-group>div label { position: relative; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #29333c; border-radius: 5px; padding: 4px 6px; color: #75818c; cursor: pointer; font-size: var(--font-meta); }
+.xcpc-filter-group>div label:has(input:checked) { border-color: #3b704d; background: #15231a; color: #a9dfb9; }
+.xcpc-filter-group input { position: absolute; opacity: 0; pointer-events: none; }
+.xcpc-filter-group label i { width: 7px; height: 7px; border-radius: 2px; background: #3b4650; }
+.xcpc-filter-group label input:checked+i { background: var(--accent); }
 .xcpc-filter-popover>footer { display: flex; justify-content: flex-end; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
 .xcpc-filter-popover>footer button { border: 0; background: transparent; color: #7f8994; padding: 5px 7px; cursor: pointer; font-size: var(--font-meta); }
 .xcpc-panel { --xcpc-contest-width: 200px; --xcpc-date-width: 56px; --xcpc-progress-width: 64px; padding: 0; overflow: hidden; }

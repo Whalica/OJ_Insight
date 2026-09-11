@@ -48,5 +48,11 @@ export function difficultyColor(platform: Platform, label: string, order = 0) {
     if (score < 1100) return '#6b7280'; if (score < 1600) return '#22a06b';
     if (score < 2100) return '#2878c7'; if (score < 2600) return '#8250df'; return '#d64545';
   }
+  if (platform === 'qoj') {
+    if (/金|gold/i.test(label)) return '#e5b94e';
+    if (/银|silver/i.test(label)) return '#aab5c1';
+    if (/铜|bronze/i.test(label)) return '#bd7a4e';
+    if (/铁|iron/i.test(label)) return '#6f7b87';
+  }
   return PLATFORM_META[platform].accent;
 }

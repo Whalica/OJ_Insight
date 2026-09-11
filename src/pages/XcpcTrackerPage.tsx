@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, RefreshCw, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { ChevronLeft, ChevronRight, Filter, RefreshCw, Search, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { type XcpcContest, type XcpcTier } from '../lib/xcpc';
 
@@ -15,13 +15,14 @@ function contestProgress(contest: XcpcContest): Progress {
 export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: boolean; onSync: () => Promise<void>; notify: (message: string) => void }) {
   const [contests, setContests] = useState<XcpcContest[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [ratingLoading, setRatingLoading] = useState(false);
   const [catalogError, setCatalogError] = useState('');
   const [query, setQuery] = useState('');
   const [series, setSeries] = useState<Series>('all');
-  const [stage, setStage] = useState('all');
-  const [year, setYear] = useState('all');
-  const [site, setSite] = useState('all');
-  const [progress, setProgress] = useState<Progress>('all');
+  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedSites, setSelectedSites] = useState<string[]>([]);
+  const [selectedProgress, setSelectedProgress] = useState<Progress[]>([]);
   const [showDifficulty, setShowDifficulty] = useState(() => localStorage.getItem('oj-insight.xcpc.show-difficulty') !== 'false');
   const [showProblemNames, setShowProblemNames] = useState(() => localStorage.getItem('oj-insight.xcpc.show-problem-names') === 'true');
   const [shortContestNames, setShortContestNames] = useState(() => localStorage.getItem('oj-insight.xcpc.short-contest-names') === 'true');
@@ -30,9 +31,9 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
   const filterRef = useRef<HTMLDivElement>(null);
   const pageSize = 15;
 
-  const loadCatalog = async (forceRefresh = false) => {
+  const loadCatalog = async (forceRefresh = false, refreshRatings = false) => {
     setCatalogLoading(true); setCatalogError('');
-    try { setContests(await api.getXcpcContests(forceRefresh)); }
+    try { setContests(await api.getXcpcContests(forceRefresh, refreshRatings)); }
     catch (error) { setCatalogError(String(error)); }
     finally { setCatalogLoading(false); }
   };
@@ -52,12 +53,12 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       const haystack = `${contest.name} ${contest.shortName} ${contest.site} ${contest.year}`.toLowerCase();
       return (!keyword || haystack.includes(keyword)) &&
         (series === 'all' || contest.series.includes(series)) &&
-        (stage === 'all' || contest.stage === stage) &&
-        (year === 'all' || contest.year === year) &&
-        (site === 'all' || contest.site === site) &&
-        (progress === 'all' || contestProgress(contest) === progress);
+        (!selectedStages.length || selectedStages.includes(contest.stage)) &&
+        (!selectedYears.length || selectedYears.includes(contest.year)) &&
+        (!selectedSites.length || selectedSites.includes(contest.site)) &&
+        (!selectedProgress.length || selectedProgress.includes(contestProgress(contest)));
     });
-  }, [contests, progress, query, series, site, stage, year]);
+  }, [contests, query, selectedProgress, selectedSites, selectedStages, selectedYears, series]);
 
   const years = useMemo(() => [...new Set(contests.map((contest) => contest.year))].sort((a, b) => b.localeCompare(a)), [contests]);
   const sites = useMemo(() => [...new Set(contests.map((contest) => contest.site))].sort((a, b) => a.localeCompare(b, 'zh-CN')), [contests]);
@@ -70,18 +71,34 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
   const solvedProblems = filtered.reduce((sum, contest) => sum + contest.problems.filter((problem) => problem.solved).length, 0);
   const totalProblems = filtered.reduce((sum, contest) => sum + contest.problems.length, 0);
   const ratedContests = filtered.filter((contest) => contest.boardSource).length;
-  const activeFilterCount = [stage, year, site, progress].filter((value) => value !== 'all').length;
+  const activeFilterCount = [selectedStages, selectedYears, selectedSites, selectedProgress].filter((values) => values.length > 0).length;
 
   const updatePreference = (key: string, value: boolean, setter: (value: boolean) => void) => {
     localStorage.setItem(key, String(value)); setter(value);
   };
-  const clearFilters = () => { setStage('all'); setYear('all'); setSite('all'); setProgress('all'); setPage(1); };
+  const clearFilters = () => { setSelectedStages([]); setSelectedYears([]); setSelectedSites([]); setSelectedProgress([]); setPage(1); };
+  const toggleFilter = <T extends string>(value: T, setter: Dispatch<SetStateAction<T[]>>) => {
+    setter((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+    setPage(1);
+  };
+  const syncRatings = async () => {
+    const before = contests.filter((contest) => contest.boardSource).length;
+    setRatingLoading(true);
+    try {
+      const next = await api.getXcpcContests(false, true);
+      setContests(next);
+      const after = next.filter((contest) => contest.boardSource).length;
+      notify(`公开榜单同步完成：新增 ${Math.max(0, after - before)} 场，当前覆盖 ${after} 场`);
+    } catch (error) { notify(`榜单同步失败：${String(error)}`); }
+    finally { setRatingLoading(false); }
+  };
 
   return <>
     <header className="topbar xcpc-topbar">
       <div><small>XCPC · CONTEST TRACKER</small><h1>XCPC Tracker</h1><p>浏览 ICPC、CCPC 与省赛题集，追踪 QOJ 补题进度。</p></div>
       <div className="xcpc-top-actions">
         <button className="xcpc-action" disabled={catalogLoading} onClick={() => void loadCatalog(true)}><RefreshCw className={catalogLoading ? 'spin' : ''} size={13} />{catalogLoading ? '更新中' : '更新目录'}</button>
+        <button className="xcpc-action" disabled={ratingLoading || catalogLoading} onClick={() => void syncRatings()}><RefreshCw className={ratingLoading ? 'spin' : ''} size={13} />{ratingLoading ? '同步中' : '同步榜单 Rating'}</button>
         <button className="xcpc-action primary" disabled={syncing} onClick={async () => { await onSync(); await loadCatalog(); }}><RefreshCw className={syncing ? 'spin' : ''} size={13} />{syncing ? '同步中' : '同步 QOJ'}</button>
       </div>
     </header>
@@ -99,10 +116,10 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       {filtersOpen && <div className="xcpc-filter-popover">
         <header><strong>筛选条件</strong><span>选择后即时更新</span></header>
         <div className="xcpc-filter-grid">
-          <label>阶段<span><select value={stage} onChange={(event) => { setStage(event.target.value); setPage(1); }}><option value="all">全部阶段</option>{stages.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
-          <label>年份<span><select value={year} onChange={(event) => { setYear(event.target.value); setPage(1); }}><option value="all">全部年份</option>{years.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
-          <label>省份 / 赛站<span><select value={site} onChange={(event) => { setSite(event.target.value); setPage(1); }}><option value="all">全部地区</option>{sites.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={13} /></span></label>
-          <label>进度<span><select value={progress} onChange={(event) => { setProgress(event.target.value as Progress); setPage(1); }}><option value="all">全部进度</option><option value="todo">未开始</option><option value="doing">进行中</option><option value="done">已完成</option></select><ChevronDown size={13} /></span></label>
+          <FilterGroup label="阶段" values={stages} selected={selectedStages} onToggle={(value) => toggleFilter(value, setSelectedStages)} onClear={() => { setSelectedStages([]); setPage(1); }} />
+          <FilterGroup label="年份" values={years} selected={selectedYears} onToggle={(value) => toggleFilter(value, setSelectedYears)} onClear={() => { setSelectedYears([]); setPage(1); }} />
+          <FilterGroup label="省份 / 赛站" values={sites} selected={selectedSites} onToggle={(value) => toggleFilter(value, setSelectedSites)} onClear={() => { setSelectedSites([]); setPage(1); }} />
+          <FilterGroup label="进度" values={['todo', 'doing', 'done'] as Progress[]} labels={{ todo: '未开始', doing: '进行中', done: '已完成' }} selected={selectedProgress} onToggle={(value) => toggleFilter(value, setSelectedProgress)} onClear={() => { setSelectedProgress([]); setPage(1); }} />
         </div>
         <footer><button onClick={clearFilters}>清除筛选</button></footer>
       </div>}
@@ -149,4 +166,8 @@ export default function XcpcTrackerPage({ syncing, onSync, notify }: { syncing: 
       <footer className="xcpc-footer"><div className="xcpc-legend"><span className="gold"><i />金</span><span className="silver"><i />银</span><span className="bronze"><i />铜</span><span className="iron"><i />铁</span><em /><span className="solved"><i />已 AC</span>{!showProblemNames && <small>开启“题目名称”可查看题名与通过队数</small>}</div><div className="xcpc-pagination"><label>第 <select aria-label="跳转页码" value={Math.min(page, pageCount)} onChange={(event) => setPage(Number(event.target.value))}>{Array.from({ length: pageCount }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select> / {pageCount} 页</label><button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={14} /></button><button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}><ChevronRight size={14} /></button></div></footer>
     </section>
   </>;
+}
+
+function FilterGroup<T extends string>({ label, values, labels, selected, onToggle, onClear }: { label: string; values: T[]; labels?: Partial<Record<T, string>>; selected: T[]; onToggle: (value: T) => void; onClear: () => void }) {
+  return <fieldset className="xcpc-filter-group"><legend><span>{label}{selected.length > 0 && <b>{selected.length}</b>}</span><button type="button" disabled={!selected.length} onClick={onClear}>清空</button></legend><div>{values.map((value) => <label key={value}><input type="checkbox" checked={selected.includes(value)} onChange={() => onToggle(value)} /><i />{labels?.[value] || value}</label>)}</div></fieldset>;
 }
