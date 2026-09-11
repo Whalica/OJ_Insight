@@ -592,7 +592,7 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
                 index = title_index;
                 title_name
             } else if !title.is_empty() {
-                clean_problem_name(title)
+                clean_problem_name(&title)
             } else {
                 parsed_name
             };
