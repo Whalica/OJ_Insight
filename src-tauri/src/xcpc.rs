@@ -9,10 +9,19 @@ use crate::models::{XcpcContest, XcpcProblem};
 use crate::sync::{browser_headers, get_text, with_cookie};
 
 const ROOT_CATEGORIES: [(&str, usize); 3] = [("21", 1), ("205", 1), ("212", 1)];
+const CATALOG_CACHE_VERSION: u32 = 2;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CatalogCache {
+    version: u32,
+    contests: Vec<XcpcContest>,
+}
 
 pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, force_refresh: bool) -> Result<Vec<XcpcContest>, String> {
     let cached = std::fs::read_to_string(cache_path).ok()
-        .and_then(|text| serde_json::from_str::<Vec<XcpcContest>>(&text).ok())
+        .and_then(|text| serde_json::from_str::<CatalogCache>(&text).ok())
+        .filter(|cache| cache.version == CATALOG_CACHE_VERSION)
+        .map(|cache| cache.contests)
         .filter(|items| !items.is_empty());
     if !force_refresh {
         if let Some(items) = cached.as_ref() { return Ok(items.clone()); }
@@ -22,7 +31,7 @@ pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, forc
         let cached_by_id: HashMap<_, _> = cached.into_iter().map(|contest| (contest.id.clone(), contest)).collect();
         for contest in &mut items {
             if let Some(previous) = cached_by_id.get(&contest.id) {
-                if !previous.problems.is_empty() {
+                if cached_problems_are_well_formed(&previous.problems) {
                     contest.problems = previous.problems.clone();
                 }
                 if contest.board_source.is_none() { contest.board_source = previous.board_source.clone(); }
@@ -32,7 +41,8 @@ pub async fn load_catalog(client: &Client, cache_path: &Path, cookie: &str, forc
     if !cookie.trim().is_empty() {
         enrich_contest_problems(client, cookie, &mut items).await;
     }
-    let json = serde_json::to_string(&items).map_err(|e| format!("序列化 XCPC 目录失败：{e}"))?;
+    let json = serde_json::to_string(&CatalogCache { version: CATALOG_CACHE_VERSION, contests: items.clone() })
+        .map_err(|e| format!("序列化 XCPC 目录失败：{e}"))?;
     std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 目录失败：{e}"))?;
     Ok(items)
 }
@@ -119,18 +129,12 @@ async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Res
         let Some(problem_id) = problem_re.captures(href).map(|capture| capture[1].to_string()) else { continue };
         if !seen.insert(problem_id.clone()) { continue; }
         let raw = text_of(&anchor);
-        let mut parts = raw.splitn(2, |ch: char| ch == '.' || ch == ':' || ch.is_whitespace());
-        let first = parts.next().unwrap_or_default().trim();
-        let index = if first.len() <= 3 && first.chars().all(|ch| ch.is_ascii_alphanumeric()) {
-            first.to_string()
-        } else {
-            String::from_utf8(vec![b'A' + problems.len() as u8]).unwrap_or_default()
-        };
+        let index = fallback_problem_index(problems.len());
+        let (_, parsed_name) = problem_label(&raw, problems.len());
         let title = anchor.value().attr("title").or_else(|| anchor.value().attr("data-original-title")).unwrap_or_default().trim();
-        let name = if !title.is_empty() { title.to_string() } else { parts.next().unwrap_or_default().trim().to_string() };
+        let name = if !title.is_empty() { clean_problem_name(title, &index) } else { parsed_name };
         problems.push(XcpcProblem { index, name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
     }
-    problems.sort_by(|a, b| a.index.cmp(&b.index));
     Ok(problems)
 }
 
@@ -163,9 +167,10 @@ fn parse_category(html: &str) -> ParsedCategory {
             let Some(href) = anchor.value().attr("href") else { continue };
             let Some(problem_id) = problem_re.captures(href).map(|captures| captures[1].to_string()) else { continue };
             let raw_index = text_of(&anchor);
-            let index = if raw_index.len() <= 3 && !raw_index.is_empty() { raw_index.clone() } else { String::from_utf8(vec![b'A' + problems.len() as u8]).unwrap_or_default() };
+            let index = fallback_problem_index(problems.len());
+            let (_, parsed_name) = problem_label(&raw_index, problems.len());
             let title = anchor.value().attr("title").or_else(|| anchor.value().attr("data-original-title")).or_else(|| anchor.value().attr("aria-label")).unwrap_or_default().trim();
-            let problem_name = if !title.is_empty() { title.to_string() } else if raw_index != index { raw_index } else { String::new() };
+            let problem_name = if !title.is_empty() { clean_problem_name(title, &index) } else { parsed_name };
             problems.push(XcpcProblem { index, name: problem_name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
         }
         let year = extract_year(&name);
@@ -206,8 +211,9 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
         for anchor in anchors {
             let Some(problem_id) = problem_re.captures(&anchor[1]).map(|capture| capture[1].to_string()) else { continue };
             let raw = tag_re.replace_all(&anchor[2], " ").split_whitespace().collect::<Vec<_>>().join(" ");
-            let index = if raw.len() <= 3 && !raw.is_empty() { raw } else { String::from_utf8(vec![b'A' + problems.len() as u8]).unwrap_or_default() };
-            problems.push(XcpcProblem { index, name: String::new(), url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
+            let index = fallback_problem_index(problems.len());
+            let (_, name) = problem_label(&raw, problems.len());
+            problems.push(XcpcProblem { index, name, url: format!("https://qoj.ac/problem/{problem_id}"), problem_id, tier: None, accepted_teams: None, total_teams: None, solved: false });
         }
         let year = extract_year(&name);
         contests.push(XcpcContest { id: id.clone(), name: name.clone(), short_name: short_name(&name, &year), url: format!("https://qoj.ac/contest/{id}"), date: String::new(), year, series: classify_series(&name), stage: classify_stage(&name), site: classify_site(&name), board_source: None, problems });
@@ -238,6 +244,30 @@ async fn fetch_contest_list(client: &Client, cookie: &str) -> Result<Vec<XcpcCon
 }
 
 fn text_of(element: &scraper::ElementRef<'_>) -> String { element.text().collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ") }
+fn fallback_problem_index(position: usize) -> String {
+    if position < 26 { ((b'A' + position as u8) as char).to_string() } else { (position + 1).to_string() }
+}
+fn problem_label(raw: &str, position: usize) -> (String, String) {
+    let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let label_re = Regex::new(r"(?i)^(?:problem\s+)?([a-z][a-z0-9]{0,2})(?:\s*[.．:：]\s*|\s+)(.+)$").unwrap();
+    if let Some(capture) = label_re.captures(&text) {
+        return (capture[1].to_ascii_uppercase(), capture[2].trim().to_string());
+    }
+    if !text.is_empty() && text.len() <= 3 && text.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+        return (text.to_ascii_uppercase(), String::new());
+    }
+    (fallback_problem_index(position), text)
+}
+fn clean_problem_name(raw: &str, index: &str) -> String {
+    let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let prefix = Regex::new(&format!(r"(?i)^(?:problem\s+)?{}\s*[.．:：]\s*", regex::escape(index))).unwrap();
+    prefix.replace(&text, "").trim().to_string()
+}
+fn cached_problems_are_well_formed(problems: &[XcpcProblem]) -> bool {
+    !problems.is_empty() && problems.iter().enumerate().all(|(position, problem)| {
+        problem.index == fallback_problem_index(position) && clean_problem_name(&problem.name, &problem.index) == problem.name
+    })
+}
 fn extract_year(name: &str) -> String { Regex::new(r"(?:19|20)\d{2}").unwrap().find(name).map(|value| value.as_str().to_string()).unwrap_or_else(|| "未知".into()) }
 
 fn classify_series(name: &str) -> Vec<String> {
@@ -285,11 +315,13 @@ mod tests {
     use super::*;
     #[test]
     fn parses_realistic_category_rows() {
-        let html = r#"<table><tr><td><a href="/contest/2513">The 2025 ICPC Asia Nanjing Regional Contest</a></td><td><a title="Array" href="/contest/2513/problem/14001/statement/zh_cn">A</a><a href="/problem/14002">B</a></td></tr><tr><td><a href="/category/84">Nanjing</a></td></tr></table>"#;
+        let html = r#"<table><tr><td><a href="/contest/2513">The 2025 ICPC Asia Nanjing Regional Contest</a></td><td><a title="A. Array" href="/contest/2513/problem/14001/statement/zh_cn">A. Array</a><a href="/problem/14002">B. Bitset</a></td></tr><tr><td><a href="/category/84">Nanjing</a></td></tr></table>"#;
         let parsed = parse_category(html);
         assert_eq!(parsed.child_categories, vec!["84"]);
         assert_eq!(parsed.contests.len(), 1);
         assert_eq!(parsed.contests[0].problems[0].name, "Array");
+        assert_eq!(parsed.contests[0].problems[1].index, "B");
+        assert_eq!(parsed.contests[0].problems[1].name, "Bitset");
         assert_eq!(parsed.contests[0].problems[1].url, "https://qoj.ac/problem/14002");
     }
 }

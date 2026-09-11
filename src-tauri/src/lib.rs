@@ -176,10 +176,12 @@ async fn get_xcpc_contests(
 ) -> Result<Vec<XcpcContest>, String> {
     let cookie = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-        db::get_accounts(&conn)?
-            .into_iter()
-            .find(|entry| entry.platform == "qoj")
-            .map(|entry| entry.secret)
+        let accounts = db::get_accounts(&conn)?;
+        accounts
+            .iter()
+            .find(|entry| entry.platform == "qoj" && !entry.secret.trim().is_empty())
+            .or_else(|| accounts.iter().find(|entry| entry.platform == "qoj"))
+            .map(|entry| entry.secret.clone())
             .unwrap_or_default()
     };
     let mut contests = xcpc::load_catalog(

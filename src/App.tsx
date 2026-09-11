@@ -21,6 +21,7 @@ type Page = 'overview' | 'xcpc' | 'export' | 'data' | 'settings' | 'about' | Pla
 
 export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('oj-insight.sidebar-collapsed') === 'true');
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
@@ -187,8 +188,13 @@ export default function App() {
     finally { if (request === dayRequest.current) setDayLoading(false); }
   };
 
-  return <div className="app-shell">
-    <Sidebar page={page} onChange={setPage} />
+  const toggleSidebar = () => setSidebarCollapsed((current) => {
+    localStorage.setItem('oj-insight.sidebar-collapsed', String(!current));
+    return !current;
+  });
+
+  return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
     <main className="main">
       {page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :

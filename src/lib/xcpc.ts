@@ -24,8 +24,3 @@ export interface XcpcContest {
   boardSource: string | null;
   problems: XcpcProblem[];
 }
-
-export function problemColumns(contests: XcpcContest[]): string[] {
-  const indexes = new Set(contests.flatMap((contest) => contest.problems.map((problem) => problem.index)));
-  return [...indexes].sort((a, b) => a.localeCompare(b, 'en'));
-}
