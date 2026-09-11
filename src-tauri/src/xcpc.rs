@@ -587,8 +587,8 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
             let Some(problem_id) = problem_re.captures(&anchor[1]).map(|capture| capture[1].to_string()) else { continue };
             let raw = tag_re.replace_all(&anchor[2], " ").split_whitespace().collect::<Vec<_>>().join(" ");
             let (mut index, parsed_name) = problem_label(&raw, problems.len());
-            let title = title_re.captures(&anchor[0]).map(|capture| capture[1].trim()).unwrap_or_default();
-            let name = if let Some((title_index, title_name)) = explicit_problem_label(title) {
+            let title = title_re.captures(&anchor[0]).map(|capture| capture[1].trim().to_string()).unwrap_or_default();
+            let name = if let Some((title_index, title_name)) = explicit_problem_label(&title) {
                 index = title_index;
                 title_name
             } else if !title.is_empty() {
