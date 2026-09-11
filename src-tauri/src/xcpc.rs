@@ -9,7 +9,7 @@ use crate::models::{XcpcContest, XcpcProblem};
 use crate::sync::{browser_headers, get_text, with_cookie};
 
 const ROOT_CATEGORIES: [(&str, usize); 3] = [("21", 1), ("205", 1), ("212", 1)];
-const CATALOG_CACHE_VERSION: u32 = 3;
+const CATALOG_CACHE_VERSION: u32 = 4;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct CatalogCache {
@@ -21,6 +21,7 @@ struct CatalogCache {
 struct RanklandBoard {
     uk: String,
     file_id: String,
+    direct_url: Option<String>,
     text: String,
     date: String,
 }
@@ -80,12 +81,36 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
             labels.extend(title.values().filter_map(serde_json::Value::as_str).map(str::to_string));
         }
         let date = item.get("startAt").and_then(serde_json::Value::as_str).and_then(|value| value.get(..10)).unwrap_or_default().to_string();
-        Some(RanklandBoard { uk, file_id, text: labels.join(" "), date })
+        Some(RanklandBoard { uk, file_id, direct_url: None, text: labels.join(" "), date })
     }).collect();
+    let mut updated = fill_from_srk_boards(client, cache_path, contests, &boards, "RankLand").await?;
 
+    // RankLand's public index can lag behind its open-source collection. Read
+    // the collection tree as an independent fallback so newly contributed and
+    // older boards can cover otherwise-unrated contests immediately.
+    if let Ok(tree_text) = get_text(client, "https://api.github.com/repos/algoux/srk-collection/git/trees/master?recursive=1", browser_headers()).await {
+        if let Ok(tree) = serde_json::from_str::<serde_json::Value>(&tree_text) {
+            let collection: Vec<_> = tree.get("tree").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(|item| {
+                let path = item.get("path")?.as_str()?;
+                if !path.starts_with("official/") || !path.ends_with(".srk.json") || path.to_ascii_lowercase().contains("warmup") { return None; }
+                Some(RanklandBoard {
+                    uk: path.to_string(),
+                    file_id: String::new(),
+                    direct_url: Some(format!("https://raw.githubusercontent.com/algoux/srk-collection/master/{path}")),
+                    text: path.replace(['/', '-', '_'], " "),
+                    date: String::new(),
+                })
+            }).collect();
+            updated += fill_from_srk_boards(client, cache_path, contests, &collection, "SRK Collection").await?;
+        }
+    }
+    Ok(updated)
+}
+
+async fn fill_from_srk_boards(client: &Client, cache_path: &Path, contests: &mut [XcpcContest], boards: &[RanklandBoard], source: &str) -> Result<usize, String> {
     let targets: Vec<_> = contests.iter().enumerate()
-        .filter(|(_, contest)| !contest.problems.is_empty() && contest.board_source.as_deref() != Some("XCPCIO"))
-        .filter_map(|(index, contest)| best_rankland_board(contest, &boards).map(|board| (index, board.clone())))
+        .filter(|(_, contest)| !contest.problems.is_empty() && contest.problems.iter().any(|problem| problem.tier.is_none()))
+        .filter_map(|(index, contest)| best_rankland_board(contest, boards).map(|board| (index, board.clone())))
         .collect();
     let mut updated = 0;
     for chunk in targets.chunks(6) {
@@ -97,15 +122,18 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
         while let Some(result) = tasks.join_next().await {
             let Ok(Ok((index, board, stats))) = result else { continue };
             let contest = &mut contests[index];
+            let mut filled = false;
             for problem in &mut contest.problems {
-                if let Some((accepted, total, tier)) = stats.get(&problem.index) {
+                if problem.tier.is_none() {
+                    let Some((accepted, total, tier)) = stats.get(&problem.index) else { continue };
                     problem.accepted_teams = Some(*accepted);
                     problem.total_teams = Some(*total);
                     problem.tier = Some(tier.clone());
+                    filled = true;
                 }
             }
-            if contest.problems.iter().any(|problem| problem.tier.is_some()) {
-                contest.board_source = Some("RankLand".into());
+            if filled {
+                append_board_source(contest, source);
                 if contest.date.is_empty() { contest.date = board.date; }
                 updated += 1;
             }
@@ -118,9 +146,8 @@ pub async fn sync_rankland_ratings(client: &Client, cache_path: &Path, contests:
 pub async fn sync_public_ratings(client: &Client, cache_path: &Path, contests: &mut [XcpcContest]) -> Result<usize, String> {
     let mut updated = 0;
     let mut errors = Vec::new();
-    // XCPCIO is purpose-built for ICPC/CCPC boards and covers many contests
-    // that are also present in RankLand. Prefer it, then use RankLand as the
-    // fallback for the remaining contests.
+    // Prefer XCPCIO's official-team data, then let RankLand fill individual
+    // problems that are absent from that board instead of skipping the contest.
     match sync_xcpcio_ratings(client, cache_path, contests).await {
         Ok(count) => updated += count,
         Err(error) => errors.push(error),
@@ -140,6 +167,16 @@ fn save_catalog(cache_path: &Path, contests: &[XcpcContest]) -> Result<(), Strin
     let json = serde_json::to_string(&CatalogCache { version: CATALOG_CACHE_VERSION, contests: contests.to_vec() })
         .map_err(|e| format!("序列化 XCPC 目录失败：{e}"))?;
     std::fs::write(cache_path, json).map_err(|e| format!("保存 XCPC 目录失败：{e}"))
+}
+
+fn append_board_source(contest: &mut XcpcContest, source: &str) {
+    let sources: Vec<_> = contest.board_source.as_deref().unwrap_or_default().split(" + ").collect();
+    if sources.iter().any(|current| *current == source) { return; }
+    contest.board_source = Some(if sources.iter().all(|current| current.is_empty()) {
+        source.to_string()
+    } else {
+        format!("{} + {source}", contest.board_source.as_deref().unwrap_or_default())
+    });
 }
 
 async fn sync_xcpcio_ratings(client: &Client, cache_path: &Path, contests: &mut [XcpcContest]) -> Result<usize, String> {
@@ -166,15 +203,17 @@ async fn sync_xcpcio_ratings(client: &Client, cache_path: &Path, contests: &mut 
         while let Some(result) = tasks.join_next().await {
             let Ok(Ok((index, (stats, date)))) = result else { continue };
             let contest = &mut contests[index];
+            let mut filled = false;
             for problem in &mut contest.problems {
                 if let Some((accepted, total, tier)) = stats.get(&problem.index) {
                     problem.accepted_teams = Some(*accepted);
                     problem.total_teams = Some(*total);
                     problem.tier = Some(tier.clone());
+                    filled = true;
                 }
             }
-            if contest.problems.iter().any(|problem| problem.tier.is_some()) {
-                contest.board_source = Some("XCPCIO".into());
+            if filled {
+                append_board_source(contest, "XCPCIO");
                 if contest.date.is_empty() { contest.date = date; }
                 updated += 1;
             }
@@ -190,7 +229,7 @@ fn best_xcpcio_board<'a>(contest: &XcpcContest, boards: &'a [XcpcioBoard]) -> Op
     match scored.as_slice() {
         // A national ICPC/CCPC board scores 5 (year) + 4 (series) without a
         // provincial site or stage qualifier. Keep that common case eligible.
-        [(score, board), ..] if *score >= 9 && (scored.len() == 1 || *score > scored[1].0) => Some(*board),
+        [(score, board), ..] if *score >= 9 && (*score >= 13 || scored.len() == 1 || *score > scored[1].0) => Some(*board),
         _ => None,
     }
 }
@@ -198,10 +237,16 @@ fn best_xcpcio_board<'a>(contest: &XcpcContest, boards: &'a [XcpcioBoard]) -> Op
 fn xcpcio_match_score(contest: &XcpcContest, board: &XcpcioBoard) -> Option<i32> {
     let path = normalize_match_text(&board.text);
     let year = contest.year.parse::<i32>().ok()?;
-    let ccpc_edition_matches = contest.series.iter().any(|series| series == "CCPC") && (1..=30).any(|edition| {
-        year == 2014 + edition && ["st", "nd", "rd", "th"].iter().any(|suffix| path.contains(&format!("{edition}{suffix}")))
-    });
-    if !path.contains(&contest.year) && !ccpc_edition_matches { return None; }
+    let edition = if contest.series.iter().any(|series| series == "ICPC") {
+        Some(year - 1975)
+    } else if contest.series.iter().any(|series| series == "CCPC") {
+        Some(year - 2014)
+    } else {
+        None
+    };
+    let edition_matches = edition.is_some_and(|edition| edition > 0 &&
+        ["st", "nd", "rd", "th"].iter().any(|suffix| path.contains(&format!("{edition}{suffix}"))));
+    if !path.contains(&contest.year) && !edition_matches { return None; }
     let mut score = 5;
     if contest.series.iter().any(|series| series == "ICPC") {
         if !path.contains("icpc") { return None; }
@@ -299,7 +344,7 @@ fn best_rankland_board<'a>(contest: &XcpcContest, boards: &'a [RanklandBoard]) -
     let mut scored: Vec<_> = boards.iter().filter_map(|board| board_match_score(contest, board).map(|score| (score, board))).collect();
     scored.sort_by(|a, b| b.0.cmp(&a.0));
     match scored.as_slice() {
-        [(score, board), ..] if *score >= 10 && (scored.len() == 1 || *score > scored[1].0) => Some(*board),
+        [(score, board), ..] if *score >= 10 && (*score >= 13 || scored.len() == 1 || *score > scored[1].0) => Some(*board),
         _ => None,
     }
 }
@@ -346,17 +391,27 @@ fn site_match_aliases(site: &str) -> Vec<String> {
         "广东" => "guangdong", "广州" => "guangzhou", "杭州" => "hangzhou", "哈尔滨" => "harbin", "合肥" => "hefei",
         "香港" => "hongkong", "济南" => "jinan", "昆明" => "kunming", "南昌" => "nanchang", "南京" => "nanjing",
         "青岛" => "qingdao", "上海" => "shanghai", "沈阳" => "shenyang", "武汉" => "wuhan", "西安" => "xian",
-        "郑州" => "zhengzhou", "浙江" => "zhejiang", _ => "",
+        "郑州" => "zhengzhou", "浙江" => "zhejiang", "安徽" => "anhui", "澳门" => "macau", "甘肃" => "gansu",
+        "广西" => "guangxi", "贵州" => "guizhou", "海南" => "hainan", "河北" => "hebei", "河南" => "henan",
+        "黑龙江" => "heilongjiang", "湖北" => "hubei", "湖南" => "hunan", "吉林" => "jilin", "江苏" => "jiangsu",
+        "江西" => "jiangxi", "辽宁" => "liaoning", "内蒙古" => "inner mongolia", "宁夏" => "ningxia", "青海" => "qinghai",
+        "山东" => "shandong", "山西" => "shanxi", "陕西" => "shaanxi", "四川" => "sichuan", "天津" => "tianjin",
+        "西藏" => "tibet", "新疆" => "xinjiang", "云南" => "yunnan", "深圳" => "shenzhen", "长沙" => "changsha",
+        "桂林" => "guilin", "秦皇岛" => "qinhuangdao", "徐州" => "xuzhou", "威海" => "weihai", _ => "",
     };
     [normalize_match_text(site), normalize_match_text(english)].into_iter().filter(|value| !value.is_empty()).collect()
 }
 
 async fn fetch_rankland_stats(client: &Client, board: &RanklandBoard) -> Result<HashMap<String, (i64, i64, String)>, String> {
-    let metadata_url = format!("https://rl.algoux.cn/api/v2/public/files/{}", board.file_id);
-    let metadata_text = get_text(client, &metadata_url, browser_headers()).await.map_err(|e| e.to_string())?;
-    let metadata: serde_json::Value = serde_json::from_str(&metadata_text).map_err(|e| e.to_string())?;
-    let file_url = metadata.pointer("/data/url").and_then(serde_json::Value::as_str).ok_or_else(|| "RankLand 榜单缺少下载地址".to_string())?;
-    let srk_text = get_text(client, file_url, browser_headers()).await.map_err(|e| e.to_string())?;
+    let file_url = if let Some(url) = board.direct_url.as_deref() {
+        url.to_string()
+    } else {
+        let metadata_url = format!("https://rl.algoux.cn/api/v2/public/files/{}", board.file_id);
+        let metadata_text = get_text(client, &metadata_url, browser_headers()).await.map_err(|e| e.to_string())?;
+        let metadata: serde_json::Value = serde_json::from_str(&metadata_text).map_err(|e| e.to_string())?;
+        metadata.pointer("/data/url").and_then(serde_json::Value::as_str).ok_or_else(|| "RankLand 榜单缺少下载地址".to_string())?.to_string()
+    };
+    let srk_text = get_text(client, &file_url, browser_headers()).await.map_err(|e| e.to_string())?;
     let srk: serde_json::Value = serde_json::from_str(&srk_text).map_err(|e| e.to_string())?;
     let total = srk.get("rows").and_then(serde_json::Value::as_array).map(|rows| rows.len() as i64).unwrap_or_default();
     if total <= 0 { return Ok(HashMap::new()); }
@@ -482,7 +537,7 @@ async fn fetch_contest_problems(client: &Client, url: &str, cookie: &str) -> Res
         let raw = text_of(&anchor);
         let (mut index, parsed_name) = problem_label(&raw, problems.len());
         let title = anchor.value().attr("title").or_else(|| anchor.value().attr("data-original-title")).unwrap_or_default().trim();
-        let name = if let Some((title_index, title_name)) = explicit_problem_label(title) {
+        let name = if let Some((title_index, title_name)) = explicit_problem_label(title, problems.len()) {
             index = title_index;
             title_name
         } else if !title.is_empty() {
@@ -536,7 +591,7 @@ fn parse_category(html: &str) -> ParsedCategory {
             let raw_index = text_of(&anchor);
             let (mut index, parsed_name) = problem_label(&raw_index, problems.len());
             let title = anchor.value().attr("title").or_else(|| anchor.value().attr("data-original-title")).or_else(|| anchor.value().attr("aria-label")).unwrap_or_default().trim();
-            let problem_name = if let Some((title_index, title_name)) = explicit_problem_label(title) {
+            let problem_name = if let Some((title_index, title_name)) = explicit_problem_label(title, problems.len()) {
                 index = title_index;
                 title_name
             } else if !title.is_empty() {
@@ -588,11 +643,11 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
             let raw = tag_re.replace_all(&anchor[2], " ").split_whitespace().collect::<Vec<_>>().join(" ");
             let (mut index, parsed_name) = problem_label(&raw, problems.len());
             let title = title_re.captures(&anchor[0]).map(|capture| capture[1].trim().to_string()).unwrap_or_default();
-            let name = if let Some((title_index, title_name)) = explicit_problem_label(&title) {
+            let name = if let Some((title_index, title_name)) = explicit_problem_label(&title, problems.len()) {
                 index = title_index;
                 title_name
             } else if !title.is_empty() {
-                clean_problem_name(&title)
+                clean_problem_name(title)
             } else {
                 parsed_name
             };
@@ -629,31 +684,36 @@ async fn fetch_contest_list(client: &Client, cookie: &str) -> Result<Vec<XcpcCon
 
 fn text_of(element: &scraper::ElementRef<'_>) -> String { element.text().collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ") }
 fn fallback_problem_index(position: usize) -> String {
-    if position < 26 { ((b'A' + position as u8) as char).to_string() } else { (position + 1).to_string() }
+    let mut value = position + 1;
+    let mut label = String::new();
+    while value > 0 {
+        value -= 1;
+        label.insert(0, (b'A' + (value % 26) as u8) as char);
+        value /= 26;
+    }
+    label
 }
 fn problem_label(raw: &str, position: usize) -> (String, String) {
     let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    // A label without the word "Problem" must have punctuation. Otherwise a
-    // title such as "A Perfect Match" loses its article and becomes problem A.
-    let label_re = Regex::new(r"(?i)^(?:(?:problem\s+([a-z][a-z0-9]{0,2})(?:\s*[.．:：]\s*|\s+))|(?:([a-z][a-z0-9]{0,2})\s*[.．:：]\s*))(.+)$").unwrap();
-    if let Some(capture) = label_re.captures(&text) {
-        let index = capture.get(1).or_else(|| capture.get(2)).unwrap().as_str();
-        return (index.to_ascii_uppercase(), capture[3].trim().to_string());
-    }
-    if !text.is_empty() && text.len() <= 3 && text.chars().all(|ch| ch.is_ascii_alphanumeric()) {
-        return (text.to_ascii_uppercase(), String::new());
-    }
-    (fallback_problem_index(position), text)
+    let expected = fallback_problem_index(position);
+    if text.eq_ignore_ascii_case(&expected) { return (expected, String::new()); }
+    if let Some((_, name)) = explicit_problem_label(&text, position) { return (expected, name); }
+    (expected, text)
 }
-fn explicit_problem_label(raw: &str) -> Option<(String, String)> {
+fn explicit_problem_label(raw: &str, position: usize) -> Option<(String, String)> {
     let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    let label_re = Regex::new(r"(?i)^(?:problem\s+)?([a-z][a-z0-9]{0,2})\s*[.．:：]\s*(.+)$").unwrap();
-    label_re.captures(&text).map(|capture| (capture[1].to_ascii_uppercase(), capture[2].trim().to_string()))
+    let expected = fallback_problem_index(position);
+    // A prefix is a problem label only when it agrees with the position in the
+    // contest. This keeps real titles such as "MOD. Modular" and "GG: Game"
+    // intact instead of trying to maintain a fragile list of exceptions.
+    let label_re = Regex::new(r"(?i)^(?:(?:problem\s+([a-z]+)(?:\s*[.．:：]\s*|\s+))|(?:([a-z]+)\s*[.．:：]\s*))(.+)$").unwrap();
+    let capture = label_re.captures(&text)?;
+    let label = capture.get(1).or_else(|| capture.get(2))?.as_str();
+    if !label.eq_ignore_ascii_case(&expected) { return None; }
+    Some((expected, capture[3].trim().to_string()))
 }
 fn clean_problem_name(raw: &str) -> String {
-    let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    let prefix = Regex::new(r"(?i)^(?:problem\s+)?[a-z][a-z0-9]{0,2}\s*[.．:：]\s*").unwrap();
-    prefix.replace(&text, "").trim().to_string()
+    raw.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 fn problem_index_rank(index: &str) -> u32 {
     let upper = index.to_ascii_uppercase();
@@ -694,13 +754,24 @@ fn classify_stage(name: &str) -> String {
 }
 
 fn classify_site(name: &str) -> String {
-    const SITES: [(&str, &str); 35] = [
+    const SITES: &[(&str, &str)] = &[
         ("Beijing", "北京"), ("北京", "北京"), ("Changchun", "长春"), ("长春", "长春"), ("Chengdu", "成都"), ("成都", "成都"),
         ("Chongqing", "重庆"), ("重庆", "重庆"), ("Fujian", "福建"), ("Guangdong", "广东"), ("Guangzhou", "广州"), ("广州", "广州"),
         ("Hangzhou", "杭州"), ("Harbin", "哈尔滨"), ("哈尔滨", "哈尔滨"), ("Hefei", "合肥"), ("Hong Kong", "香港"),
         ("Jinan", "济南"), ("济南", "济南"), ("Kunming", "昆明"), ("Nanchang", "南昌"), ("Nanjing", "南京"), ("南京", "南京"),
         ("Qingdao", "青岛"), ("Shanghai", "上海"), ("上海", "上海"), ("Shenyang", "沈阳"), ("沈阳", "沈阳"),
-        ("Wuhan", "武汉"), ("武汉", "武汉"), ("Xi'an", "西安"), ("西安", "西安"), ("Zhengzhou", "郑州"), ("郑州", "郑州"), ("Zhejiang", "浙江")
+        ("Wuhan", "武汉"), ("武汉", "武汉"), ("Xi'an", "西安"), ("西安", "西安"), ("Zhengzhou", "郑州"), ("郑州", "郑州"), ("Zhejiang", "浙江"),
+        ("Shenzhen", "深圳"), ("深圳", "深圳"), ("Changsha", "长沙"), ("长沙", "长沙"), ("Guilin", "桂林"), ("桂林", "桂林"),
+        ("Qinhuangdao", "秦皇岛"), ("秦皇岛", "秦皇岛"), ("Xuzhou", "徐州"), ("徐州", "徐州"), ("Weihai", "威海"), ("威海", "威海"),
+        ("Anhui", "安徽"), ("安徽", "安徽"), ("Fuzhou", "福建"), ("福建", "福建"), ("Gansu", "甘肃"), ("甘肃", "甘肃"),
+        ("Guangxi", "广西"), ("广西", "广西"), ("Guizhou", "贵州"), ("贵州", "贵州"), ("Hainan", "海南"), ("海南", "海南"),
+        ("Hebei", "河北"), ("河北", "河北"), ("Henan", "河南"), ("河南", "河南"), ("Heilongjiang", "黑龙江"), ("黑龙江", "黑龙江"),
+        ("Hubei", "湖北"), ("湖北", "湖北"), ("Hunan", "湖南"), ("湖南", "湖南"), ("Jilin", "吉林"), ("吉林", "吉林"),
+        ("Jiangsu", "江苏"), ("江苏", "江苏"), ("Jiangxi", "江西"), ("江西", "江西"), ("Liaoning", "辽宁"), ("辽宁", "辽宁"),
+        ("Inner Mongolia", "内蒙古"), ("内蒙古", "内蒙古"), ("Ningxia", "宁夏"), ("宁夏", "宁夏"), ("Qinghai", "青海"), ("青海", "青海"),
+        ("Shandong", "山东"), ("山东", "山东"), ("Shanxi", "山西"), ("山西", "山西"), ("Shaanxi", "陕西"), ("陕西", "陕西"),
+        ("Sichuan", "四川"), ("四川", "四川"), ("Tianjin", "天津"), ("天津", "天津"), ("Tibet", "西藏"), ("西藏", "西藏"),
+        ("Xinjiang", "新疆"), ("新疆", "新疆"), ("Yunnan", "云南"), ("云南", "云南"), ("Macau", "澳门"), ("澳门", "澳门")
     ];
     SITES.iter().find(|(needle, _)| name.contains(needle)).map(|(_, label)| (*label).to_string()).unwrap_or_else(|| "全国".into())
 }
@@ -737,16 +808,22 @@ mod tests {
     }
 
     #[test]
-    fn removes_any_problem_label_from_titles() {
-        assert_eq!(clean_problem_name("D. Dynamic Graph"), "Dynamic Graph");
-        assert_eq!(explicit_problem_label("Problem K: Knowledge").unwrap().0, "K");
+    fn removes_only_the_expected_problem_label_from_titles() {
+        assert_eq!(explicit_problem_label("D. Dynamic Graph", 3).unwrap().1, "Dynamic Graph");
+        assert_eq!(explicit_problem_label("Problem K: Knowledge", 10).unwrap().0, "K");
+        assert!(explicit_problem_label("MOD. Modular Arithmetic", 0).is_none());
     }
 
     #[test]
     fn keeps_indefinite_article_as_part_of_problem_name() {
         assert_eq!(problem_label("A Perfect Match", 3), ("D".into(), "A Perfect Match".into()));
+        assert_eq!(problem_label("A Perfect Match", 0), ("A".into(), "A Perfect Match".into()));
         assert_eq!(problem_label("A. Perfect Match", 0), ("A".into(), "Perfect Match".into()));
         assert_eq!(problem_label("Problem B A Long Journey", 1), ("B".into(), "A Long Journey".into()));
+        assert_eq!(problem_label("MOD", 0), ("A".into(), "MOD".into()));
+        assert_eq!(problem_label("GG", 1), ("B".into(), "GG".into()));
+        assert_eq!(problem_label("MOD. Modular Arithmetic", 0), ("A".into(), "MOD. Modular Arithmetic".into()));
+        assert_eq!(fallback_problem_index(26), "AA");
     }
 
     #[test]
@@ -758,5 +835,16 @@ mod tests {
             problems: vec![XcpcProblem { index: "B".into(), name: "题目".into(), url: String::new(), problem_id: "2".into(), tier: None, accepted_teams: None, total_teams: None, solved: false }],
         };
         assert!(contest_needs_problem_details(&contest));
+    }
+
+    #[test]
+    fn matches_xcpcio_edition_paths_without_a_calendar_year() {
+        let contest = XcpcContest {
+            id: "1".into(), name: "The 2023 ICPC Asia Xi'an Regional Contest".into(), short_name: String::new(), url: String::new(),
+            date: String::new(), year: "2023".into(), series: vec!["ICPC".into()], stage: "区域赛".into(),
+            site: "西安".into(), board_source: None, problems: Vec::new(),
+        };
+        let board = XcpcioBoard { directory: "data/icpc/48th/xian".into(), text: "data icpc 48th xian".into() };
+        assert!(xcpcio_match_score(&contest, &board).is_some());
     }
 }

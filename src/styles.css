@@ -365,10 +365,9 @@ button:active:not(:disabled), .problem-button:active, .drawer-problem-button:act
 /* Embedded third-party trackers use the same card language as the rest of OJ Insight. */
 .embedded-tracker-page { min-height: calc(100vh - 90px); display: flex; flex-direction: column; gap: 10px; }
 .embedded-tracker-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.embedded-tracker-title { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.embedded-tracker-title > span { width: 42px; height: 34px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 8px; font-size: 11px; font-weight: 850; letter-spacing: .4px; }
-.embedded-tracker-title small { color: #697580; letter-spacing: 1.35px; font-size: var(--font-meta); font-weight: 800; }
-.embedded-tracker-title h1 { margin: 4px 0 0; font-size: 22px; line-height: 1.15; font-weight: 680; }
+.embedded-tracker-title { min-width: 0; }
+.embedded-tracker-title small { display: block; margin-top: 4px; color: var(--muted); font-size: var(--font-meta); font-weight: 560; }
+.embedded-tracker-title h1 { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 680; }
 .embedded-tracker-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
 .embedded-tracker-actions button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); border-radius: 7px; padding: 7px 10px; cursor: pointer; font-size: var(--font-meta); }
 .embedded-account, .embedded-tracker-note { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--font-meta); }

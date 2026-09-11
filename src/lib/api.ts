@@ -30,4 +30,5 @@ export const api = {
     invoke<DifficultyDetail>('get_difficulty_detail', { platform, label, account, source }),
   checkForUpdates: () => invoke<UpdateInfo>('check_for_updates'),
   openExternal: (url: string) => invoke<void>('open_external', { url }),
+  prepareTrackerSession: (tracker: string, secret: string) => invoke<void>('prepare_tracker_session', { tracker, secret }),
 };

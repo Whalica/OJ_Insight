@@ -169,6 +169,20 @@ fn get_sync_statuses(state: State<'_, AppState>) -> Result<Vec<SyncStatus>, Stri
     db::statuses(&*conn)
 }
 
+const TRACKER_INIT_SCRIPT: &str = r#"
+(() => {
+  if (window.location.origin !== 'https://cftracker.netlify.app') return;
+  const handle = new URLSearchParams(window.location.search).get('oji_handle');
+  if (!handle) return;
+  try {
+    const state = JSON.parse(window.localStorage.getItem('statev2') || '{}');
+    const oldList = state.userList && typeof state.userList === 'object' ? state.userList : {};
+    state.userList = { ...oldList, handles: [handle], error: '', id: oldList.id || 0 };
+    window.localStorage.setItem('statev2', JSON.stringify(state));
+  } catch (_) {}
+})();
+"#;
+
 #[tauri::command]
 async fn get_xcpc_contests(
     state: State<'_, AppState>,
@@ -544,6 +558,29 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn prepare_tracker_session(webview: tauri::WebviewWindow, tracker: String, secret: String) -> Result<(), String> {
+    if tracker != "nowcoder" || secret.trim().is_empty() { return Ok(()); }
+    let header = secret.trim().strip_prefix("Cookie:").unwrap_or(secret.trim()).trim();
+    let ignored = ["path", "domain", "expires", "max-age", "secure", "httponly", "samesite"];
+    let mut written = 0usize;
+    for part in header.split(';') {
+        let Some((name, value)) = part.trim().split_once('=') else { continue };
+        let name = name.trim();
+        if name.is_empty() || ignored.iter().any(|item| name.eq_ignore_ascii_case(item)) { continue; }
+        let cookie = tauri::webview::Cookie::build((name.to_string(), value.trim().to_string()))
+            .domain(".nowcoder.com")
+            .path("/")
+            .secure(true)
+            .same_site(tauri::webview::cookie::SameSite::None)
+            .build();
+        webview.set_cookie(cookie).map_err(|error| format!("写入牛客登录状态失败：{error}"))?;
+        written += 1;
+    }
+    if written == 0 { return Err("Cookie 内容中没有可用字段".into()); }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -587,6 +624,7 @@ pub fn run() {
             // stays inside the application root instead of the system app-data folders.
             tauri::WebviewWindowBuilder::from_config(app.handle(), &app.config().app.windows[0])?
                 .data_directory(webview_dir)
+                .initialization_script_for_all_frames(TRACKER_INIT_SCRIPT)
                 .build()?;
             Ok(())
         })
@@ -608,7 +646,8 @@ pub fn run() {
             get_difficulty_detail,
             write_export_file,
             check_for_updates,
-            open_external
+            open_external,
+            prepare_tracker_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running OJ Insight");
