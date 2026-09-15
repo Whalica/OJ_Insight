@@ -12,10 +12,13 @@ OJ Insight 是 Tauri 2 + React 桌面应用。最终用户不需要启动本地�
 pnpm install --frozen-lockfile
 pnpm check
 pnpm build
+cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
 `.github/workflows/build.yml` 是唯一的三平台构建入口。工作流在 Pull Request、`v*` 标签和手动触发时运行。在 Actions 页面手动运行时，`release_tag` 留空表示普通测试构建；填写与源码一致的版本号（如 `v0.8.1`）会生成签名更新包和 `latest.json`，并创建等待人工确认的 Draft Release。
+
+三端打包开始前会先执行前端类型与版本检查，以及 `cargo fmt --check` 和完整 Rust 单元测试。Pull Request 有新提交时，尚未完成的旧构建会自动取消，避免重复占用构建资源。
 
 ## Windows
 

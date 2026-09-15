@@ -10,7 +10,7 @@ src/
 ├─ hooks/       可复用的 React 状态与布局逻辑
 ├─ lib/         日期、平台配置等纯工具和领域辅助函数
 ├─ pages/       对应侧栏入口的页面组件
-├─ services/    Tauri 命令、更新服务等外部交互
+├─ services/    Tauri 命令、更新、导出等外部交互
 ├─ App.tsx      页面编排和应用级状态
 ├─ main.tsx     React 入口
 └─ types.ts     前后端共享数据形状的 TypeScript 定义
@@ -25,7 +25,7 @@ src-tauri/src/
 ├─ app/             应用状态与资源初始化
 ├─ commands/        Tauri 命令入口和参数校验
 ├─ infrastructure/  路径、日志等基础能力
-├─ sync/            各平台数据获取与标准化
+├─ sync/            各平台数据获取、标准化与同步流程编排
 ├─ db.rs            SQLite 读写与统计查询
 ├─ models.rs        后端领域模型
 ├─ operation.rs     并发操作保护
@@ -33,12 +33,12 @@ src-tauri/src/
 └─ lib.rs           插件、窗口、状态和命令注册
 ```
 
-命令层只负责接收参数、校验并调用领域代码。平台抓取逻辑放入 `sync`，数据库查询集中在 `db.rs`，应用组装只保留在 `lib.rs`。
+命令层只负责接收参数、校验并调用领域代码。平台抓取和同步流程编排放入 `sync`，数据库查询集中在 `db.rs`，应用组装只保留在 `lib.rs`。
 
 ## 新增功能时
 
 1. 在 `types.ts` 与 `models.rs` 中确认数据结构一致。
 2. 在对应 Rust 领域模块实现逻辑，再通过 `commands` 暴露命令。
-3. 在 `services/api.ts` 中集中添加前端调用。
+3. 在 `services/api.ts` 中集中添加 Tauri 命令调用；文件对话框、更新器等外部交互也放在 `services`。
 4. 页面状态留在 `pages` 或 `App.tsx`；可复用的 React 逻辑放入 `hooks`。
-5. 提交前运行 `pnpm check`、`pnpm build` 和 Rust 测试。
+5. 提交前运行 `pnpm check`、`pnpm build`、`cargo fmt --check` 和 Rust 测试。

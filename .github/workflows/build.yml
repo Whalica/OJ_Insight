@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '留空为普通测试构建；填写 v0.8.0 这类版本号会创建签名更新和 Draft Release'
+        description: '留空为普通测试构建；填写与源码一致的版本号（如 v0.8.1）会创建签名更新和 Draft Release'
         required: false
         type: string
   push:
@@ -14,6 +14,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
@@ -36,9 +40,34 @@ jobs:
       - name: Check frontend types and versions
         run: pnpm check
 
+  rust-quality:
+    name: Rust checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install Linux test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev
+      - name: Check Rust formatting
+        run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
+      - name: Run Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
   build-windows:
     name: Windows
-    needs: quality
+    needs: [quality, rust-quality]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -77,7 +106,7 @@ jobs:
 
   build-macos:
     name: MacOS
-    needs: quality
+    needs: [quality, rust-quality]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -124,7 +153,7 @@ jobs:
 
   build-linux:
     name: Linux
-    needs: quality
+    needs: [quality, rust-quality]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5

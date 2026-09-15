@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { api } from '../services/api';
 import { currentYear } from '../lib/date';
-import { exportHeatmap } from '../lib/export';
+import { exportHeatmap } from '../services/export';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import { scopeRange, type AccountMap } from '../lib/ui';
 import type { Metric, Platform } from '../types';

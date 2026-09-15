@@ -1,6 +1,6 @@
 import { AlertTriangle, Download, KeyRound, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
-import { exportPersonalProfile } from '../lib/export';
+import { exportPersonalProfile } from '../services/export';
 import type { AccountConfig } from '../types';
 
 export default function PersonalInfoExport({ accounts, notify }: { accounts: AccountConfig[]; notify?: (message: string) => void }) {

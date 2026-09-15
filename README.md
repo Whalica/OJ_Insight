@@ -4,7 +4,7 @@
 
 OJ Insight 是一个面向算法竞赛选手的跨平台训练数据面板。目前支持 Codeforces、AtCoder、洛谷、牛客、QOJ 和 LeetCode，并提供独立的 XCPC Tracker。所有数据保存在本地，应用会明确区分逐题记录、公开汇总和缺失数据，不用不可比的口径拼出“看起来完整”的统计。
 
-[下载最新版本](https://github.com/Whalica/OJ_Insight/releases/latest) · [查看更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Whalica/OJ_Insight/issues) · [源码构建](docs/BUILDING.md)
+[下载最新版本](https://github.com/Whalica/OJ_Insight/releases/latest) · [查看更新记录](docs/UPDATEINFO.md) · [反馈问题](https://github.com/Whalica/OJ_Insight/issues) · [源码构建](docs/BUILDING.md)
 
 当前版本：**v0.8.1**，支持 Windows、MacOS 和 Linux。
 

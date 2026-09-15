@@ -14,6 +14,7 @@ mod luogu;
 mod metadata_cache;
 mod nowcoder;
 mod qoj;
+pub(crate) mod service;
 
 pub async fn fetch_platform(
     client: &Client,

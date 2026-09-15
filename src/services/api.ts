@@ -19,6 +19,7 @@ export interface StorageInfo {
   databasePath: string;
   exportDir: string;
   webviewDir: string;
+  logDir: string;
 }
 
 export const api = {
@@ -74,4 +75,6 @@ export const api = {
   openExternal: (url: string) => invoke<void>('open_external', { url }),
   prepareTrackerSession: (tracker: string, secret: string) =>
     invoke<void>('prepare_tracker_session', { tracker, secret }),
+  writeExportFile: (path: string, data: number[]) =>
+    invoke<void>('write_export_file', { path, data }),
 };
