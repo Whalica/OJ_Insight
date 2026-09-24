@@ -26,11 +26,11 @@ jobs:
       - run: pnpm check
       - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Chromium layout tests
-        run: pnpm exec playwright test --project=chromium
+        run: pnpm exec playwright test --config config/playwright.config.ts --project=chromium
       - name: WebKit layout tests
-        run: pnpm exec playwright test tests/layout/relationships.spec.ts tests/layout/responsive.spec.ts --project=webkit
+        run: pnpm exec playwright test --config config/playwright.config.ts tests/layout/relationships.spec.ts tests/layout/responsive.spec.ts --project=webkit
       - name: WebKit XCPC tests
-        run: pnpm exec playwright test tests/layout/xcpc-tags.spec.ts --project=webkit --retries=2
+        run: pnpm exec playwright test --config config/playwright.config.ts tests/layout/xcpc-tags.spec.ts --project=webkit --retries=2
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
