@@ -106,6 +106,16 @@ OJ_INSIGHT_GDK_BACKEND=x11 ./OJ\ Insight_*.AppImage
 
 仍然失败时，请记录显卡、Mesa/驱动、WebKitGTK、GTK 与 niri 版本，并对比系统原生构建和 AppImage；不要上传 Cookie 或完整数据库。
 
+## Tool configuration
+
+Frontend tool configuration is stored in `config/`:
+
+- `config/vite.config.ts`
+- `config/tsconfig.json`
+- `config/playwright.config.ts`
+
+Use the scripts in `package.json` to run development, checks, builds, and layout tests. These scripts pass the required configuration paths automatically.
+
 ## 发布检查
 
 布局回归可在本地运行：

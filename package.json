@@ -4,11 +4,11 @@
   "version": "0.9.2",
   "type": "module",
   "scripts": {
-    "test:layout": "playwright test",
-    "dev": "vite",
-    "check": "node scripts/check-version.mjs && tsc --noEmit",
+    "test:layout": "playwright test --config config/playwright.config.ts",
+    "dev": "vite --config config/vite.config.ts",
+    "check": "node scripts/check-version.mjs && tsc -p config/tsconfig.json --noEmit",
     "check:version": "node scripts/check-version.mjs",
-    "build": "node scripts/check-version.mjs && tsc && vite build --configLoader runner",
+    "build": "node scripts/check-version.mjs && tsc -p config/tsconfig.json && vite build --config config/vite.config.ts --configLoader runner",
     "tauri": "tauri"
   },
   "dependencies": {

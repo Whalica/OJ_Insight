@@ -18,8 +18,8 @@ import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import { PLATFORM_META, PLATFORM_ORDER } from './lib/platforms';
 import { emptyAccounts, emptySnapshot, initialMetric, initialScope, recentHalfYearRange, scopeRange, SYNC_TIPS, type AccountMap, type TimeScope } from './lib/ui';
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
-import { checkForAppUpdate, discardAppUpdate, installAppUpdate } from './services/updater';
-import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SolvedGain, SyncStatus, UpdateInfo, WatchedAcEvent, WatchedBindingInput, WatchedPerson } from './types';
+import { useUpdater } from './hooks/useUpdater';
+import type { DayDetail, DifficultyDetail, Metric, Platform, Snapshot, SolvedGain, SyncStatus, WatchedAcEvent, WatchedBindingInput, WatchedPerson } from './types';
 
 type Page = 'overview' | 'xcpc' | 'tracker-codeforces' | 'tracker-atcoder' | 'contest-review' | 'relationships' | 'export' | 'data' | 'settings' | 'about' | Platform;
 
@@ -65,9 +65,6 @@ export default function App() {
   const [dayLoading, setDayLoading] = useState(false);
   const [difficultyDetail, setDifficultyDetail] = useState<DifficultyDetail | null>(null);
   const [difficultyLoading, setDifficultyLoading] = useState(false);
-  const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
-  const [installingUpdate, setInstallingUpdate] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
   const range = useMemo(() => selectedPlatform === 'luogu' ? recentHalfYearRange(timeZone) : scopeRange(timeScope, timeZone), [selectedPlatform, timeScope, selectedDay, timeZone]);
@@ -80,6 +77,15 @@ export default function App() {
     return next;
   });
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3600); };
+  const {
+    availableUpdate,
+    installingUpdate,
+    updateProgress,
+    dismissUpdate,
+    skipUpdate,
+    installUpdate,
+    openRelease,
+  } = useUpdater({ preferences, syncing, notify, updatePreferences });
 
   useEffect(() => {
     let timer = 0;
@@ -122,7 +128,6 @@ export default function App() {
   const dayRequest = useRef(0);
   const difficultyRequest = useRef(0);
   const startupSyncStarted = useRef(false);
-  const startupUpdateStarted = useRef(false);
   const xcpcKnowledgeLoaded = useRef(false);
   const query = useRef({ selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone });
   query.current = { selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone };
@@ -285,31 +290,6 @@ export default function App() {
     startupSyncStarted.current = true;
     void syncAll(accounts, true);
   }, [accountsLoaded, preferences.autoSync]);
-  useEffect(() => {
-    if (!preferences.autoCheckUpdates || startupUpdateStarted.current) return;
-    startupUpdateStarted.current = true;
-    const timer = window.setTimeout(() => {
-      checkForAppUpdate().then((result) => {
-        if (result.updateAvailable && result.latestVersion !== preferences.skippedUpdateVersion) setAvailableUpdate(result);
-      }).catch(() => undefined);
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [preferences.autoCheckUpdates, preferences.skippedUpdateVersion]);
-  const installUpdate = async () => {
-    if (syncing) { notify('请等待当前同步完成后再安装更新'); return; }
-    setInstallingUpdate(true); setUpdateProgress(0);
-    let downloaded = 0; let total = 0;
-    try {
-      await installAppUpdate((event) => {
-        if (event.event === 'Started') total = event.data.contentLength || 0;
-        if (event.event === 'Progress') downloaded += event.data.chunkLength;
-        if (event.event === 'Progress') setUpdateProgress(total ? Math.min(100, Math.round(downloaded / total * 100)) : null);
-        if (event.event === 'Finished') setUpdateProgress(100);
-      });
-    } catch (error) {
-      notify(`更新失败：${String(error)}`); setInstallingUpdate(false); setUpdateProgress(null);
-    }
-  };
   const openDay = async (day: string) => {
     const request = ++dayRequest.current;
     setDayLoading(true); setDayDetail({ day, items: [], aggregates: [] });
@@ -339,7 +319,7 @@ export default function App() {
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />
     <DifficultyDrawer detail={difficultyDetail} loading={difficultyLoading} timeZone={timeZone} onClose={closeDifficulty} />
     <RelationshipNotice events={watchedNotifications} timeZone={timeZone} onDismiss={(eventId) => { void dismissWatched(eventId); }} />
-    {availableUpdate && <aside className="update-notice" aria-live="polite"><button className="update-dismiss" aria-label="稍后提醒" disabled={installingUpdate} onClick={() => setAvailableUpdate(null)}><X size={15} /></button><small>UPDATE AVAILABLE</small><strong>OJ Insight v{availableUpdate.latestVersion}</strong><span>{installingUpdate ? `正在下载${updateProgress == null ? '…' : ` · ${updateProgress}%`}` : availableUpdate.installable === false ? '这个版本暂时需要从 Release 页面下载安装。' : syncing ? '当前正在同步数据，完成后即可安装更新。' : '新版本已经准备好，可以直接在应用内完成更新。'}</span>{installingUpdate && <i><b style={{ width: `${updateProgress || 4}%` }} /></i>}<div><button disabled={installingUpdate} onClick={() => { updatePreferences({ skippedUpdateVersion: availableUpdate.latestVersion }); setAvailableUpdate(null); void discardAppUpdate(); }}>跳过此版本</button><button className="primary" disabled={installingUpdate || (availableUpdate.installable !== false && !!syncing)} onClick={() => availableUpdate.installable === false ? api.openExternal(availableUpdate.releaseUrl) : installUpdate()}><Download size={14} />{availableUpdate.installable === false ? '手动下载' : installingUpdate ? '更新中' : syncing ? '等待同步' : '立即更新'}</button></div></aside>}
+    {availableUpdate && <aside className="update-notice" aria-live="polite"><button className="update-dismiss" aria-label="稍后提醒" disabled={installingUpdate} onClick={dismissUpdate}><X size={15} /></button><small>UPDATE AVAILABLE</small><strong>OJ Insight v{availableUpdate.latestVersion}</strong><span>{installingUpdate ? `正在下载${updateProgress == null ? '…' : ` · ${updateProgress}%`}` : availableUpdate.installable === false ? '这个版本暂时需要从 Release 页面下载安装。' : syncing ? '当前正在同步数据，完成后即可安装更新。' : '新版本已经准备好，可以直接在应用内完成更新。'}</span>{installingUpdate && <i><b style={{ width: `${updateProgress || 4}%` }} /></i>}<div><button disabled={installingUpdate} onClick={skipUpdate}>跳过此版本</button><button className="primary" disabled={installingUpdate || (availableUpdate.installable !== false && !!syncing)} onClick={() => availableUpdate.installable === false ? openRelease() : installUpdate()}><Download size={14} />{availableUpdate.installable === false ? '手动下载' : installingUpdate ? '更新中' : syncing ? '等待同步' : '立即更新'}</button></div></aside>}
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }
