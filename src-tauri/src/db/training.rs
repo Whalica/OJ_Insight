@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
-use crate::training::{CanonicalProblem, ProblemSet, ProblemSetInput, ProblemSetProblem, TrainingMatch, TrainingMatchProblem};
+use crate::training::{CanonicalProblem, Contest, ContestInput, ProblemSet, ProblemSetInput, ProblemSetProblem, TrainingMatch, TrainingMatchProblem, VpSubmission};
 
 const TRAINING_SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS canonical_problems (
@@ -74,10 +74,50 @@ CREATE TABLE IF NOT EXISTS training_match_problems (
   FOREIGN KEY(platform, problem_key) REFERENCES canonical_problems(platform, problem_key)
 );
 CREATE INDEX IF NOT EXISTS idx_training_match_status ON training_matches(status, started_at);
+CREATE TABLE IF NOT EXISTS contests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  origin TEXT NOT NULL DEFAULT 'manual',
+  source_set_id INTEGER,
+  mode TEXT NOT NULL DEFAULT 'balanced',
+  duration_minutes INTEGER NOT NULL DEFAULT 120,
+  tag_visibility TEXT NOT NULL DEFAULT 'after_ac',
+  target_solve_rate_min REAL NOT NULL DEFAULT 0.5,
+  target_solve_rate_max REAL NOT NULL DEFAULT 0.7,
+  problems_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS vp_submissions (
+  match_id INTEGER NOT NULL,
+  platform TEXT NOT NULL,
+  problem_key TEXT NOT NULL,
+  submitted_at INTEGER NOT NULL,
+  verdict TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  PRIMARY KEY(match_id,platform,problem_key,submitted_at,source_url),
+  FOREIGN KEY(match_id) REFERENCES training_matches(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS vp_code_files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  content BLOB NOT NULL,
+  FOREIGN KEY(match_id) REFERENCES training_matches(id) ON DELETE CASCADE
+);
 "#;
 
 pub(super) fn initialize_training_schema(tx: &Transaction<'_>) -> Result<(), String> {
-    tx.execute_batch(TRAINING_SCHEMA).map_err(|e| format!("初始化 Training 数据库失败：{e}"))
+    tx.execute_batch(TRAINING_SCHEMA).map_err(|e| format!("初始化 Training 数据库失败：{e}"))?;
+    super::connection::ensure_column(tx, "training_matches", "contest_id", "INTEGER")?;
+    super::connection::ensure_column(tx, "training_matches", "scheduled_start_at", "INTEGER")?;
+    super::connection::ensure_column(tx, "training_matches", "paused_at", "INTEGER")?;
+    super::connection::ensure_column(tx, "training_matches", "total_paused_seconds", "INTEGER NOT NULL DEFAULT 0")?;
+    super::connection::ensure_column(tx, "training_matches", "general_note", "TEXT NOT NULL DEFAULT ''")?;
+    super::connection::ensure_column(tx, "training_match_problems", "solution_note", "TEXT NOT NULL DEFAULT ''")?;
+    Ok(())
 }
 
 fn tags(value: &str) -> Vec<String> { serde_json::from_str(value).unwrap_or_default() }
@@ -157,7 +197,7 @@ pub fn create_training_match(conn: &mut Connection, set_id: Option<i64>, title: 
 }
 
 pub fn refresh_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch, String> {
-    conn.execute("UPDATE training_match_problems SET solved=EXISTS(SELECT 1 FROM submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at), solved_at=(SELECT MIN(s.epoch_second) FROM submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at) WHERE match_id=?", [id]).map_err(|e| e.to_string())?;
+    conn.execute("UPDATE training_match_problems SET solved=(EXISTS(SELECT 1 FROM submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at AND (m.ended_at IS NULL OR s.epoch_second<=m.ended_at)) OR EXISTS(SELECT 1 FROM vp_submissions v WHERE v.match_id=training_match_problems.match_id AND v.platform=training_match_problems.platform AND v.problem_key=training_match_problems.problem_key AND v.verdict IN ('OK','AC'))), solved_at=(SELECT MIN(epoch_second) FROM (SELECT s.epoch_second AS epoch_second FROM submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at AND (m.ended_at IS NULL OR s.epoch_second<=m.ended_at) UNION ALL SELECT v.submitted_at FROM vp_submissions v WHERE v.match_id=training_match_problems.match_id AND v.platform=training_match_problems.platform AND v.problem_key=training_match_problems.problem_key AND v.verdict IN ('OK','AC'))) WHERE match_id=? AND (SELECT status FROM training_matches WHERE id=?) IN ('running','paused','finished')", [id,id]).map_err(|e| e.to_string())?;
     get_training_match(conn, id)
 }
 
@@ -186,8 +226,11 @@ pub fn training_profile_markdown(conn: &Connection) -> Result<String, String> {
 }
 
 pub fn finish_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch, String> {
+    let existing=get_training_match(conn,id)?;
+    if existing.status=="waiting" {return Err("尚未开始的比赛不能结束".into());}
+    if existing.status=="finished" {return Ok(existing);}
     refresh_training_match(conn, id)?;
-    conn.execute("UPDATE training_matches SET status='finished',ended_at=COALESCE(ended_at,?) WHERE id=?", params![chrono::Utc::now().timestamp(),id]).map_err(|e| e.to_string())?;
+    conn.execute("UPDATE training_matches SET status='finished',ended_at=COALESCE(ended_at,?),total_paused_seconds=total_paused_seconds+CASE WHEN paused_at IS NOT NULL THEN MAX(0,?-paused_at) ELSE 0 END,paused_at=NULL WHERE id=?", params![chrono::Utc::now().timestamp(),chrono::Utc::now().timestamp(),id]).map_err(|e| e.to_string())?;
     get_training_match(conn, id)
 }
 
@@ -204,8 +247,113 @@ pub fn list_training_matches(conn: &Connection) -> Result<Vec<TrainingMatch>, St
 }
 
 pub fn get_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch, String> {
-    let mut item = conn.query_row("SELECT id,problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,ended_at,created_at FROM training_matches WHERE id=?", [id], |row| Ok(TrainingMatch { id:row.get(0)?,problem_set_id:row.get(1)?,title:row.get(2)?,mode:row.get(3)?,status:row.get(4)?,tag_visibility:row.get(5)?,target_solve_rate_min:row.get(6)?,target_solve_rate_max:row.get(7)?,duration_minutes:row.get(8)?,started_at:row.get(9)?,ended_at:row.get(10)?,created_at:row.get(11)?,problems:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "训练赛不存在".to_string())?;
-    let mut stmt=conn.prepare("SELECT p.position,p.role,p.note,p.solved,p.solved_at,c.platform,c.problem_key,c.problem_id,c.name,c.url,c.difficulty,c.tags,c.training_suitability,c.observation_dependency,c.implementation_load,c.knowledge_dependency,c.interactive,c.output_only FROM training_match_problems p JOIN canonical_problems c ON c.platform=p.platform AND c.problem_key=p.problem_key WHERE p.match_id=? ORDER BY p.position").map_err(|e|e.to_string())?;
-    item.problems=stmt.query_map([id],|row|Ok(TrainingMatchProblem{position:row.get(0)?,role:row.get(1)?,note:row.get(2)?,solved:row.get::<_,i64>(3)?!=0,solved_at:row.get(4)?,problem:row_problem(row,5)?})).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    let mut item = conn.query_row("SELECT id,problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,ended_at,created_at,contest_id,scheduled_start_at,paused_at,total_paused_seconds,general_note FROM training_matches WHERE id=?", [id], |row| Ok(TrainingMatch { id:row.get(0)?,problem_set_id:row.get(1)?,title:row.get(2)?,mode:row.get(3)?,status:row.get(4)?,tag_visibility:row.get(5)?,target_solve_rate_min:row.get(6)?,target_solve_rate_max:row.get(7)?,duration_minutes:row.get(8)?,started_at:row.get(9)?,ended_at:row.get(10)?,created_at:row.get(11)?,contest_id:row.get(12)?,scheduled_start_at:row.get(13)?,paused_at:row.get(14)?,total_paused_seconds:row.get(15)?,general_note:row.get(16)?,problems:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "训练赛不存在".to_string())?;
+    let mut stmt=conn.prepare("SELECT p.position,p.role,p.note,p.solved,p.solved_at,c.platform,c.problem_key,c.problem_id,c.name,c.url,c.difficulty,c.tags,c.training_suitability,c.observation_dependency,c.implementation_load,c.knowledge_dependency,c.interactive,c.output_only,p.solution_note FROM training_match_problems p JOIN canonical_problems c ON c.platform=p.platform AND c.problem_key=p.problem_key WHERE p.match_id=? ORDER BY p.position").map_err(|e|e.to_string())?;
+    item.problems=stmt.query_map([id],|row|Ok(TrainingMatchProblem{position:row.get(0)?,role:row.get(1)?,note:row.get(2)?,solved:row.get::<_,i64>(3)?!=0,solved_at:row.get(4)?,problem:row_problem(row,5)?,solution_note:row.get(18)?})).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
     Ok(item)
+}
+
+pub fn save_contest(conn: &Connection, input: &ContestInput) -> Result<Contest, String> {
+    if input.title.trim().is_empty() || input.problems.is_empty() { return Err("比赛需要名称和至少一道题".into()); }
+    if input.duration_minutes < 15 || input.duration_minutes > 480 { return Err("比赛时长必须在 15–480 分钟之间".into()); }
+    let now = chrono::Utc::now().timestamp();
+    let json = serde_json::to_string(&input.problems).map_err(|e| e.to_string())?;
+    let id = if let Some(id) = input.id {
+        let changed = conn.execute("UPDATE contests SET title=?,description=?,origin=?,source_set_id=?,mode=?,duration_minutes=?,tag_visibility=?,target_solve_rate_min=?,target_solve_rate_max=?,problems_json=?,updated_at=? WHERE id=?",params![input.title.trim(),input.description,input.origin,input.source_set_id,input.mode,input.duration_minutes,input.tag_visibility,input.target_solve_rate_min,input.target_solve_rate_max,json,now,id]).map_err(|e|e.to_string())?;
+        if changed == 0 { return Err("比赛不存在".into()); }
+        id
+    } else {
+        conn.execute("INSERT INTO contests(title,description,origin,source_set_id,mode,duration_minutes,tag_visibility,target_solve_rate_min,target_solve_rate_max,problems_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",params![input.title.trim(),input.description,input.origin,input.source_set_id,input.mode,input.duration_minutes,input.tag_visibility,input.target_solve_rate_min,input.target_solve_rate_max,json,now,now]).map_err(|e|e.to_string())?;
+        conn.last_insert_rowid()
+    };
+    get_contest(conn,id)
+}
+
+pub fn get_contest(conn: &Connection,id:i64)->Result<Contest,String>{
+    let (mut item,json):(Contest,String)=conn.query_row("SELECT id,title,description,origin,source_set_id,mode,duration_minutes,tag_visibility,target_solve_rate_min,target_solve_rate_max,created_at,updated_at,problems_json FROM contests WHERE id=?",[id],|row|Ok((Contest{id:row.get(0)?,title:row.get(1)?,description:row.get(2)?,origin:row.get(3)?,source_set_id:row.get(4)?,mode:row.get(5)?,duration_minutes:row.get(6)?,tag_visibility:row.get(7)?,target_solve_rate_min:row.get(8)?,target_solve_rate_max:row.get(9)?,created_at:row.get(10)?,updated_at:row.get(11)?,problems:Vec::new()},row.get(12)?))).optional().map_err(|e|e.to_string())?.ok_or_else(||"比赛不存在".to_string())?;
+    item.problems=serde_json::from_str(&json).map_err(|e|format!("比赛题目数据无效：{e}"))?;
+    Ok(item)
+}
+
+pub fn list_contests(conn:&Connection)->Result<Vec<Contest>,String>{
+    let mut stmt=conn.prepare("SELECT id FROM contests ORDER BY updated_at DESC,id DESC").map_err(|e|e.to_string())?;
+    let ids=stmt.query_map([],|row|row.get::<_,i64>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    ids.into_iter().map(|id|get_contest(conn,id)).collect()
+}
+
+pub fn delete_contest(conn:&Connection,id:i64)->Result<(),String>{
+    if conn.execute("DELETE FROM contests WHERE id=?",[id]).map_err(|e|e.to_string())? == 0 { return Err("比赛不存在".into()); }
+    Ok(())
+}
+
+pub fn queue_contest(conn:&mut Connection,id:i64,countdown_seconds:i64)->Result<TrainingMatch,String>{
+    let contest=get_contest(conn,id)?;
+    let now=chrono::Utc::now().timestamp();
+    let tx=conn.transaction().map_err(|e|e.to_string())?;
+    let scheduled=if countdown_seconds>0 {Some(now+countdown_seconds)} else {None};
+    tx.execute("INSERT INTO training_matches(problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,created_at,contest_id,scheduled_start_at) VALUES(?,?,?,'waiting',?,?,?,?,0,?,?,?)",params![contest.source_set_id,contest.title,contest.mode,contest.tag_visibility,contest.target_solve_rate_min,contest.target_solve_rate_max,contest.duration_minutes,now,id,scheduled]).map_err(|e|e.to_string())?;
+    let match_id=tx.last_insert_rowid();
+    for (position,entry) in contest.problems.iter().enumerate(){
+        upsert_problem(&tx,&entry.problem,now)?;
+        tx.execute("INSERT INTO training_match_problems(match_id,position,platform,problem_key,role,note) VALUES(?,?,?,?,?,?)",params![match_id,position as i64,entry.problem.platform,entry.problem.problem_key,entry.role,entry.note]).map_err(|e|e.to_string())?;
+    }
+    tx.commit().map_err(|e|e.to_string())?;
+    get_training_match(conn,match_id)
+}
+
+pub fn start_vp(conn:&Connection,id:i64)->Result<TrainingMatch,String>{
+    let now=chrono::Utc::now().timestamp();
+    let changed=conn.execute("UPDATE training_matches SET status='running',started_at=? WHERE id=? AND status='waiting' AND COALESCE(scheduled_start_at,0)<=?",params![now,id,now]).map_err(|e|e.to_string())?;
+    if changed==0 { return Err("比赛未到开始时间，或已开始".into()); }
+    get_training_match(conn,id)
+}
+
+pub fn pause_vp(conn:&Connection,id:i64)->Result<TrainingMatch,String>{
+    if conn.execute("UPDATE training_matches SET status='paused',paused_at=? WHERE id=? AND status='running'",params![chrono::Utc::now().timestamp(),id]).map_err(|e|e.to_string())? == 0 {return Err("只有进行中的 VP 可以暂停".into());}
+    get_training_match(conn,id)
+}
+
+pub fn resume_vp(conn:&Connection,id:i64)->Result<TrainingMatch,String>{
+    let now=chrono::Utc::now().timestamp();
+    if conn.execute("UPDATE training_matches SET status='running',total_paused_seconds=total_paused_seconds+MAX(0,?-paused_at),paused_at=NULL WHERE id=? AND status='paused'",params![now,id]).map_err(|e|e.to_string())? == 0 {return Err("只有暂停中的 VP 可以继续".into());}
+    get_training_match(conn,id)
+}
+
+pub fn save_vp_note(conn:&Connection,id:i64,position:Option<i64>,note:&str)->Result<TrainingMatch,String>{
+    if let Some(position)=position {conn.execute("UPDATE training_match_problems SET solution_note=? WHERE match_id=? AND position=?",params![note,id,position]).map_err(|e|e.to_string())?;}
+    else {conn.execute("UPDATE training_matches SET general_note=? WHERE id=?",params![note,id]).map_err(|e|e.to_string())?;}
+    get_training_match(conn,id)
+}
+
+pub fn save_vp_submissions(conn:&mut Connection,id:i64,items:&[VpSubmission])->Result<(),String>{
+    let tx=conn.transaction().map_err(|e|e.to_string())?;
+    for item in items { tx.execute("INSERT OR REPLACE INTO vp_submissions(match_id,platform,problem_key,submitted_at,verdict,source_url) VALUES(?,?,?,?,?,?)",params![id,item.platform,item.problem_key,item.submitted_at,item.verdict,item.source_url]).map_err(|e|e.to_string())?; }
+    tx.commit().map_err(|e|e.to_string())?;
+    Ok(())
+}
+
+pub fn list_vp_submissions(conn:&Connection,id:i64)->Result<Vec<VpSubmission>,String>{
+    let mut stmt=conn.prepare("SELECT platform,problem_key,submitted_at,verdict,source_url FROM vp_submissions WHERE match_id=? ORDER BY submitted_at").map_err(|e|e.to_string())?;
+    let submissions=stmt.query_map([id],|row|Ok(VpSubmission{platform:row.get(0)?,problem_key:row.get(1)?,submitted_at:row.get(2)?,verdict:row.get(3)?,source_url:row.get(4)?})).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    Ok(submissions)
+}
+
+pub fn bind_vp_code(conn:&Connection,id:i64,position:i64,name:&str,content:&[u8])->Result<(),String>{
+    let item=get_training_match(conn,id)?;
+    if item.status!="finished" {return Err("比赛结束后才能绑定本地代码".into());}
+    if !item.problems.iter().any(|p|p.position==position){return Err("题目不存在".into());}
+    conn.execute("INSERT INTO vp_code_files(match_id,position,name,content) VALUES(?,?,?,?)",params![id,position,name,content]).map_err(|e|e.to_string())?;
+    Ok(())
+}
+
+pub fn list_vp_code(conn:&Connection,id:i64)->Result<Vec<(i64,String,Vec<u8>)>,String>{
+    let mut stmt=conn.prepare("SELECT position,name,content FROM vp_code_files WHERE match_id=? ORDER BY position,id").map_err(|e|e.to_string())?;
+    let files=stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    Ok(files)
+}
+
+pub fn list_vp_code_names(conn:&Connection,id:i64)->Result<Vec<(i64,String)>,String>{
+    let mut stmt=conn.prepare("SELECT position,name FROM vp_code_files WHERE match_id=? ORDER BY position,id").map_err(|e|e.to_string())?;
+    let files=stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    Ok(files)
 }

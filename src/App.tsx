@@ -8,12 +8,14 @@ import DashboardPage from './pages/DashboardPage';
 import AboutPage from './pages/AboutPage';
 import DataPage from './pages/DataPage';
 import ExportPage from './pages/ExportPage';
-import ContestReviewPage from './pages/ContestReviewPage';
 import SettingsPage from './pages/SettingsPage';
 import RelationshipsPage from './pages/RelationshipsPage';
 import XcpcTrackerPage from './pages/XcpcTrackerPage';
 import ProblemSetsPage from './pages/ProblemSetsPage';
 import TrainingPage from './pages/TrainingPage';
+import ContestsPage from './pages/ContestsPage';
+import VpPage from './pages/VpPage';
+import TrainingReviewPage from './pages/TrainingReviewPage';
 import ExternalTrackerPage, { type ExternalTracker } from './pages/ExternalTrackerPage';
 import { api } from './services/api';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
@@ -34,7 +36,7 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
-    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'training', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
+    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'contests', 'vp', 'training', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
     return saved.startupPage === 'last' && last && valid ? last : 'overview';
   });
   const embeddedTracker = page.startsWith('tracker-') ? page.slice('tracker-'.length) as ExternalTracker : null;
@@ -132,10 +134,12 @@ export default function App() {
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
     <main className={`main ${page.startsWith('tracker-') ? 'main-tracker' : ''}`}>
-      {page === 'training' ? <TrainingPage notify={notify} onOpenProblemSets={() => setPage('problem-sets')} /> :
-       page === 'problem-sets' ? <ProblemSetsPage notify={notify} onTrain={(setId) => { localStorage.setItem('oj-insight.training-set-id', String(setId)); setPage('training'); }} /> :
+      {page === 'training' ? <TrainingPage notify={notify} onOpenProblemSets={() => setPage('problem-sets')} onOpenContests={() => setPage('contests')} /> :
+       page === 'problem-sets' ? <ProblemSetsPage notify={notify} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
+       page === 'contests' ? <ContestsPage notify={notify} onOpenVp={() => setPage('vp')} /> :
+       page === 'vp' ? <VpPage notify={notify} /> :
        page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
-       page === 'contest-review' ? <ContestReviewPage accounts={accounts} notify={notify} onOpenSettings={() => setPage('settings')} /> :
+       page === 'contest-review' ? <TrainingReviewPage accounts={accounts} notify={notify} onOpenSettings={() => setPage('settings')} /> :
       page === 'relationships' ? <RelationshipsPage people={watchedPeople} events={watchedEvents.slice(0, preferences.watchedEventRetention)} timeZone={timeZone} syncing={watchedSyncing || !!syncing} autoCheck={autoWatch} onAutoCheck={setAutoWatch} onSync={() => syncWatched()} onSyncPerson={(personId) => syncWatched(personId)} onSave={saveWatched} onEdit={editWatched} onDelete={deleteWatched} onDismiss={dismissWatched} notify={notify} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :

@@ -16,6 +16,7 @@ pub(crate) fn normalize_problem(mut problem: CanonicalProblem) -> Result<Canonic
     problem.problem_id = problem.problem_id.trim().to_string();
     problem.name = problem.name.trim().to_string();
     problem.url = problem.url.trim().to_string();
+    if !problem.url.is_empty() && !problem.url.starts_with("https://") && !problem.url.starts_with("http://") { return Err("题目链接必须以 http:// 或 https:// 开头".into()); }
     problem.tags = problem.tags.into_iter().map(|tag| tag.trim().to_string()).filter(|tag| !tag.is_empty()).collect();
     problem.tags.sort();
     problem.tags.dedup();

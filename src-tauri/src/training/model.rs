@@ -84,6 +84,8 @@ pub struct TrainingMatchProblem {
     pub note: String,
     pub solved: bool,
     pub solved_at: Option<i64>,
+    #[serde(default)]
+    pub solution_note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,7 +103,57 @@ pub struct TrainingMatch {
     pub started_at: i64,
     pub ended_at: Option<i64>,
     pub created_at: i64,
+    pub contest_id: Option<i64>,
+    pub scheduled_start_at: Option<i64>,
+    pub paused_at: Option<i64>,
+    pub total_paused_seconds: i64,
+    #[serde(default)]
+    pub general_note: String,
     pub problems: Vec<TrainingMatchProblem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Contest {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub origin: String,
+    pub source_set_id: Option<i64>,
+    pub mode: String,
+    pub duration_minutes: i64,
+    pub tag_visibility: String,
+    pub target_solve_rate_min: f64,
+    pub target_solve_rate_max: f64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub problems: Vec<ProblemSetProblem>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContestInput {
+    pub id: Option<i64>,
+    pub title: String,
+    #[serde(default)] pub description: String,
+    #[serde(default)] pub origin: String,
+    pub source_set_id: Option<i64>,
+    pub mode: String,
+    pub duration_minutes: i64,
+    #[serde(default = "default_tag_visibility")] pub tag_visibility: String,
+    pub target_solve_rate_min: f64,
+    pub target_solve_rate_max: f64,
+    pub problems: Vec<ProblemSetProblem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VpSubmission {
+    pub platform: String,
+    pub problem_key: String,
+    pub submitted_at: i64,
+    pub verdict: String,
+    pub source_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

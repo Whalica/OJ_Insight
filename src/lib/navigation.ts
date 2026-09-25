@@ -7,6 +7,8 @@ export type Page =
   | 'tracker-atcoder'
   | 'contest-review'
   | 'problem-sets'
+  | 'contests'
+  | 'vp'
   | 'training'
   | 'relationships'
   | 'export'
