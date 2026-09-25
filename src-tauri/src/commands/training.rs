@@ -184,6 +184,12 @@ pub(crate) fn start_vp(state: State<'_, AppState>, id:i64)->Result<TrainingMatch
 }
 
 #[tauri::command]
+pub(crate) fn schedule_vp(state: State<'_, AppState>, id:i64, countdown_seconds:i64)->Result<TrainingMatch,String>{
+    let conn=state.db.lock().map_err(|_|"数据库锁异常".to_string())?;
+    db::schedule_vp(&conn,id,countdown_seconds)
+}
+
+#[tauri::command]
 pub(crate) fn pause_vp(state: State<'_, AppState>, id:i64)->Result<TrainingMatch,String>{
     let conn=state.db.lock().map_err(|_|"数据库锁异常".to_string())?;
     db::pause_vp(&conn,id)
@@ -265,8 +271,14 @@ pub(crate) fn bind_vp_code(state: State<'_, AppState>, id:i64, position:i64, pat
     let name=source.file_name().and_then(|v|v.to_str()).ok_or("无效的代码文件名")?;
     let content=std::fs::read(source).map_err(|e|format!("读取代码文件失败：{e}"))?;
     if content.len()>2_000_000{return Err("代码文件超过 2 MB".into());}
+    let mut conn=state.db.lock().map_err(|_|"数据库锁异常".to_string())?;
+    db::bind_vp_code(&mut conn,id,position,name,&content)
+}
+
+#[tauri::command]
+pub(crate) fn delete_vp_code(state: State<'_, AppState>, id:i64, position:i64)->Result<(),String>{
     let conn=state.db.lock().map_err(|_|"数据库锁异常".to_string())?;
-    db::bind_vp_code(&conn,id,position,name,&content)
+    db::delete_vp_code(&conn,id,position)
 }
 
 #[tauri::command]
@@ -304,23 +316,45 @@ pub(crate) fn export_vp_review_pack(state: State<'_, AppState>, id:i64)->Result<
 
 #[tauri::command]
 pub(crate) async fn lookup_problem_metadata(state: State<'_, AppState>, mut problem: CanonicalProblem)->Result<CanonicalProblem,String>{
+    use rusqlite::OptionalExtension;
     use serde_json::Value;
+    let cached={
+        let conn=state.db.lock().map_err(|_|"数据库锁异常".to_string())?;
+        conn.query_row("SELECT problem_name,difficulty,tags FROM submissions WHERE platform=? AND problem_key=? ORDER BY epoch_second DESC LIMIT 1",rusqlite::params![&problem.platform,&problem.problem_key],|row|Ok((row.get::<_,String>(0)?,row.get::<_,Option<String>>(1)?,row.get::<_,String>(2)?))).optional().map_err(|e|e.to_string())?
+    };
+    if let Some((name,difficulty,tags))=cached {
+        if !name.trim().is_empty() && name!=problem.name {
+            problem.name=name;
+            problem.difficulty=difficulty;
+            problem.tags=serde_json::from_str(&tags).unwrap_or_default();
+            return Ok(problem);
+        }
+    }
     match problem.platform.as_str(){
         "codeforces"=>{
             let (contest,index)=problem.problem_key.split_once(':').ok_or("Codeforces 题目标识无效")?;
             let url=format!("https://codeforces.com/api/contest.standings?contestId={contest}&from=1&count=1");
-            let value=state.client.get(url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.json::<Value>().await.map_err(|e|e.to_string())?;
-            let row=value.pointer("/result/problems").and_then(Value::as_array).and_then(|rows|rows.iter().find(|row|row.get("index").and_then(Value::as_str)==Some(index))).ok_or("目录里找不到该 CF 题目")?;
-            problem.name=row.get("name").and_then(Value::as_str).map(str::to_string).unwrap_or_else(||problem.name.clone());
-            problem.tags=row.get("tags").and_then(Value::as_array).map(|rows|rows.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
-            problem.difficulty=row.get("rating").and_then(Value::as_i64).map(|v|v.to_string());
+            let api=async {
+                state.client.get(url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.json::<Value>().await.map_err(|e|e.to_string())
+            }.await;
+            let row=api.as_ref().ok().and_then(|value|value.pointer("/result/problems")).and_then(Value::as_array).and_then(|rows|rows.iter().find(|row|row.get("index").and_then(Value::as_str)==Some(index)));
+            if let Some(row)=row {
+                problem.name=row.get("name").and_then(Value::as_str).map(str::to_string).ok_or("CF 接口没有返回题目标题")?;
+                problem.tags=row.get("tags").and_then(Value::as_array).map(|rows|rows.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+                problem.difficulty=row.get("rating").and_then(Value::as_i64).map(|v|v.to_string());
+            } else {
+                let html=state.client.get(&problem.url).send().await.map_err(|e|format!("CF 接口不可用，题目页也无法访问：{e}"))?.error_for_status().map_err(|e|format!("CF 接口不可用，题目页返回：{e}"))?.text().await.map_err(|e|e.to_string())?;
+                let doc=scraper::Html::parse_document(&html);
+                let selector=scraper::Selector::parse(".problem-statement .title").map_err(|e|e.to_string())?;
+                problem.name=doc.select(&selector).next().map(|element|element.text().collect::<String>().trim().to_string()).filter(|name|!name.is_empty()).ok_or("CF 接口与题目页都没有返回标题，请稍后重试")?;
+            }
         }
         "qoj"=>{
             let html=state.client.get(&problem.url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.text().await.map_err(|e|e.to_string())?;
             let doc=scraper::Html::parse_document(&html);
             let heading=scraper::Selector::parse("h1, h2, title").map_err(|e|e.to_string())?;
             let name=doc.select(&heading).map(|element|element.text().collect::<String>().trim().to_string()).find(|value|!value.is_empty() && !value.eq_ignore_ascii_case("QOJ"));
-            if let Some(name)=name {problem.name=name;}
+            problem.name=name.ok_or("QOJ 题目页没有返回标题，请稍后重试")?;
             let tags=scraper::Selector::parse("a[href*='/tag/'], .problem-tag, .tags a").map_err(|e|e.to_string())?;
             problem.tags=doc.select(&tags).map(|element|element.text().collect::<String>().trim().to_string()).filter(|value|!value.is_empty()).collect();
         }
@@ -328,9 +362,14 @@ pub(crate) async fn lookup_problem_metadata(state: State<'_, AppState>, mut prob
             let html=state.client.get(&problem.url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.text().await.map_err(|e|e.to_string())?;
             let doc=scraper::Html::parse_document(&html);
             let selector=scraper::Selector::parse("span.h2, title").map_err(|e|e.to_string())?;
-            if let Some(name)=doc.select(&selector).map(|element|element.text().collect::<String>().trim().to_string()).find(|value|!value.is_empty()){problem.name=name;}
+            problem.name=doc.select(&selector).map(|element|element.text().collect::<String>().trim().to_string()).find(|value|!value.is_empty()).ok_or("AtCoder 题目页没有返回标题，请稍后重试")?;
         }
-        _=>{}
+        _=>{
+            let html=state.client.get(&problem.url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.text().await.map_err(|e|e.to_string())?;
+            let doc=scraper::Html::parse_document(&html);
+            let selector=scraper::Selector::parse("h1, title").map_err(|e|e.to_string())?;
+            problem.name=doc.select(&selector).map(|element|element.text().collect::<String>().trim().to_string()).find(|value|!value.is_empty()).ok_or("题目页没有返回标题，请稍后重试")?;
+        }
     }
     Ok(problem)
 }

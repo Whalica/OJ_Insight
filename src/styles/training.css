@@ -69,5 +69,20 @@
 .review-tabs { display: flex; gap: 7px; margin-bottom: 14px; }.review-tabs button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-soft); color: var(--muted); padding: 8px 12px; cursor: pointer; }.review-tabs button.active { border-color: var(--accent); color: var(--accent); }.vp-review-list { display: grid; gap: 12px; }.vp-review-card>header { display: flex; justify-content: space-between; gap: 14px; }.vp-review-card details { margin-top: 12px; }.vp-review-card summary { cursor: pointer; color: var(--accent); }.vp-review-body { display: grid; gap: 10px; padding-top: 13px; }.vp-review-body>section { border-top: 1px solid var(--line); padding-top: 12px; }.vp-review-body h4 { display: flex; align-items: center; gap: 7px; }.vp-review-submissions { display: grid; gap: 4px; margin-bottom: 8px; font-size: var(--font-small); }.vp-review-submissions a { color: var(--accent); }.vp-review-submissions small { color: var(--muted); }.vp-review-card footer { margin-top: 14px; }
 @media (max-width: 760px) { .contest-form { grid-template-columns: 1fr; }.contest-create-from-set { flex-wrap: wrap; }.contest-create-from-set select { width: 100%; margin-left: 0; }.vp-problem-trigger { grid-template-columns: 15px 25px 20px minmax(0,1fr) auto; }.vp-problem-trigger small { display: none; } }
 .vp-markdown code { border-radius: 4px; padding: 1px 4px; background: var(--input); }.vp-markdown a { color: var(--accent); text-decoration: underline; }.vp-attached-code { display: block; margin: 7px 0; color: var(--muted); }
+.vp-note-head { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; color: var(--muted); font-size: var(--font-small); background: var(--panel-soft); }
+.markdown-split { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.markdown-split>div { min-width: 0; }
+.markdown-split>div+div { border-left: 1px solid var(--line); }
+.markdown-split>div>strong { display: block; padding: 7px 10px; font-size: var(--font-small); color: var(--muted); background: var(--panel-soft); }
+.markdown-split textarea { width: 100%; min-height: 170px; height: 100%; display: block; resize: vertical; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; padding: 11px; background: var(--input); color: var(--text); }
+.markdown-split .vp-markdown { min-height: 170px; overflow: auto; }
+.math-display { display: block; overflow-x: auto; }
+.set-description-editor { display: grid; gap: 6px; color: var(--muted); font-size: var(--font-small); }
+.set-description-editor .markdown-split { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.set-description-editor .markdown-split textarea { min-height: 150px; }
+.set-description-preview .vp-markdown { padding: 0; min-height: 0; }
+.vp-countdown-control { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--font-small); }
+.vp-countdown-control input { width: 64px; padding: 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--input); color: var(--text); }
+@media (max-width: 760px) { .markdown-split { grid-template-columns: 1fr; }.markdown-split>div+div { border-left: 0; border-top: 1px solid var(--line); } }
 .contest-session-history { margin: 0 0 14px; border-top: 1px solid var(--line-soft); padding-top: 10px; }.contest-session-history summary { color: var(--accent); font-size: var(--font-small); cursor: pointer; }.contest-session-history>div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 2px; color: var(--muted); font-size: var(--font-meta); }.contest-session-history strong { color: var(--text); }
 .contest-edit-problems select { max-width: 110px; border: 1px solid var(--line); border-radius: 7px; background: var(--input); color: var(--text); padding: 8px; }

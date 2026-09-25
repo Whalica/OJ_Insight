@@ -191,7 +191,8 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 .rating-current strong, .rating-maximum strong { overflow-wrap: normal; word-break: keep-all; white-space: nowrap; }
 
 .account-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
-.account-card-actions>button { border: 1px solid #2f3a44; background: #12181e; color: #9aa5ae; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; font-size: var(--font-meta); cursor: pointer; }
+.account-card-actions>button { border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; font-size: var(--font-meta); cursor: pointer; }
+.account-card-actions>button:hover { border-color: var(--accent); color: var(--accent); }
 .account-entry.account-entry-cf { grid-template-columns: 24px minmax(170px,.9fr) repeat(3,minmax(155px,1fr)) 30px; }
 
 .review-builder { align-items: stretch; }
