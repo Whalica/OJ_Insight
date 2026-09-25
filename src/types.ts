@@ -233,3 +233,67 @@ export interface DifficultyDetail {
   items: SubmissionItem[];
   note: string | null;
 }
+
+export type TrainingMode = 'relaxed' | 'balanced' | 'pressure';
+export type TrainingRole = 'Warmup' | 'Stable' | 'Core' | 'Weakness' | 'Observation' | 'Stretch';
+export type TagVisibility = 'never' | 'before_solving' | 'after_ac';
+
+export interface CanonicalProblem {
+  canonicalId: string;
+  platform: Platform;
+  problemKey: string;
+  problemId: string;
+  name: string;
+  url: string;
+  difficulty: string | null;
+  tags: string[];
+  trainingSuitability: number | null;
+  observationDependency: number | null;
+  implementationLoad: number | null;
+  knowledgeDependency: number | null;
+  interactive: boolean;
+  outputOnly: boolean;
+}
+
+export interface ProblemSetProblem {
+  position: number;
+  problem: CanonicalProblem;
+  role: TrainingRole;
+  note: string;
+}
+
+export interface ProblemSet {
+  id: number;
+  title: string;
+  description: string;
+  setType: 'static';
+  tagVisibility: TagVisibility;
+  sourceSetId: number | null;
+  sourceUrl: string | null;
+  createdAt: number;
+  updatedAt: number;
+  problems: ProblemSetProblem[];
+}
+
+export type ProblemSetInput = Omit<ProblemSet, 'id' | 'createdAt' | 'updatedAt'> & { id: number | null };
+
+export interface TrainingMatchProblem extends ProblemSetProblem {
+  solved: boolean;
+  solvedAt: number | null;
+}
+
+export interface TrainingMatch {
+  id: number;
+  problemSetId: number | null;
+  title: string;
+  mode: TrainingMode;
+  status: 'running' | 'finished';
+  tagVisibility: TagVisibility;
+  targetSolveRateMin: number;
+  targetSolveRateMax: number;
+  durationMinutes: number;
+  startedAt: number;
+  endedAt: number | null;
+  createdAt: number;
+  problems: TrainingMatchProblem[];
+}

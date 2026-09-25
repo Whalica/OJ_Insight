@@ -7,5 +7,6 @@ pub(crate) mod relationships;
 pub(crate) mod storage;
 pub(crate) mod sync;
 pub(crate) mod tracker;
+pub(crate) mod training;
 pub(crate) mod update;
 pub(crate) mod xcpc;

@@ -21,6 +21,7 @@ pub fn open(path: &Path) -> Result<Connection, String> {
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     initialize_schema(&tx)?;
     run_migrations(&tx, had_multi_accounts)?;
+    super::training::initialize_training_schema(&tx)?;
     tx.commit().map_err(|e| e.to_string())?;
     for p in PLATFORMS {
         conn.execute("INSERT OR IGNORE INTO sync_state(platform) VALUES(?)", [p])
