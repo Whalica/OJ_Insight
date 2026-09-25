@@ -10,6 +10,9 @@ pub(crate) async fn sync(
     state: &AppState,
     only_person: Option<i64>,
 ) -> Result<WatchedSyncResult, String> {
+    let today_start=chrono::Local::now().date_naive().and_hms_opt(0,0,0)
+        .and_then(|day|day.and_local_timezone(chrono::Local).earliest())
+        .map(|day|day.timestamp()).unwrap_or_else(||chrono::Utc::now().timestamp()-86_400);
     let _operation = state.operations.enter()?;
     let people = {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
@@ -50,8 +53,8 @@ pub(crate) async fn sync(
         match super::fetch_platform(
             &state.client,
             &account,
-            first_sync,
-            cursor,
+            false,
+            today_start,
             &state.data_dir.join("public-cache"),
         )
         .await
@@ -65,7 +68,7 @@ pub(crate) async fn sync(
                 }
                 let applied = {
                     let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
-                    db::apply_watched_remote(&mut conn, person.id, &remote)
+                    db::apply_watched_today(&mut conn, person.id, &remote)
                 };
                 let new_events = match applied {
                     Ok(value) => value,
@@ -83,7 +86,7 @@ pub(crate) async fn sync(
                     }
                 };
                 let mut message = if first_sync {
-                    "已建立历史基线，旧 AC 不会弹窗".to_string()
+                    format!("已获取今天的 AC，共 {} 条新记录",new_events.len())
                 } else if new_events.is_empty() {
                     "检查完成，没有新的 AC".to_string()
                 } else {

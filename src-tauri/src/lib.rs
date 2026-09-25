@@ -35,9 +35,9 @@ use commands::training::{
     generate_training_candidates, import_match_manifest, import_problem_set, list_problem_sets,
       list_training_matches, refresh_training_match, save_problem_set, start_training_match,
       list_contests, save_contest, delete_contest, contest_from_set, import_generated_contest,
-      queue_contest, start_vp, pause_vp, resume_vp, save_vp_note,
+      queue_contest, start_vp, schedule_vp, pause_vp, resume_vp, save_vp_note,
       list_vp_submissions, refresh_vp_submissions,
-      bind_vp_code, export_vp_review_pack,
+      bind_vp_code, delete_vp_code, export_vp_review_pack,
       list_vp_code_files,
       lookup_problem_metadata,
 };
@@ -118,9 +118,9 @@ pub fn run() {
             export_training_pack,
              import_match_manifest
              ,list_contests,save_contest,delete_contest,contest_from_set,import_generated_contest,
-             queue_contest,start_vp,pause_vp,resume_vp,save_vp_note,
+             queue_contest,start_vp,schedule_vp,pause_vp,resume_vp,save_vp_note,
              list_vp_submissions,refresh_vp_submissions
-             ,bind_vp_code,export_vp_review_pack
+             ,bind_vp_code,delete_vp_code,export_vp_review_pack
              ,list_vp_code_files
              ,lookup_problem_metadata
         ])

@@ -308,6 +308,13 @@ pub fn start_vp(conn:&Connection,id:i64)->Result<TrainingMatch,String>{
     get_training_match(conn,id)
 }
 
+pub fn schedule_vp(conn:&Connection,id:i64,countdown_seconds:i64)->Result<TrainingMatch,String>{
+    if !(1..=7200).contains(&countdown_seconds) {return Err("倒计时须在 1 秒到 120 分钟之间".into());}
+    let start_at=chrono::Utc::now().timestamp()+countdown_seconds;
+    if conn.execute("UPDATE training_matches SET scheduled_start_at=? WHERE id=? AND status='waiting'",params![start_at,id]).map_err(|e|e.to_string())? == 0 {return Err("只有待开始的 VP 可以设置倒计时".into());}
+    get_training_match(conn,id)
+}
+
 pub fn pause_vp(conn:&Connection,id:i64)->Result<TrainingMatch,String>{
     if conn.execute("UPDATE training_matches SET status='paused',paused_at=? WHERE id=? AND status='running'",params![chrono::Utc::now().timestamp(),id]).map_err(|e|e.to_string())? == 0 {return Err("只有进行中的 VP 可以暂停".into());}
     get_training_match(conn,id)
@@ -338,11 +345,19 @@ pub fn list_vp_submissions(conn:&Connection,id:i64)->Result<Vec<VpSubmission>,St
     Ok(submissions)
 }
 
-pub fn bind_vp_code(conn:&Connection,id:i64,position:i64,name:&str,content:&[u8])->Result<(),String>{
+pub fn bind_vp_code(conn:&mut Connection,id:i64,position:i64,name:&str,content:&[u8])->Result<(),String>{
     let item=get_training_match(conn,id)?;
     if item.status!="finished" {return Err("比赛结束后才能绑定本地代码".into());}
     if !item.problems.iter().any(|p|p.position==position){return Err("题目不存在".into());}
-    conn.execute("INSERT INTO vp_code_files(match_id,position,name,content) VALUES(?,?,?,?)",params![id,position,name,content]).map_err(|e|e.to_string())?;
+    let tx=conn.transaction().map_err(|e|e.to_string())?;
+    tx.execute("DELETE FROM vp_code_files WHERE match_id=? AND position=?",params![id,position]).map_err(|e|e.to_string())?;
+    tx.execute("INSERT INTO vp_code_files(match_id,position,name,content) VALUES(?,?,?,?)",params![id,position,name,content]).map_err(|e|e.to_string())?;
+    tx.commit().map_err(|e|e.to_string())?;
+    Ok(())
+}
+
+pub fn delete_vp_code(conn:&Connection,id:i64,position:i64)->Result<(),String>{
+    if conn.execute("DELETE FROM vp_code_files WHERE match_id=? AND position=?",params![id,position]).map_err(|e|e.to_string())? == 0 {return Err("此题没有已绑定的代码".into());}
     Ok(())
 }
 

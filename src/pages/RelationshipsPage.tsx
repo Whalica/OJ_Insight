@@ -200,7 +200,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
       </div>
     </header>
 
-    <section className="settings-intro relationship-intro"><strong><BellRing size={15} />提醒规则</strong><span>首次检查建立基线；之后仅提醒新 AC，自动检查每 10 分钟运行一次。</span></section>
+    <section className="settings-intro relationship-intro"><strong><BellRing size={15} />提醒规则</strong><span>每次检查获取今天 00:00 起的可用 AC，按提交 ID 去重；自动检查每 10 分钟运行一次。</span></section>
 
     <div className="relationships-layout">
       <section className="panel relationship-people-card">
@@ -284,7 +284,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
     </div>}
 
     <section className="panel relationship-events-card">
-      <div className="panel-head"><div><small>AC ACTIVITY</small><h2>最近 AC 提醒</h2></div><span className="relationship-event-count">{events.length} 条</span></div>
+      <div className="panel-head"><div><small>TODAY AC</small><h2>今日 AC</h2></div><span className="relationship-event-count">{events.length} 条</span></div>
       <div className="relationship-event-list">
         {events.map((event) => <article className={`relationship-event-row ${event.dismissed ? 'dismissed' : ''}`} key={event.id}>
           {groupByPersonId.has(event.personId)
@@ -295,7 +295,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
             ? <div className="source-actions relationship-event-actions"><button disabled={!event.problemUrl} title={event.problemUrl ? '打开对应题目' : '没有题目链接'} onClick={() => event.problemUrl && void api.openExternal(event.problemUrl).catch((error) => notify(`打开题目失败：${String(error)}`))}><ExternalLink size={14} />题目跳转</button></div>
             : <button className="icon-btn" aria-label="关闭提醒" onClick={() => void onDismiss(event.id)}><X size={14} /></button>}
         </article>)}
-        {!events.length && <div className="empty relationship-empty"><BellRing size={20} /><span>暂时没有新的 AC 记录。</span></div>}
+        {!events.length && <div className="empty relationship-empty"><BellRing size={20} /><span>今天暂无可获取的 AC 记录。</span></div>}
       </div>
     </section>
   </>;

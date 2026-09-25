@@ -61,7 +61,7 @@ pub fn get_watched_events(conn: &Connection, retention: u32) -> Result<Vec<Watch
     ).map_err(|e| e.to_string())?;
     read_watched_events(
         conn,
-        "SELECT id,person_id,platform,account,nickname,relationship,submission_id,problem_id,problem_name,problem_url,epoch_second,language,difficulty,created_at,dismissed FROM watched_events ORDER BY created_at DESC,id DESC LIMIT ?",
+        "SELECT id,person_id,platform,account,nickname,relationship,submission_id,problem_id,problem_name,problem_url,epoch_second,language,difficulty,created_at,dismissed FROM watched_events WHERE epoch_second>=CAST(strftime('%s','now','localtime','start of day','utc') AS INTEGER) ORDER BY epoch_second DESC,id DESC LIMIT ?",
         limit,
     )
 }
@@ -69,7 +69,7 @@ pub fn get_watched_events(conn: &Connection, retention: u32) -> Result<Vec<Watch
 pub fn get_pending_watched_notifications(conn: &Connection) -> Result<Vec<WatchedAcEvent>, String> {
     read_watched_events(
         conn,
-        "SELECT e.id,e.person_id,e.platform,e.account,e.nickname,e.relationship,e.submission_id,e.problem_id,e.problem_name,e.problem_url,e.epoch_second,e.language,e.difficulty,e.created_at,e.dismissed FROM watched_events e JOIN watched_notifications n ON n.event_id=e.id ORDER BY n.created_at DESC,e.id DESC LIMIT ?",
+        "SELECT e.id,e.person_id,e.platform,e.account,e.nickname,e.relationship,e.submission_id,e.problem_id,e.problem_name,e.problem_url,e.epoch_second,e.language,e.difficulty,e.created_at,e.dismissed FROM watched_events e JOIN watched_notifications n ON n.event_id=e.id WHERE e.epoch_second>=CAST(strftime('%s','now','localtime','start of day','utc') AS INTEGER) ORDER BY e.epoch_second DESC,e.id DESC LIMIT ?",
         100,
     )
 }
@@ -291,6 +291,14 @@ pub fn apply_watched_remote(
     person_id: i64,
     remote: &RemoteData,
 ) -> Result<Vec<WatchedAcEvent>, String> {
+    apply_watched_remote_inner(conn,person_id,remote,false)
+}
+
+pub fn apply_watched_today(conn:&mut Connection,person_id:i64,remote:&RemoteData)->Result<Vec<WatchedAcEvent>,String>{
+    apply_watched_remote_inner(conn,person_id,remote,true)
+}
+
+fn apply_watched_remote_inner(conn:&mut Connection,person_id:i64,remote:&RemoteData,today_only:bool)->Result<Vec<WatchedAcEvent>,String>{
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     let (platform, account, nickname, relationship, initialized): (String, String, String, String, i64) = tx
         .query_row(
@@ -307,6 +315,9 @@ pub fn apply_watched_remote(
 
     let baseline = initialized == 0;
     let now = Utc::now().timestamp();
+    let today_start = chrono::Local::now().date_naive().and_hms_opt(0,0,0)
+        .and_then(|day|day.and_local_timezone(chrono::Local).earliest())
+        .map(|day|day.timestamp()).unwrap_or(now-86_400);
     let mut events = Vec::new();
     for submission in &remote.submissions {
         let exists: bool = tx
@@ -321,7 +332,7 @@ pub fn apply_watched_remote(
             params![person_id, platform, account, submission.source, submission.source_day, submission.submission_id, submission.problem_key, submission.problem_id, submission.problem_name, submission.problem_url, submission.epoch_second, submission.language, submission.difficulty],
         )
         .map_err(|e| e.to_string())?;
-        if baseline || exists {
+        if (today_only && submission.epoch_second < today_start) || (!today_only && (baseline || exists)) {
             continue;
         }
         let inserted = tx.execute(
