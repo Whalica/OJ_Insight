@@ -169,6 +169,7 @@ pub fn snapshot(
     let mut metric_available = false;
     let mut platforms = Vec::new();
     let mut recent = Vec::new();
+    let mut today_problems = Vec::new();
     let mut difficulty = Vec::new();
     let mut nowcoder_daily_difficulty = Vec::new();
     let mut difficulty_daily = Vec::new();
@@ -260,10 +261,11 @@ pub fn snapshot(
         ac_sub_range += acs.iter().map(|x| x.1).sum::<i64>();
         let active_days = daily.iter().filter(|x| x.1 > 0).count() as i64;
         let today_key = day_in_time_zone(Utc::now().timestamp(), time_zone);
+        let today_metric = if activity_only { "activity" } else { "daily_unique" };
         let today_count = load_daily(
             conn,
             p,
-            "activity",
+            today_metric,
             Some(&today_key),
             Some(&today_key),
             platform_account_filter,
@@ -329,6 +331,18 @@ pub fn snapshot(
             platform_source_filter,
             time_zone,
         )?);
+        if !activity_only {
+            today_problems.extend(load_recent(
+                conn,
+                p,
+                Some(&today_key),
+                Some(&today_key),
+                10_000,
+                platform_account_filter,
+                platform_source_filter,
+                time_zone,
+            )?);
+        }
         let difficulty_source_filter = if p == "nowcoder" && platform_source_filter.is_none() {
             Some("oj")
         } else {
@@ -366,6 +380,9 @@ pub fn snapshot(
     }
     recent.sort_by_key(|x| std::cmp::Reverse(x.epoch_second));
     recent.truncate(20);
+    today_problems.sort_by_key(|x| std::cmp::Reverse(x.epoch_second));
+    let mut seen_today = HashSet::new();
+    today_problems.retain(|item| seen_today.insert(format!("{}\0{}", item.platform, item.problem_key)));
     let daily_vec: Vec<DailyPoint> = combined
         .iter()
         .map(|(d, c)| DailyPoint {
@@ -386,6 +403,7 @@ pub fn snapshot(
         knowledge,
         ratings,
         recent,
+        today_problems,
         metric_available,
         warnings,
     })

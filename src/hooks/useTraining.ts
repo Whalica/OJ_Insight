@@ -26,6 +26,7 @@ export function useTraining(notify: (message: string) => void) {
   const importMatch = async (data: string) => { const result = await api.importMatchManifest(data); await reload(); return result; };
   const refreshMatch = async (id: number) => { const result = await api.refreshTrainingMatch(id); await reload(); return result; };
   const finishMatch = async (id: number) => { const result = await api.finishTrainingMatch(id); await reload(); return result; };
+  const deleteMatch = async (id: number) => { await api.deleteTrainingMatch(id); await reload(); };
 
-  return { sets, matches, loading, reload, saveSet, deleteSet, importSet, startMatch, importMatch, refreshMatch, finishMatch };
+  return { sets, matches, loading, reload, saveSet, deleteSet, importSet, startMatch, importMatch, refreshMatch, finishMatch, deleteMatch };
 }

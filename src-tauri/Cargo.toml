@@ -29,6 +29,7 @@ regex = "1"
 scraper = "0.22"
 urlencoding = "2"
 html-escape = "0.2"
+zip = { version = "4", default-features = false }
 
 [features]
 default = ["custom-protocol"]

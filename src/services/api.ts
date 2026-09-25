@@ -17,6 +17,7 @@ import type {
   WatchedPerson,
   WatchedSyncResult,
   CanonicalProblem,
+  CandidatePool,
   ProblemSet,
   ProblemSetInput,
   TrainingMatch,
@@ -101,6 +102,7 @@ export const api = {
     source: string | null = null,
   ) => invoke<DifficultyDetail>('get_difficulty_detail', { platform, label, account, source }),
   checkForUpdates: () => invoke<UpdateInfo>('check_for_updates'),
+  canInstallUpdates: () => invoke<boolean>('can_install_updates'),
   openExternal: (url: string) => invoke<void>('open_external', { url }),
   writeExportFile: (path: string, data: number[]) =>
     invoke<void>('write_export_file', { path, data }),
@@ -114,6 +116,9 @@ export const api = {
   listTrainingMatches: () => invoke<TrainingMatch[]>('list_training_matches'),
   refreshTrainingMatch: (id: number) => invoke<TrainingMatch>('refresh_training_match', { id }),
   finishTrainingMatch: (id: number) => invoke<TrainingMatch>('finish_training_match', { id }),
+  deleteTrainingMatch: (id: number) => invoke<void>('delete_training_match', { id }),
+  generateTrainingCandidates: (platforms: Platform[], mode: TrainingMode, candidateCount: number) => invoke<CandidatePool>('generate_training_candidates', { platforms, mode, candidateCount }),
+  exportAiTrainingPack: (candidates: CanonicalProblem[], mode: TrainingMode) => invoke<number[]>('export_ai_training_pack', { candidates, mode }),
   exportTrainingPack: (problemSetId: number, mode: TrainingMode) => invoke<string>('export_training_pack', { problemSetId, mode }),
   importMatchManifest: (data: string) => invoke<TrainingMatch>('import_match_manifest', { data }),
 };

@@ -2,6 +2,18 @@ use tauri::State;
 
 use crate::app::state::AppState;
 
+#[tauri::command]
+pub(crate) fn can_install_updates() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var_os("APPIMAGE").is_some()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateInfo {

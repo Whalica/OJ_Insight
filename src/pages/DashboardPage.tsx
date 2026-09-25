@@ -106,14 +106,27 @@ export default function DashboardPage(props: Props) {
 
 function TodayProgress({ snapshot, timeZone, solvedGains, onSelect, onSync, syncing }: { snapshot: Snapshot; timeZone: string; solvedGains: SolvedGain[]; onSelect: (platform: Platform) => void; onSync: () => void; syncing: boolean }) {
   const rows = snapshot.platforms;
-  const by = new Map(rows.map((row) => [row.platform, row])); const total = rows.reduce((sum, row) => sum + row.today_count, 0);
+  const by = new Map(rows.map((row) => [row.platform, row]));
+  const currentDay = today(timeZone);
+  const todayProblemMap = new Map<string, Snapshot['recent'][number]>();
+  for (const item of snapshot.today_problems || snapshot.recent) {
+    if (item.source_day !== currentDay && dayAtEpoch(item.epoch_second, timeZone) !== currentDay) continue;
+    const key = `${item.platform}:${item.problem_key}`;
+    if (!todayProblemMap.has(key)) todayProblemMap.set(key, item);
+  }
+  const todayProblems = [...todayProblemMap.values()];
+  const uniqueByPlatform = new Map<Platform, number>();
+  for (const item of todayProblems) uniqueByPlatform.set(item.platform, (uniqueByPlatform.get(item.platform) || 0) + 1);
+  const displayTodayCount = (platform: Platform) => {
+    const row = by.get(platform);
+    return row?.today_count ?? uniqueByPlatform.get(platform) ?? 0;
+  };
+  const total = PLATFORM_ORDER.reduce((sum, platform) => sum + displayTodayCount(platform), 0);
   const solvedTotal = rows.reduce((sum, row) => sum + (row.solved || 0), 0);
   const milestone = solvedTotal < 10 ? 10 : Math.ceil((solvedTotal + 1) / 25) * 25;
   const encouragement = total > 0
-    ? `今天新增的 ${total} 条记录已经留下来了。累积不是突然发生的，就是这样一小步一小步。`
+    ? `今天新增的 ${total} 项进度已经留下来了。逐题平台的重复 AC 只会计作同一道题。`
     : solvedTotal > 0 ? `各平台已经累计 ${solvedTotal.toLocaleString()} 题，距离下一个小里程碑还有 ${milestone - solvedTotal} 题。今天休息也不会抹掉这些积累。` : '第一题不需要很难，也不必很快。只要开始，它就会成为以后回头能看见的一小步。';
-  const currentDay = today(timeZone);
-  const todayProblems = snapshot.recent.filter((item) => item.source_day === currentDay || dayAtEpoch(item.epoch_second, timeZone) === currentDay);
   const todayRatings = snapshot.ratings.flatMap((summary) => summary.history
     .filter((point) => dayAtEpoch(point.epoch_second, timeZone) === currentDay)
     .map((point) => ({ ...point, platform: summary.platform, account: summary.display_name || summary.account })));
@@ -158,7 +171,7 @@ function TodayProgress({ snapshot, timeZone, solvedGains, onSelect, onSync, sync
       </div>
       <div className="today-encouragement"><Sparkles size={15} /><span>{encouragement}</span></div>
     </div>
-    <div className="today-oj-grid">{PLATFORM_ORDER.map((platform) => { const row = by.get(platform); const gain = solvedGains.find((item) => item.platform === platform); return <button key={platform} onClick={() => onSelect(platform)}><span className="platform-monogram" style={{ color: PLATFORM_META[platform].accent }}>{PLATFORM_META[platform].short}</span><strong className="today-progress-count">{row?.today_count || 0}{gain && <GainBubble gain={gain} />}</strong><small>{PLATFORM_META[platform].name}</small></button>; })}</div>
+    <div className="today-oj-grid">{PLATFORM_ORDER.map((platform) => { const gain = solvedGains.find((item) => item.platform === platform); return <button key={platform} onClick={() => onSelect(platform)}><span className="platform-monogram" style={{ color: PLATFORM_META[platform].accent }}>{PLATFORM_META[platform].short}</span><strong className="today-progress-count">{displayTodayCount(platform)}{gain && <GainBubble gain={gain} />}</strong><small>{PLATFORM_META[platform].name}</small></button>; })}</div>
     <div className="today-detail">
       <header><div><small>TODAY'S ACTIVITY</small><strong>今日题目与比赛</strong></div><button onClick={onSync} disabled={syncing}><RefreshCw size={14} className={syncing ? 'spin' : ''} />{syncing ? '刷新中' : '比赛结束后刷新'}</button></header>
       <div className="today-detail-grid">

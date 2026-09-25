@@ -191,6 +191,12 @@ pub fn finish_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch
     get_training_match(conn, id)
 }
 
+pub fn delete_training_match(conn: &Connection, id: i64) -> Result<(), String> {
+    let changed = conn.execute("DELETE FROM training_matches WHERE id=?", [id]).map_err(|e| e.to_string())?;
+    if changed == 0 { return Err("训练记录不存在".into()); }
+    Ok(())
+}
+
 pub fn list_training_matches(conn: &Connection) -> Result<Vec<TrainingMatch>, String> {
     let mut stmt = conn.prepare("SELECT id FROM training_matches ORDER BY started_at DESC,id DESC").map_err(|e| e.to_string())?;
     let ids = stmt.query_map([], |row| row.get::<_,i64>(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e| e.to_string())?;

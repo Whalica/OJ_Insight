@@ -197,6 +197,7 @@ export interface Snapshot {
   knowledge: KnowledgeBucket[];
   ratings: RatingSummary[];
   recent: SubmissionItem[];
+  today_problems?: SubmissionItem[];
   metric_available: boolean;
   warnings: string[];
 }
@@ -296,4 +297,20 @@ export interface TrainingMatch {
   endedAt: number | null;
   createdAt: number;
   problems: TrainingMatchProblem[];
+}
+
+export interface CandidateSourceStatus {
+  platform: Platform;
+  available: boolean;
+  problemCount: number;
+  message: string;
+}
+
+export interface CandidatePool {
+  generatedAt: number;
+  mode: TrainingMode;
+  requestedCount: number;
+  excludedSolved: number;
+  candidates: CanonicalProblem[];
+  sources: CandidateSourceStatus[];
 }

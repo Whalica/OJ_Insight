@@ -11,7 +11,7 @@ pub(crate) fn normalize_problem(mut problem: CanonicalProblem) -> Result<Canonic
     if !PLATFORMS.contains(&problem.platform.as_str()) {
         return Err(format!("不支持的平台：{}", problem.platform));
     }
-    if problem.problem_key.is_empty() { return Err("题目的 problemKey 不能为空".into()); }
+    if problem.problem_key.is_empty() { return Err("题目标识不能为空；粘贴受支持平台的题目链接可以自动识别".into()); }
     problem.canonical_id = format!("{}:{}", problem.platform, problem.problem_key);
     problem.problem_id = problem.problem_id.trim().to_string();
     problem.name = problem.name.trim().to_string();
@@ -64,8 +64,8 @@ pub(crate) fn problem_set_manifest(set: &ProblemSet) -> Result<String, String> {
 
 pub(crate) fn import_problem_set(data: &str) -> Result<ProblemSetInput, String> {
     let value: serde_json::Value = serde_json::from_str(data).map_err(|e| format!("题单 JSON 无效：{e}"))?;
-    if value.get("schema").and_then(|v| v.as_str()) != Some("com.ojinsight.problem-set") { return Err("不是 OJ Insight Problem Set Manifest".into()); }
-    if value.get("schemaVersion").and_then(|v| v.as_i64()) != Some(1) { return Err("不支持的 Problem Set Manifest 版本".into()); }
+    if value.get("schema").and_then(|v| v.as_str()) != Some("com.ojinsight.problem-set") { return Err("这不是 OJ Insight 题单 JSON".into()); }
+    if value.get("schemaVersion").and_then(|v| v.as_i64()) != Some(1) { return Err("不支持的题单 JSON 版本".into()); }
     let input = ProblemSetInput {
         id: None,
         title: value.get("title").and_then(|v| v.as_str()).unwrap_or_default().into(),
