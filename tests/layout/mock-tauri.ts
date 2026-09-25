@@ -32,6 +32,9 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
     let currentSnapshot = snapshot;
     const invoke = async (command: string, args: Record<string, unknown> = {}) => {
       switch (command) {
+        case 'list_problem_sets':
+        case 'list_training_matches':
+          return [];
         case 'get_accounts':
           return accounts;
         case 'get_sync_statuses':

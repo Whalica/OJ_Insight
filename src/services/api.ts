@@ -16,6 +16,11 @@ import type {
   WatchedBindingInput,
   WatchedPerson,
   WatchedSyncResult,
+  CanonicalProblem,
+  ProblemSet,
+  ProblemSetInput,
+  TrainingMatch,
+  TrainingMode,
 } from '../types';
 import type { XcpcContest } from '../lib/xcpc';
 
@@ -99,4 +104,16 @@ export const api = {
   openExternal: (url: string) => invoke<void>('open_external', { url }),
   writeExportFile: (path: string, data: number[]) =>
     invoke<void>('write_export_file', { path, data }),
+  listProblemSets: () => invoke<ProblemSet[]>('list_problem_sets'),
+  saveProblemSet: (input: ProblemSetInput) => invoke<ProblemSet>('save_problem_set', { input }),
+  deleteProblemSet: (id: number) => invoke<void>('delete_problem_set', { id }),
+  exportProblemSet: (id: number) => invoke<string>('export_problem_set', { id }),
+  importProblemSet: (data: string) => invoke<ProblemSet>('import_problem_set', { data }),
+  filterTrainingCandidates: (candidates: CanonicalProblem[]) => invoke<CanonicalProblem[]>('filter_training_candidates', { candidates }),
+  startTrainingMatch: (problemSetId: number, mode: TrainingMode, durationMinutes: number, targetMin: number, targetMax: number) => invoke<TrainingMatch>('start_training_match', { problemSetId, mode, durationMinutes, targetMin, targetMax }),
+  listTrainingMatches: () => invoke<TrainingMatch[]>('list_training_matches'),
+  refreshTrainingMatch: (id: number) => invoke<TrainingMatch>('refresh_training_match', { id }),
+  finishTrainingMatch: (id: number) => invoke<TrainingMatch>('finish_training_match', { id }),
+  exportTrainingPack: (problemSetId: number, mode: TrainingMode) => invoke<string>('export_training_pack', { problemSetId, mode }),
+  importMatchManifest: (data: string) => invoke<TrainingMatch>('import_match_manifest', { data }),
 };

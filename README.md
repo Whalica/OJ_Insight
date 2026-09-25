@@ -28,6 +28,12 @@ OJ Insight 是一个面向算法竞赛选手的跨平台训练数据面板。目
 
 ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段、赛站、系列、完成进度和题目颜色筛选，金、银、铜、铁可同时多选。题目完成状态来自本地 QOJ 记录，公开榜单可用时还会显示对应难度层级。
 
+### 用跨 OJ 题单组织虚拟训练赛
+
+「题单」可以手动组合多个 OJ 的题目，设置顺序、角色、备注、标签和标签可见性，并通过 JSON Manifest 导入或导出。「训练」将 Static Problem Set 启动为带计时的 Match，支持轻松、均衡和压力三种训练模式；目标完成比例是可调整的训练参数。用户仍在原 OJ 提交，OJ Insight 同步后会按 canonical problem identity 自动更新 Match AC 状态。
+
+Training Pack 以一个 JSON 包导出训练画像、当前状态、约束、候选题池和 Match Manifest schema，供大模型在可靠候选池内编排比赛。大模型返回的 Match Manifest 可以直接导入，不需要让模型凭记忆在互联网寻找题目。
+
 ### 把一场比赛直接交给大模型复盘
 
 「比赛复盘」可以按账号和 AtCoder 比赛 ID 收集题目、整场提交时间线、判题结果与可获取的历次代码，生成结构固定的 ZIP。把复盘包上传给大模型后无需解释；如果聊天界面要求输入文字，只需说“开始复盘”。当前仅展示已稳定接入的 AtCoder。
@@ -47,6 +53,9 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 - **ICPC / CCPC Tracker**：按比赛追踪补题进度，并结合公开榜单观察题目层级。
 - **图片导出**：按年份、统计口径和平台导出 PNG 或 SVG 活动图。
 - **比赛复盘包**：导出 `START-HERE`、比赛、题目和提交代码四份文档，供大模型直接复盘。
+- **跨 OJ 题单**：本地创建、排序、导入和导出 Static Problem Set。
+- **虚拟训练赛**：三种训练模式、可调目标完成比例、计时和同步后自动更新 AC。
+- **Training Pack**：将画像、约束和可靠候选池导出给大模型，再导入结构化 Match Manifest。
 
 ## 平台支持
 
@@ -77,6 +86,15 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 3. 检查比赛后选择是否包含赛后补题，再生成 ZIP。
 
 复盘包固定包含 `00-START-HERE.md`、`01-CONTEST.md`、`02-PROBLEMS.md` 和 `03-SUBMISSIONS.md`。Cookie、Session、本机用户名和本地路径不会写入包中；代码或题面无法读取时，包内会明确说明缺失项。
+
+### 创建训练赛
+
+1. 打开「题单」，创建跨 OJ Static Set，填写每题的平台、problem key、链接、角色和备注。
+2. 打开「训练」，选择题单和轻松、均衡或压力模式，按需要调整时长及目标完成比例。
+3. 开始 Match 后在原 OJ 提交；同步对应 OJ，Match 会自动识别新的 AC。
+4. 需要大模型编排时导出 Training Pack，再导入模型返回的 Match Manifest。
+
+训练开始和候选池导出会严格排除本地已经做过的题，并跳过 interactive、output-only 和明确标记为不适合日常训练的候选题。默认在 AC 后显示标签，减少知识点剧透。
 
 ### 下载哪个文件
 

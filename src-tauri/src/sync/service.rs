@@ -93,6 +93,10 @@ pub(crate) async fn sync_platform(
                         continue;
                     }
                 };
+                {
+                    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+                    let _ = db::refresh_running_training_matches(&conn);
+                }
                 for note in &remote.notes {
                     if let Some(warning) = note.strip_prefix("警告：") {
                         advisories.push(format!("{}：{}", account.account, warning));

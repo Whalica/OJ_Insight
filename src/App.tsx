@@ -12,9 +12,12 @@ import ContestReviewPage from './pages/ContestReviewPage';
 import SettingsPage from './pages/SettingsPage';
 import RelationshipsPage from './pages/RelationshipsPage';
 import XcpcTrackerPage from './pages/XcpcTrackerPage';
+import ProblemSetsPage from './pages/ProblemSetsPage';
+import TrainingPage from './pages/TrainingPage';
 import ExternalTrackerPage, { type ExternalTracker } from './pages/ExternalTrackerPage';
 import { api } from './services/api';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
+import type { Page } from './lib/navigation';
 import { PLATFORM_ORDER } from './lib/platforms';
 import { initialMetric, initialScope, recentHalfYearRange, scopeRange, type TimeScope } from './lib/ui';
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
@@ -25,15 +28,13 @@ import { useSync } from './hooks/useSync';
 import { useUpdater } from './hooks/useUpdater';
 import type { Metric, Platform } from './types';
 
-type Page = 'overview' | 'xcpc' | 'tracker-codeforces' | 'tracker-atcoder' | 'contest-review' | 'relationships' | 'export' | 'data' | 'settings' | 'about' | Platform;
-
 export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('oj-insight.sidebar-collapsed') === 'true');
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
-    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
+    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'training', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
     return saved.startupPage === 'last' && last && valid ? last : 'overview';
   });
   const embeddedTracker = page.startsWith('tracker-') ? page.slice('tracker-'.length) as ExternalTracker : null;
@@ -131,7 +132,9 @@ export default function App() {
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
     <main className={`main ${page.startsWith('tracker-') ? 'main-tracker' : ''}`}>
-      {page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
+      {page === 'training' ? <TrainingPage notify={notify} /> :
+       page === 'problem-sets' ? <ProblemSetsPage notify={notify} /> :
+       page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
        page === 'contest-review' ? <ContestReviewPage accounts={accounts} notify={notify} onOpenSettings={() => setPage('settings')} /> :
       page === 'relationships' ? <RelationshipsPage people={watchedPeople} events={watchedEvents.slice(0, preferences.watchedEventRetention)} timeZone={timeZone} syncing={watchedSyncing || !!syncing} autoCheck={autoWatch} onAutoCheck={setAutoWatch} onSync={() => syncWatched()} onSyncPerson={(personId) => syncWatched(personId)} onSave={saveWatched} onEdit={editWatched} onDelete={deleteWatched} onDismiss={dismissWatched} notify={notify} /> :
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :

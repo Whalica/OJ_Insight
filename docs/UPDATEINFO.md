@@ -1,5 +1,22 @@
 # 更新记录
 
+## 开发中
+
+### Training System
+
+- 新增跨 OJ Static Problem Set，可排序题目并设置角色、备注、标签和标签可见性。
+- 题单支持本地 JSON Manifest 导入与导出，Fork 后保留来源标识。
+- 新增轻松、均衡和压力三种训练模式；目标完成比例作为可调整、待验证的参数保存到每场 Match。
+- Match 提供计时、题目进度和结束状态；在原 OJ 提交并同步后，按 canonical problem identity 自动更新 AC。
+- 候选过滤严格排除本地已做题、interactive、output-only 和明确不适合日常训练的题目。
+- 新增 Training Pack，包含 `START-HERE.md`、`PROFILE.md`、`TRAINING-STATE.md`、`CONSTRAINTS.md`、`CANDIDATES.json` 和 Match Manifest schema。
+- 支持导入结构化 Match Manifest；导入时再次执行题目标识、重复项、角色、适配性和已做题校验。
+
+### 工程结构
+
+- 数据库、XCPC 和前端样式按职责拆分，应用级账号、快照、同步、关注和更新逻辑进入独立 hooks。
+- 更新架构文档并统一前端页面导航类型。
+
 ## 0.9.2
 
 ### 比赛复盘

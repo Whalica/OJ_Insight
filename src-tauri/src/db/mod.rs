@@ -19,6 +19,8 @@ include!("ratings.rs");
 
 mod training;
 
+pub use training::*;
+
 #[cfg(test)]
 mod tests {
     use super::*;
