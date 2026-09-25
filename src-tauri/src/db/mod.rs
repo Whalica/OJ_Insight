@@ -95,6 +95,15 @@ mod tests {
         let person_id = get_watched_people(&conn).unwrap()[0].id;
 
         let mut initial = remote("codeforces", "teammate");
+        // The event feed now shows only today's submissions, so keep this fixture in that window.
+        initial.submissions[0].epoch_second = conn
+            .query_row(
+                "SELECT CAST(strftime('%s','now','localtime','start of day','utc') AS INTEGER)",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+            + 60;
         initial.cursor_epoch = 200;
         assert!(apply_watched_remote(&mut conn, person_id, &initial)
             .unwrap()
@@ -127,6 +136,39 @@ mod tests {
         delete_watched_person(&mut conn, person_id).unwrap();
         assert!(get_watched_events(&conn, 20).unwrap().is_empty());
         assert!(get_watched_people(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn watched_people_first_check_reports_todays_ac_once() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        save_watched_person(&mut conn, "codeforces", "teammate", "小明", "队友", "").unwrap();
+        let person_id = get_watched_people(&conn).unwrap()[0].id;
+        let today_start: i64 = conn
+            .query_row(
+                "SELECT CAST(strftime('%s','now','localtime','start of day','utc') AS INTEGER)",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        let mut current = remote("codeforces", "teammate");
+        current.submissions[0].epoch_second = today_start - 60;
+        let mut today = current.submissions[0].clone();
+        today.submission_id = "today-ac".into();
+        today.problem_id = "B".into();
+        today.problem_key = "B".into();
+        today.problem_name = "Today's AC".into();
+        today.epoch_second = today_start + 60;
+        current.submissions.push(today);
+
+        let events = apply_watched_today(&mut conn, person_id, &current).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].submission_id, "today-ac");
+        assert_eq!(get_watched_events(&conn, 20).unwrap().len(), 1);
+        assert!(apply_watched_today(&mut conn, person_id, &current)
+            .unwrap()
+            .is_empty());
+        assert_eq!(get_pending_watched_notifications(&conn).unwrap().len(), 1);
     }
 
     #[test]
