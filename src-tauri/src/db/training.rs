@@ -334,7 +334,8 @@ pub fn save_vp_submissions(conn:&mut Connection,id:i64,items:&[VpSubmission])->R
 
 pub fn list_vp_submissions(conn:&Connection,id:i64)->Result<Vec<VpSubmission>,String>{
     let mut stmt=conn.prepare("SELECT platform,problem_key,submitted_at,verdict,source_url FROM vp_submissions WHERE match_id=? ORDER BY submitted_at").map_err(|e|e.to_string())?;
-    stmt.query_map([id],|row|Ok(VpSubmission{platform:row.get(0)?,problem_key:row.get(1)?,submitted_at:row.get(2)?,verdict:row.get(3)?,source_url:row.get(4)?})).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())
+    let submissions=stmt.query_map([id],|row|Ok(VpSubmission{platform:row.get(0)?,problem_key:row.get(1)?,submitted_at:row.get(2)?,verdict:row.get(3)?,source_url:row.get(4)?})).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    Ok(submissions)
 }
 
 pub fn bind_vp_code(conn:&Connection,id:i64,position:i64,name:&str,content:&[u8])->Result<(),String>{
@@ -347,10 +348,12 @@ pub fn bind_vp_code(conn:&Connection,id:i64,position:i64,name:&str,content:&[u8]
 
 pub fn list_vp_code(conn:&Connection,id:i64)->Result<Vec<(i64,String,Vec<u8>)>,String>{
     let mut stmt=conn.prepare("SELECT position,name,content FROM vp_code_files WHERE match_id=? ORDER BY position,id").map_err(|e|e.to_string())?;
-    stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())
+    let files=stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    Ok(files)
 }
 
 pub fn list_vp_code_names(conn:&Connection,id:i64)->Result<Vec<(i64,String)>,String>{
     let mut stmt=conn.prepare("SELECT position,name FROM vp_code_files WHERE match_id=? ORDER BY position,id").map_err(|e|e.to_string())?;
-    stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())
+    let files=stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    Ok(files)
 }

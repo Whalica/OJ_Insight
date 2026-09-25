@@ -275,7 +275,8 @@ test('contest review uses one compact workflow and reports the fixed package str
     },
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '比赛复盘', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '赛后分析', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '正式比赛复盘', exact: true }).click();
   await page.getByPlaceholder('例如 abc380 或比赛链接').fill('abc380');
   await page.getByRole('button', { name: '检查比赛', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'AtCoder Beginner Contest 380' })).toBeVisible();
