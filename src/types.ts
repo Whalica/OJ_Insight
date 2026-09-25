@@ -279,8 +279,9 @@ export interface ProblemSet {
 export type ProblemSetInput = Omit<ProblemSet, 'id' | 'createdAt' | 'updatedAt'> & { id: number | null };
 
 export interface TrainingMatchProblem extends ProblemSetProblem {
-  solved: boolean;
-  solvedAt: number | null;
+    solved: boolean;
+    solvedAt: number | null;
+    solutionNote: string;
 }
 
 export interface TrainingMatch {
@@ -288,16 +289,47 @@ export interface TrainingMatch {
   problemSetId: number | null;
   title: string;
   mode: TrainingMode;
-  status: 'running' | 'finished';
+    status: 'waiting' | 'running' | 'paused' | 'finished';
   tagVisibility: TagVisibility;
   targetSolveRateMin: number;
   targetSolveRateMax: number;
   durationMinutes: number;
   startedAt: number;
   endedAt: number | null;
-  createdAt: number;
-  problems: TrainingMatchProblem[];
-}
+    createdAt: number;
+    contestId: number | null;
+    scheduledStartAt: number | null;
+    pausedAt: number | null;
+    totalPausedSeconds: number;
+    generalNote: string;
+    problems: TrainingMatchProblem[];
+  }
+
+  export interface Contest {
+    id: number;
+    title: string;
+    description: string;
+    origin: string;
+    sourceSetId: number | null;
+    mode: TrainingMode;
+    durationMinutes: number;
+    tagVisibility: TagVisibility;
+    targetSolveRateMin: number;
+    targetSolveRateMax: number;
+    createdAt: number;
+    updatedAt: number;
+    problems: ProblemSetProblem[];
+  }
+
+  export type ContestInput = Omit<Contest, 'id' | 'createdAt' | 'updatedAt'> & { id: number | null };
+
+  export interface VpSubmission {
+    platform: Platform;
+    problemKey: string;
+    submittedAt: number;
+    verdict: string;
+    sourceUrl: string;
+  }
 
 export interface CandidateSourceStatus {
   platform: Platform;

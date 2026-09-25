@@ -53,7 +53,7 @@ CREATE INDEX idx_submissions_platform_problem ON submissions(platform,problem_ke
     Ok(())
 }
 
-fn ensure_column(
+pub(super) fn ensure_column(
     conn: &Connection,
     table: &str,
     column: &str,

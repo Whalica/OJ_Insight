@@ -1,4 +1,7 @@
 * { box-sizing: border-box; }
+:root { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; --input: #ffffff; }
+:root[data-theme="gray"] { color-scheme: dark; --input: #383a3c; }
 html, body, #root { margin: 0; min-width: 1024px; min-height: 100vh; background: var(--bg); }
 button, input, select { font: inherit; } button { color: inherit; } a { color: inherit; text-decoration: none; }
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 226px minmax(0, 1fr); }

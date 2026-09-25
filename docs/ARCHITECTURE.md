@@ -171,9 +171,9 @@ training/
 └─ match.rs
 ```
 
-数据库持久化进入 `db/training.rs`，Tauri 接口进入 `commands/training.rs`。前端页面使用 `ProblemSetsPage`、`TrainingPage` 和对应 hooks。Problem Set、Training Template 与 Match 共用 canonical problem identity。
+数据库持久化进入 `db/training.rs`，Tauri 接口进入 `commands/training.rs`。前端分为 `ProblemSetsPage`、`ContestsPage`、`VpPage`、`TrainingPage` 和 `TrainingReviewPage`。Problem Set 是可复用集合，Contest 是比赛配置快照，Match 是一次 VP 实例；三者共用 canonical problem identity。旧 `training_matches` 原位扩展，保留既有记录。
 
-自动组题与已有题单直接训练是两条独立路径。自动组题从可靠的跨 OJ 题目目录出发，结合本地已做记录生成候选池，再导出 AI 组题包；已有题单不会作为自动候选池的来源。大模型只负责在候选池与约束内生成可导入的 Problem Set，用户查看题单后才启动 Match。
+自动组题从可靠目录与本地已做记录生成候选池，不使用已有题单作初筛来源。AI 组题包自带指令和 JSON schema，生成结果可导入为题单或比赛。比赛加入参赛区后形成 Match；赛时 verdict 独立保存在 `vp_submissions`，本地同步表仍只承载 AC。复盘时按题绑定的代码以 BLOB 存在 `vp_code_files`，导出的 ZIP 不含账号凭据。
 
 ## 新增功能时
 

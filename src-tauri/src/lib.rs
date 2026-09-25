@@ -33,7 +33,13 @@ use commands::training::{
     delete_problem_set, delete_training_match, export_ai_training_pack, export_problem_set,
     export_training_pack, filter_training_candidates, finish_training_match,
     generate_training_candidates, import_match_manifest, import_problem_set, list_problem_sets,
-    list_training_matches, refresh_training_match, save_problem_set, start_training_match,
+      list_training_matches, refresh_training_match, save_problem_set, start_training_match,
+      list_contests, save_contest, delete_contest, contest_from_set, import_generated_contest,
+      queue_contest, start_vp, pause_vp, resume_vp, save_vp_note,
+      list_vp_submissions, refresh_vp_submissions,
+      bind_vp_code, export_vp_review_pack,
+      list_vp_code_files,
+      lookup_problem_metadata,
 };
 use commands::update::{can_install_updates, check_for_updates};
 use commands::xcpc::get_xcpc_contests;
@@ -110,7 +116,13 @@ pub fn run() {
             generate_training_candidates,
             export_ai_training_pack,
             export_training_pack,
-            import_match_manifest
+             import_match_manifest
+             ,list_contests,save_contest,delete_contest,contest_from_set,import_generated_contest,
+             queue_contest,start_vp,pause_vp,resume_vp,save_vp_note,
+             list_vp_submissions,refresh_vp_submissions
+             ,bind_vp_code,export_vp_review_pack
+             ,list_vp_code_files
+             ,lookup_problem_metadata
         ])
         .run(tauri::generate_context!())
         .expect("error while running OJ Insight");

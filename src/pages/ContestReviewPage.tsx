@@ -13,7 +13,7 @@ function safeName(value: string) {
   return value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80);
 }
 
-export default function ContestReviewPage({ accounts, notify, onOpenSettings }: { accounts: AccountMap; notify: (message: string) => void; onOpenSettings: () => void }) {
+export default function ContestReviewPage({ accounts, notify, onOpenSettings, embedded = false }: { accounts: AccountMap; notify: (message: string) => void; onOpenSettings: () => void; embedded?: boolean }) {
   const [platform, setPlatform] = useState<Platform>('atcoder');
   const [account, setAccount] = useState('');
   const [contestInput, setContestInput] = useState('');
@@ -58,7 +58,7 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings }: 
   };
 
   return <>
-    <header className="topbar"><div><small>CONTEST REVIEW PACKAGE</small><h1>比赛复盘</h1><p>把比赛、提交与代码整理成统一的四文档压缩包，交给大模型后即可直接开始复盘。</p></div></header>
+    {!embedded && <header className="topbar"><div><small>CONTEST REVIEW PACKAGE</small><h1>比赛复盘</h1><p>把比赛、提交与代码整理成统一的四文档压缩包，交给大模型后即可直接开始复盘。</p></div></header>}
     <section className="review-builder">
       <div className="panel review-form">
         <header><div><small>STEP 1</small><h2>选择比赛</h2></div><span><ShieldCheck size={14} />凭据不会写入复盘包</span></header>
