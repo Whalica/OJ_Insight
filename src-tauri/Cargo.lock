@@ -2710,6 +2710,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "urlencoding",
+ "zip",
 ]
 
 [[package]]

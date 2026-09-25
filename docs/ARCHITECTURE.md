@@ -173,6 +173,8 @@ training/
 
 数据库持久化进入 `db/training.rs`，Tauri 接口进入 `commands/training.rs`。前端页面使用 `ProblemSetsPage`、`TrainingPage` 和对应 hooks。Problem Set、Training Template 与 Match 共用 canonical problem identity。
 
+自动组题与已有题单直接训练是两条独立路径。自动组题从可靠的跨 OJ 题目目录出发，结合本地已做记录生成候选池，再导出 AI 组题包；已有题单不会作为自动候选池的来源。大模型只负责在候选池与约束内生成可导入的 Problem Set，用户查看题单后才启动 Match。
+
 ## 新增功能时
 
 1. 先确定功能属于页面、应用 hook、领域逻辑、外部同步还是持久化。

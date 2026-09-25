@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '留空为普通测试构建；填写与源码一致的版本号（如 v0.8.1）会创建签名更新和 Draft Release'
+        description: '留空为普通测试构建；填写与源码一致的版本号（如 v0.10.0）会创建签名更新和 Draft Release'
         required: false
         type: string
   push:
@@ -195,6 +195,20 @@ jobs:
       - name: Build Linux packages
         if: env.RELEASE_MODE != 'true'
         run: pnpm tauri build --bundles appimage --config src-tauri/tauri.ci.conf.json
+      - name: Exclude incompatible bundled Wayland client
+        run: |
+          appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$appimage"
+          bash scripts/patch-appimage.sh "$appimage"
+      - name: Re-sign patched Linux updater artifact
+        if: env.RELEASE_MODE == 'true'
+        run: |
+          appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          rm -f "$appimage.sig"
+          pnpm tauri signer sign "$appimage"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:

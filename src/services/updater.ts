@@ -31,7 +31,12 @@ function info(update: Update | null): UpdateInfo {
 export function checkForAppUpdate() {
   if (pendingUpdate) return Promise.resolve(info(pendingUpdate));
   if (checking) return checking;
-  checking = check({ timeout: 15_000 })
+  checking = api.canInstallUpdates().then(async (installable) => {
+    if (!installable) {
+      const release = await api.checkForUpdates();
+      return { ...release, installable: false };
+    }
+    return check({ timeout: 15_000 })
     .then(async (update) => {
       if (pendingUpdate && pendingUpdate !== update) await pendingUpdate.close();
       pendingUpdate = update;
@@ -45,9 +50,10 @@ export function checkForAppUpdate() {
         throw new Error('暂时无法连接更新服务，请稍后重试');
       }
     })
-    .finally(() => {
-      checking = null;
-    });
+  })
+  .finally(() => {
+    checking = null;
+  });
   return checking;
 }
 

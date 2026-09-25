@@ -4,19 +4,23 @@
 
 ### Training System
 
-- 新增跨 OJ Static Problem Set，可排序题目并设置角色、备注、标签和标签可见性。
-- 题单支持本地 JSON Manifest 导入与导出，Fork 后保留来源标识。
+- 新增跨 OJ 题单，可查看详情、排序题目并设置角色、备注、标签和标签可见性；粘贴题目链接可自动识别平台与题目标识。
+- 题单支持本地 JSON 导入与导出，Fork 后保留来源标识。
 - 新增轻松、均衡和压力三种训练模式；目标完成比例作为可调整、待验证的参数保存到每场 Match。
-- Match 提供计时、题目进度和结束状态；在原 OJ 提交并同步后，按 canonical problem identity 自动更新 AC。
-- 候选过滤严格排除本地已做题、interactive、output-only 和明确不适合日常训练的题目。
-- 新增 Training Pack，包含 `START-HERE.md`、`PROFILE.md`、`TRAINING-STATE.md`、`CONSTRAINTS.md`、`CANDIDATES.json` 和 Match Manifest schema。
-- 支持导入结构化 Match Manifest；导入时再次执行题目标识、重复项、角色、适配性和已做题校验。
+- 训练记录提供计时、题目进度、同步检查、结束、复盘数据导出和删除；在原 OJ 提交并同步后，按统一题目标识自动更新 AC。
+- 自动筛题从 Codeforces、AtCoder 和 QOJ 的可靠目录开始，不使用用户题单充当候选池；严格排除本地已做题、interactive、output-only 和明确不适合日常训练的题目。
+- 新增 AI 组题 ZIP，包含 `START-HERE.md`、`PROFILE.md`、`TRAINING-STATE.md`、`CONSTRAINTS.md`、`CANDIDATES.json` 和题单 JSON schema；大模型只在候选池内编排题单。
+- 支持导入 AI 返回的题单 JSON，导入后先进入题单详情确认，再开始训练。
+- 训练、题单和复盘统一归入侧栏“训练中心”，同时改善按钮、下拉选项和跨主题文字可读性。
 
 ### 工程结构
 
 - 数据库、XCPC 和前端样式按职责拆分，应用级账号、快照、同步、关注和更新逻辑进入独立 hooks。
 - 更新架构文档并统一前端页面导航类型。
 - 应用版本统一更新为 0.10.0。
+- Linux AppImage 构建会排除与系统 Mesa 不兼容的旧版 `libwayland-client.so.0`，并在修补后重新生成更新签名。
+- 解包运行 AppImage 时禁用直接安装更新，避免更新器把完整 AppImage 覆盖到内部可执行文件。
+- “今日进度”的题目与计数按平台和题目标识去重，同一题重复 AC 只计一次。
 
 ## 0.9.2
 

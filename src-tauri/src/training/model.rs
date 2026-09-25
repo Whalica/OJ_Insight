@@ -146,3 +146,23 @@ pub struct TrainingPack {
     pub schema_version: i64,
     pub files: Vec<TrainingPackFile>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidateSourceStatus {
+    pub platform: String,
+    pub available: bool,
+    pub problem_count: usize,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidatePool {
+    pub generated_at: i64,
+    pub mode: String,
+    pub requested_count: usize,
+    pub excluded_solved: usize,
+    pub candidates: Vec<CanonicalProblem>,
+    pub sources: Vec<CandidateSourceStatus>,
+}

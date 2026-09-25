@@ -87,3 +87,6 @@ input { padding-right: 10px; }.toolbar select:focus, input:focus { border-color:
 .warning-link { margin-left: auto; border: 0; background: transparent; color: inherit; display: inline-flex; gap: 5px; align-items: center; }
 .difficulty-cell.unrated { background: repeating-linear-gradient(135deg,var(--unrated-difficulty) 0 3px,color-mix(in srgb,var(--unrated-difficulty) 58%,var(--panel)) 3px 6px) !important; }
 .histogram-bucket.unrated .histogram-bar i { background: repeating-linear-gradient(135deg,var(--unrated-difficulty) 0 6px,color-mix(in srgb,var(--unrated-difficulty) 58%,var(--panel)) 6px 12px); }
+input, select, textarea { color: var(--text); }
+select, option { background: var(--input); color: var(--text); }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .9; }

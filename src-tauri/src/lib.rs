@@ -30,11 +30,12 @@ use commands::storage::get_storage_info;
 use commands::sync::{clear_all_records, clear_platform_records, sync_all, sync_platform};
 use commands::tracker::TRACKER_INIT_SCRIPT;
 use commands::training::{
-    delete_problem_set, export_problem_set, export_training_pack, filter_training_candidates,
-    finish_training_match, import_match_manifest, import_problem_set, list_problem_sets,
+    delete_problem_set, delete_training_match, export_ai_training_pack, export_problem_set,
+    export_training_pack, filter_training_candidates, finish_training_match,
+    generate_training_candidates, import_match_manifest, import_problem_set, list_problem_sets,
     list_training_matches, refresh_training_match, save_problem_set, start_training_match,
 };
-use commands::update::check_for_updates;
+use commands::update::{can_install_updates, check_for_updates};
 use commands::xcpc::get_xcpc_contests;
 use infrastructure::paths::portable_root_dir;
 
@@ -93,6 +94,7 @@ pub fn run() {
             dismiss_watched_event,
             write_export_file,
             check_for_updates,
+            can_install_updates,
             open_external,
             list_problem_sets,
             save_problem_set,
@@ -104,6 +106,9 @@ pub fn run() {
             list_training_matches,
             refresh_training_match,
             finish_training_match,
+            delete_training_match,
+            generate_training_candidates,
+            export_ai_training_pack,
             export_training_pack,
             import_match_manifest
         ])

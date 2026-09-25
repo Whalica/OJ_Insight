@@ -2,7 +2,7 @@ use tauri::State;
 
 use crate::app::state::AppState;
 use crate::{db, training};
-use training::{CanonicalProblem, ProblemSet, ProblemSetInput, TrainingMatch};
+use training::{CandidatePool, CanonicalProblem, ProblemSet, ProblemSetInput, TrainingMatch};
 
 #[tauri::command]
 pub(crate) fn list_problem_sets(state: State<'_, AppState>) -> Result<Vec<ProblemSet>, String> {
@@ -67,13 +67,59 @@ pub(crate) fn finish_training_match(state: State<'_, AppState>, id: i64) -> Resu
 }
 
 #[tauri::command]
+pub(crate) fn delete_training_match(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    db::delete_training_match(&conn, id)
+}
+
+#[tauri::command]
+pub(crate) async fn generate_training_candidates(
+    state: State<'_, AppState>,
+    platforms: Vec<String>,
+    mode: String,
+    candidate_count: usize,
+) -> Result<CandidatePool, String> {
+    let cookie = {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        db::get_accounts(&conn)?.into_iter()
+            .find(|entry| entry.platform == "qoj" && !entry.secret.trim().is_empty())
+            .map(|entry| entry.secret).unwrap_or_default()
+    };
+    let pool = training::build_candidate_pool(
+        &state.client,
+        &state.data_dir.join("xcpc-catalog.json"),
+        &cookie,
+        &platforms,
+        &mode,
+        candidate_count,
+    ).await?;
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    training::finalize_candidate_pool(&conn, pool)
+}
+
+#[tauri::command]
+pub(crate) fn export_ai_training_pack(
+    state: State<'_, AppState>,
+    candidates: Vec<CanonicalProblem>,
+    mode: String,
+) -> Result<Vec<u8>, String> {
+    let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+    let candidates = training::filter_candidates(&conn, candidates)?;
+    if candidates.is_empty() { return Err("没有可导出的候选题".into()); }
+    let profile = db::training_profile_markdown(&conn)?;
+    let pack = training::build_training_pack(&candidates, &mode, profile)?;
+    training::training_pack_zip(&pack)
+}
+
+#[tauri::command]
 pub(crate) fn export_training_pack(state: State<'_, AppState>, problem_set_id: i64, mode: String) -> Result<String, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     let mut set = db::get_problem_set(&conn, problem_set_id)?;
     set.problems = training::filter_problem_entries(&conn, set.problems)?;
     if set.problems.is_empty() { return Err("题单中没有可导出的未做候选题".into()); }
     let profile = db::training_profile_markdown(&conn)?;
-    let pack = training::build_training_pack(&set, &mode, profile)?;
+    let candidates = set.problems.into_iter().map(|entry| entry.problem).collect::<Vec<_>>();
+    let pack = training::build_training_pack(&candidates, &mode, profile)?;
     serde_json::to_string_pretty(&pack).map(|value| format!("{value}\n")).map_err(|e| e.to_string())
 }
 

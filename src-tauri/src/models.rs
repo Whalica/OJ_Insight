@@ -322,6 +322,7 @@ pub struct Snapshot {
     pub knowledge: Vec<KnowledgeBucket>,
     pub ratings: Vec<RatingSummary>,
     pub recent: Vec<Submission>,
+    pub today_problems: Vec<Submission>,
     pub metric_available: bool,
     pub warnings: Vec<String>,
 }
