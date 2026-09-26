@@ -90,7 +90,7 @@
 .link-adder>button:hover:not(:disabled), .optional-lookup:hover { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 28%,var(--panel-soft)); color: var(--text); }
 .link-adder>button:disabled { opacity: .48; cursor: not-allowed; }
 .optional-lookup { margin: 9px 0; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; background: var(--panel-soft); color: var(--text); cursor: pointer; }
-.contest-description-editor { display: grid; gap: 6px; color: var(--muted); font-size: var(--font-small); }
+.contest-description-editor { grid-column: 1 / -1; min-width: 0; display: grid; gap: 6px; color: var(--muted); font-size: var(--font-small); }
 .contest-description-editor .markdown-split { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .contest-description-preview .vp-markdown { min-height: 0; padding: 0; color: var(--text); }
 .contest-description-preview { margin: 7px 0; max-height: 160px; overflow: auto; }
