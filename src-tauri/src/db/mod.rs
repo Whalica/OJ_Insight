@@ -172,6 +172,29 @@ mod tests {
     }
 
     #[test]
+    fn vp_countdown_setting_waits_for_start_click() {
+        let conn = open(Path::new(":memory:")).unwrap();
+        conn.execute(
+            "INSERT INTO training_matches(title,mode,status,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,created_at) VALUES('Demo','balanced','waiting',0.5,0.7,120,0,1)",
+            [],
+        ).unwrap();
+        let id = conn.last_insert_rowid();
+
+        let configured = schedule_vp(&conn, id, 30).unwrap();
+        assert_eq!(configured.countdown_seconds, 30);
+        assert_eq!(configured.status, "waiting");
+        assert!(configured.scheduled_start_at.is_none());
+
+        let counting_down = start_vp(&conn, id).unwrap();
+        assert_eq!(counting_down.status, "waiting");
+        assert!(counting_down.scheduled_start_at.is_some());
+        conn.execute("UPDATE training_matches SET scheduled_start_at=0 WHERE id=?", [id]).unwrap();
+        let running = start_vp(&conn, id).unwrap();
+        assert_eq!(running.status, "running");
+        assert!(running.started_at > 0);
+    }
+
+    #[test]
     fn watched_people_batch_save_is_atomic() {
         let mut conn = open(Path::new(":memory:")).unwrap();
         let bindings = vec![

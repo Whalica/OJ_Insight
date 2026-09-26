@@ -105,6 +105,7 @@ pub struct TrainingMatch {
     pub created_at: i64,
     pub contest_id: Option<i64>,
     pub scheduled_start_at: Option<i64>,
+    pub countdown_seconds: i64,
     pub paused_at: Option<i64>,
     pub total_paused_seconds: i64,
     #[serde(default)]

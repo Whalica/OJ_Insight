@@ -299,6 +299,7 @@ export interface TrainingMatch {
     createdAt: number;
     contestId: number | null;
     scheduledStartAt: number | null;
+    countdownSeconds: number;
     pausedAt: number | null;
     totalPausedSeconds: number;
     generalNote: string;
