@@ -119,6 +119,7 @@ fn replace_accounts_tx(
     let mut removed = 0;
     for table in [
         "submissions",
+        "solved_inventory",
         "daily_aggregates_accounts",
         "difficulty_stats_accounts",
         "knowledge_stats_accounts",

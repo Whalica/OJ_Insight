@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::Path;
 
 use reqwest::Client;
@@ -15,13 +15,18 @@ fn filter_candidates_with_count(conn: &Connection, candidates: Vec<CanonicalProb
     let mut out = Vec::new();
     let mut excluded_solved = 0;
     let mut seen = HashSet::new();
+    let mut solved = HashSet::new();
+    let mut statement = conn.prepare("SELECT platform,problem_key FROM submissions UNION SELECT platform,problem_key FROM solved_inventory").map_err(|error| error.to_string())?;
+    for row in statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(|error| error.to_string())? {
+        solved.insert(row.map_err(|error| error.to_string())?);
+    }
     for candidate in candidates {
         let problem = super::problem_set::normalize_problem(candidate)?;
         let unsuitable_tag = problem.tags.iter().any(|tag| tag.eq_ignore_ascii_case("interactive") || tag.eq_ignore_ascii_case("*special"));
         if !seen.insert(problem.canonical_id.clone()) || problem.interactive || problem.output_only || unsuitable_tag
             || problem.training_suitability.is_some_and(|score| score < 0.35)
             || problem.observation_dependency.is_some_and(|score| score > 0.8) { continue; }
-        if crate::db::is_problem_solved(conn, &problem.platform, &problem.problem_key)? {
+        if solved.contains(&(problem.platform.clone(), problem.problem_key.clone())) {
             excluded_solved += 1;
         } else {
             out.push(problem);
@@ -82,18 +87,56 @@ pub(crate) async fn build_candidate_pool(
     }
     if all.is_empty() { return Err("所选平台当前没有可用的可靠候选目录".into()); }
 
-    Ok(CandidatePool { generated_at: chrono::Utc::now().timestamp(), mode: mode.into(), requested_count, excluded_solved: 0, candidates: all, sources })
+    Ok(CandidatePool { generated_at: chrono::Utc::now().timestamp(), mode: mode.into(), requested_count, excluded_solved: 0, selection_basis: String::new(), candidates: all, sources })
 }
 
 pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool) -> Result<CandidatePool, String> {
-    let (mut candidates, excluded_solved) = filter_candidates_with_count(conn, pool.candidates)?;
-    candidates.sort_by_key(|problem| stable_order(&problem.canonical_id));
-    candidates.truncate(pool.requested_count);
-    candidates.sort_by(|left, right| left.platform.cmp(&right.platform).then_with(|| left.problem_key.cmp(&right.problem_key)));
+    let (candidates, excluded_solved) = filter_candidates_with_count(conn, pool.candidates)?;
+    let targets = profile_targets(conn, &pool.mode)?;
+    let mut groups: BTreeMap<String, Vec<CanonicalProblem>> = BTreeMap::new();
+    for problem in candidates { groups.entry(problem.platform.clone()).or_default().push(problem); }
+    let mut groups: BTreeMap<String, VecDeque<CanonicalProblem>> = groups.into_iter().map(|(platform, mut problems)| {
+        let target = targets.get(&platform).copied();
+        problems.sort_by_key(|problem| {
+            let distance = match (target, problem.difficulty.as_deref().and_then(|value| value.parse::<f64>().ok())) {
+                (Some(center), Some(level)) if level.is_finite() => ((level - center).abs() * 10.0) as u64,
+                (Some(_), _) => u64::MAX / 4,
+                _ => 0,
+            };
+            (distance, stable_order(&problem.canonical_id))
+        });
+        (platform, problems.into())
+    }).collect();
+    let mut candidates = Vec::new();
+    while candidates.len() < pool.requested_count {
+        let mut added = false;
+        for group in groups.values_mut() {
+            if let Some(problem) = group.pop_front() { candidates.push(problem); added = true; }
+            if candidates.len() == pool.requested_count { break; }
+        }
+        if !added { break; }
+    }
     if candidates.is_empty() { return Err("候选目录中的题目均已完成或不适合本次训练".into()); }
+    pool.selection_basis = if targets.is_empty() { "尚无足够的分平台难度记录；按平台均衡取样，已排除已做题。".into() } else { format!("根据 {} 个平台的已通过题目难度估计训练区间，并保持跨平台覆盖；无难度记录的平台使用固定顺序取样。", targets.len()) };
     pool.candidates = candidates;
     pool.excluded_solved = excluded_solved;
     Ok(pool)
+}
+
+fn profile_targets(conn: &Connection, mode: &str) -> Result<HashMap<String, f64>, String> {
+    let mut statement = conn.prepare("SELECT platform,difficulty FROM submissions WHERE difficulty IS NOT NULL AND difficulty<>'' GROUP BY platform,problem_key").map_err(|error| error.to_string())?;
+    let mut values: HashMap<String, Vec<f64>> = HashMap::new();
+    for row in statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(|error| error.to_string())? {
+        let (platform, difficulty) = row.map_err(|error| error.to_string())?;
+        if let Ok(value) = difficulty.parse::<f64>() { if value.is_finite() && value >= 0.0 { values.entry(platform).or_default().push(value); } }
+    }
+    let percentile = match mode { "relaxed" => 0.40, "pressure" => 0.75, _ => 0.60 };
+    Ok(values.into_iter().filter_map(|(platform, mut levels)| {
+        if levels.len() < 8 { return None; }
+        levels.sort_by(|left, right| left.total_cmp(right));
+        let index = ((levels.len() - 1) as f64 * percentile).round() as usize;
+        Some((platform, levels[index]))
+    }).collect())
 }
 
 fn source_ok(platform: &str, count: usize) -> CandidateSourceStatus {

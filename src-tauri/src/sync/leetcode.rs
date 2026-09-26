@@ -108,6 +108,7 @@ pub async fn fetch(
             solved_count,
             difficulty,
             knowledge: None,
+            solved_inventory: None,
             ratings: None,
             activity_only: true,
             notes: vec![
@@ -137,6 +138,7 @@ pub async fn fetch(
         solved_count,
         difficulty,
         knowledge,
+        solved_inventory: None,
         ratings,
         activity_only: true,
         notes: vec![

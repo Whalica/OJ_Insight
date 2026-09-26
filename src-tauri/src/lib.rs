@@ -15,6 +15,7 @@ use app::state::AppState;
 use commands::accounts::{
     get_accounts, get_sync_statuses, save_account, save_accounts, save_all_accounts,
 };
+use commands::community::{get_community_catalog, get_community_problem_set, save_community_problem_set};
 use commands::analytics::{get_day_detail, get_difficulty_detail, get_snapshot};
 use commands::contest_review::{generate_contest_review, inspect_contest_review};
 use commands::export::write_export_file;
@@ -32,7 +33,7 @@ use commands::tracker::TRACKER_INIT_SCRIPT;
 use commands::training::{
     delete_problem_set, delete_training_match, export_ai_training_pack, export_problem_set,
     export_training_pack, filter_training_candidates, finish_training_match,
-    generate_training_candidates, import_match_manifest, import_problem_set, list_problem_sets,
+    generate_training_candidates, import_match_manifest, import_problem_set, preview_luogu_problem_set, list_problem_sets,
       list_training_matches, refresh_training_match, save_problem_set, start_training_match,
       list_contests, save_contest, delete_contest, contest_from_set, import_generated_contest,
       queue_contest, start_vp, schedule_vp, pause_vp, resume_vp, save_vp_note,
@@ -103,10 +104,14 @@ pub fn run() {
             can_install_updates,
             open_external,
             list_problem_sets,
+            get_community_catalog,
+            get_community_problem_set,
+            save_community_problem_set,
             save_problem_set,
             delete_problem_set,
             export_problem_set,
             import_problem_set,
+            preview_luogu_problem_set,
             filter_training_candidates,
             start_training_match,
             list_training_matches,

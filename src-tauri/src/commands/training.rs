@@ -37,6 +37,15 @@ pub(crate) fn import_problem_set(state: State<'_, AppState>, data: String) -> Re
 }
 
 #[tauri::command]
+pub(crate) async fn preview_luogu_problem_set(state: State<'_, AppState>, url: String) -> Result<ProblemSetInput, String> {
+    let cookie = {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        db::get_accounts(&conn)?.into_iter().find(|account| account.platform == "luogu" && !account.secret.trim().is_empty()).map(|account| account.secret).unwrap_or_default()
+    };
+    training::preview_luogu_problem_set(&state.client, &url, &cookie).await
+}
+
+#[tauri::command]
 pub(crate) fn filter_training_candidates(state: State<'_, AppState>, candidates: Vec<CanonicalProblem>) -> Result<Vec<CanonicalProblem>, String> {
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     training::filter_candidates(&conn, candidates)

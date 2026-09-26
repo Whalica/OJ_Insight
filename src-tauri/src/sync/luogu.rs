@@ -1,5 +1,5 @@
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, REFERER, USER_AGENT},
+    header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, REFERER, USER_AGENT},
     Client,
 };
 use serde_json::Value;
@@ -172,11 +172,18 @@ pub async fn fetch(
     }
 
     let mut solved_count = None;
+    let mut solved_inventory = None;
     let mut difficulty = Vec::new();
+    let mut practice_headers = lentille_headers();
+    if !account.secret.trim().is_empty() {
+        if let Ok(value) = HeaderValue::from_str(account.secret.trim()) {
+            practice_headers.insert(COOKIE, value);
+        }
+    }
     if let Ok(practice_text) = get_text(
         client,
         &format!("https://www.luogu.com.cn/user/{uid}/practice"),
-        lentille_headers(),
+        practice_headers,
     )
     .await
     {
@@ -187,6 +194,7 @@ pub async fn fetch(
                 .unwrap_or(&practice);
             if let Some(passed) = pd.get("passed").and_then(Value::as_array) {
                 solved_count = Some(passed.len() as i64);
+                solved_inventory = Some(passed.iter().filter_map(passed_problem_id).collect());
                 let mut buckets = [0_i64; 9];
                 for p in passed {
                     if let Some(d) = p.get("difficulty").and_then(Value::as_i64) {
@@ -234,6 +242,7 @@ pub async fn fetch(
         solved_count,
         difficulty,
         knowledge: None,
+        solved_inventory,
         ratings: None,
         activity_only: true,
         notes: vec![
@@ -244,6 +253,18 @@ pub async fn fetch(
         replace_submissions: false,
         replace_aggregates: true,
     })
+}
+
+fn passed_problem_id(value: &Value) -> Option<String> {
+    let raw = value.as_str().or_else(|| {
+        ["pid", "problemId", "id"].iter().find_map(|field| value.get(*field).and_then(Value::as_str))
+    })?;
+    let id = raw.trim().to_ascii_uppercase();
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        None
+    } else {
+        Some(id)
+    }
 }
 
 fn normalize_day(raw: &str) -> String {
@@ -260,5 +281,17 @@ fn normalize_day(raw: &str) -> String {
             format!("{y:04}-{m:02}-{d:02}")
         }
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn passed_problem_ids_accept_string_and_object_rows() {
+        assert_eq!(passed_problem_id(&serde_json::json!("p1421")), Some("P1421".into()));
+        assert_eq!(passed_problem_id(&serde_json::json!({"pid":"B2002"})), Some("B2002".into()));
+        assert_eq!(passed_problem_id(&serde_json::json!({"pid":"../../x"})), None);
     }
 }

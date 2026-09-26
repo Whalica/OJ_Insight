@@ -53,6 +53,7 @@ pub struct ProblemSet {
     pub created_at: i64,
     pub updated_at: i64,
     pub problems: Vec<ProblemSetProblem>,
+    pub solved_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -216,6 +217,7 @@ pub struct CandidatePool {
     pub mode: String,
     pub requested_count: usize,
     pub excluded_solved: usize,
+    pub selection_basis: String,
     pub candidates: Vec<CanonicalProblem>,
     pub sources: Vec<CandidateSourceStatus>,
 }

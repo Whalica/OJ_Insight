@@ -134,6 +134,9 @@ pub struct RemoteData {
     /// `Some` replaces provider-level lifetime knowledge totals. `None` keeps
     /// the cache and lets submission tags act as the fallback source.
     pub knowledge: Option<Vec<KnowledgeStat>>,
+    /// Known solved problem IDs from providers without submission-level history.
+    /// `None` preserves the previous inventory when the optional endpoint fails.
+    pub solved_inventory: Option<Vec<String>>,
     /// `None` keeps the previous cache when an optional rating endpoint is
     /// unavailable. `Some` replaces the complete rating history for this account.
     pub ratings: Option<Vec<RatingPoint>>,

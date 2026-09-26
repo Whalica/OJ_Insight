@@ -274,9 +274,30 @@ export interface ProblemSet {
   createdAt: number;
   updatedAt: number;
   problems: ProblemSetProblem[];
+  solvedKeys: string[];
 }
 
-export type ProblemSetInput = Omit<ProblemSet, 'id' | 'createdAt' | 'updatedAt'> & { id: number | null };
+export type ProblemSetInput = Omit<ProblemSet, 'id' | 'createdAt' | 'updatedAt' | 'solvedKeys'> & { id: number | null };
+
+export interface CommunityAuthor { name: string; url: string | null }
+export interface CommunityListing {
+  id: string;
+  type: 'problem-set';
+  title: string;
+  summary: string;
+  author: CommunityAuthor;
+  categories: string[];
+  license: string;
+  path: string;
+  problemCount: number;
+}
+export interface CommunityCatalog { schema: string; schemaVersion: number; entries: CommunityListing[] }
+export interface CommunityEntry extends Omit<CommunityListing, 'path' | 'problemCount'> {
+  schema: string;
+  schemaVersion: number;
+  sourceUrl: string | null;
+  content: Omit<ProblemSetInput, 'id'> & { schema: string; schemaVersion: number };
+}
 
 export interface TrainingMatchProblem extends ProblemSetProblem {
     solved: boolean;
@@ -344,6 +365,7 @@ export interface CandidatePool {
   mode: TrainingMode;
   requestedCount: number;
   excludedSolved: number;
+  selectionBasis: string;
   candidates: CanonicalProblem[];
   sources: CandidateSourceStatus[];
 }
