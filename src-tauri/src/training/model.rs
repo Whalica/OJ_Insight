@@ -56,7 +56,7 @@ pub struct ProblemSet {
     pub solved_keys: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProblemSetInput {
     pub id: Option<i64>,
