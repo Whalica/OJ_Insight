@@ -297,6 +297,7 @@ export interface CommunityEntry extends Omit<CommunityListing, 'path' | 'problem
   schemaVersion: number;
   sourceUrl: string | null;
   content: Omit<ProblemSetInput, 'id'> & { schema: string; schemaVersion: number };
+  solvedKeys: string[];
 }
 
 export interface TrainingMatchProblem extends ProblemSetProblem {

@@ -8,6 +8,7 @@ import { api } from '../services/api';
 import type { CommunityCatalog, CommunityEntry } from '../types';
 
 const REPOSITORY = 'https://github.com/Whalica/OJ_Insight-Community';
+const LICENSE_LABELS: Record<string, string> = { 'CC-BY-4.0': '转载或改编时需署名', 'CC-BY-SA-4.0': '需署名，改编后沿用相同许可', 'CC0-1.0': '作者尽可能放弃权利限制' };
 
 export default function CommunityPage({ notify, onOpenLocalSets }: { notify: (message: string) => void; onOpenLocalSets: () => void }) {
   const [catalog, setCatalog] = useState<CommunityCatalog | null>(null);
@@ -53,10 +54,10 @@ export default function CommunityPage({ notify, onOpenLocalSets }: { notify: (me
       </aside>
       <section className="panel set-detail community-detail">
         {entryLoading ? <div className="community-placeholder">正在读取题单…</div> : entry && selected ? <>
-          <header><div><small>社区题单 · {entry.content.problems.length} 题</small><h2>{entry.title}</h2><p>{entry.summary}</p></div><button className="primary community-save" onClick={() => void save()} disabled={saving}><Download size={15} />{saving ? '保存中…' : '保存到本地'}</button></header>
-          <div className="community-meta"><span>作者：{entry.author.name}</span><span>授权：{entry.license}</span>{entry.categories.map((category) => <span key={category}>{category}</span>)}</div>
+          <header><div><small>社区题单 · {entry.content.problems.length} 题 · 已通过 {entry.solvedKeys.length} 题</small><h2>{entry.title}</h2><p>{entry.summary}</p></div><button className="primary community-save" onClick={() => void save()} disabled={saving}><Download size={15} />{saving ? '保存中…' : '保存到本地'}</button></header>
+          <div className="community-meta"><span>作者：{entry.author.name}</span><span title="作者对题单说明和原创笔记的分享规则；题目仍归原平台或原作者。">分享许可：{LICENSE_LABELS[entry.license] || entry.license}（{entry.license}）</span>{entry.categories.map((category) => <span key={category}>{category}</span>)}</div>
           {entry.content.description && <div className="set-description-preview"><MarkdownPreview text={entry.content.description} /></div>}
-          <div className="set-problem-list">{entry.content.problems.map((row, index) => <a key={`${row.problem.platform}:${row.problem.problemKey}`} href={row.problem.url} target="_blank" rel="noreferrer"><PlatformIcon platform={row.problem.platform} /><span className="problem-number">{index + 1}</span><div><strong>{row.problem.name || row.problem.problemId || row.problem.problemKey}</strong><small>{PLATFORM_META[row.problem.platform]?.name || row.problem.platform}{row.note ? ` · ${row.note}` : ''}</small>{entry.content.tagVisibility === 'before_solving' && row.problem.tags?.length > 0 && <em>{row.problem.tags.join(' · ')}</em>}</div><ExternalLink size={14} /></a>)}</div>
+          <div className="set-problem-list">{entry.content.problems.map((row, index) => { const passed = entry.solvedKeys.includes(`${row.problem.platform}:${row.problem.problemKey}`); return <a key={`${row.problem.platform}:${row.problem.problemKey}`} href={row.problem.url} target="_blank" rel="noreferrer"><PlatformIcon platform={row.problem.platform} /><span className="problem-number">{index + 1}</span><div><strong>{row.problem.name || row.problem.problemId || row.problem.problemKey}</strong><small>{PLATFORM_META[row.problem.platform]?.name || row.problem.platform}{row.note ? ` · ${row.note}` : ''}</small>{(entry.content.tagVisibility === 'before_solving' || entry.content.tagVisibility === 'after_ac' && passed) && row.problem.tags?.length > 0 && <em>{row.problem.tags.join(' · ')}</em>}</div><span className={`set-solve-badge ${passed ? 'passed' : ''}`}>{passed ? '已通过' : '未记录通过'}</span></a>; })}</div>
           <footer><span>保存后可在「题单」编辑；社区更新不会覆盖本地副本。</span><button className="primary" onClick={() => void save()} disabled={saving}><Download size={15} />保存到本地</button></footer>
         </> : <div className="community-placeholder"><LibraryBig size={32} /><strong>选择一份题单查看</strong><span>从左侧打开题单，确认内容后再保存到本地。</span></div>}
       </section>

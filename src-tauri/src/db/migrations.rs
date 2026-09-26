@@ -25,6 +25,9 @@ INSERT OR IGNORE INTO difficulty_stats_accounts SELECT d.platform,a.account,d.la
 INSERT OR IGNORE INTO platform_stats_accounts SELECT p.platform,a.account,p.key,p.value FROM platform_stats p JOIN accounts a ON a.platform=p.platform WHERE TRIM(a.account)<>'';
 ").map_err(|e| e.to_string())?;
     }
+    // Luogu training-list cookies are supplied for a single import, not stored with accounts.
+    tx.execute("UPDATE account_entries SET secret='' WHERE platform='luogu' AND secret<>''", []).map_err(|e| e.to_string())?;
+    tx.execute("UPDATE accounts SET secret='' WHERE platform='luogu' AND secret<>''", []).map_err(|e| e.to_string())?;
     // Submission IDs are not necessarily unique across accounts/sites.
     let account_pk: i64 = tx
         .query_row(

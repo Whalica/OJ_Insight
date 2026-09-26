@@ -96,12 +96,12 @@ fn replace_accounts_tx(
         }
         tx.execute(
             "INSERT INTO account_entries(platform,account,secret,updated_at) VALUES(?,?,?,?)",
-            params![platform, account, entry.secret.trim(), now + index as i64],
+            params![platform, account, if platform == "luogu" { "" } else { entry.secret.trim() }, now + index as i64],
         )
         .map_err(|e| e.to_string())?;
     }
     if let Some(first) = accounts.iter().find(|x| !x.account.trim().is_empty()) {
-        tx.execute("INSERT INTO accounts(platform,account,secret,updated_at) VALUES(?,?,?,?) ON CONFLICT(platform) DO UPDATE SET account=excluded.account,secret=excluded.secret,updated_at=excluded.updated_at", params![platform,first.account.trim(),first.secret.trim(),now]).map_err(|e| e.to_string())?;
+        tx.execute("INSERT INTO accounts(platform,account,secret,updated_at) VALUES(?,?,?,?) ON CONFLICT(platform) DO UPDATE SET account=excluded.account,secret=excluded.secret,updated_at=excluded.updated_at", params![platform,first.account.trim(),if platform == "luogu" { "" } else { first.secret.trim() },now]).map_err(|e| e.to_string())?;
         tx.execute(
             "UPDATE sync_state SET account=? WHERE platform=?",
             params![first.account.trim(), platform],

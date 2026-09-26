@@ -54,6 +54,8 @@ pub(crate) struct CommunityEntry {
     pub license: String,
     pub source_url: Option<String>,
     pub content: serde_json::Value,
+    #[serde(default, skip_deserializing)]
+    pub solved_keys: Vec<String>,
 }
 
 fn valid_id(id: &str) -> bool {
@@ -102,11 +104,19 @@ pub(crate) async fn get_community_problem_set(state: State<'_, AppState>, id: St
         Ok(bytes) => bytes,
         Err(error) => std::fs::read(&cache).map_err(|_| error)?,
     };
-    let entry: CommunityEntry = serde_json::from_slice(&data).map_err(|error| format!("社区题单无效：{error}"))?;
+    let mut entry: CommunityEntry = serde_json::from_slice(&data).map_err(|error| format!("社区题单无效：{error}"))?;
     if entry.schema != "com.ojinsight.community-entry" || entry.schema_version != 1 || entry.id != id || entry.content_type != "problem-set" || entry.title.trim().is_empty() {
         return Err("社区题单格式不受支持".into());
     }
-    training::import_problem_set(&entry.content.to_string())?;
+    let input = training::import_problem_set(&entry.content.to_string())?;
+    {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        for row in &input.problems {
+            if db::is_problem_solved(&conn, &row.problem.platform, &row.problem.problem_key)? {
+                entry.solved_keys.push(format!("{}:{}", row.problem.platform, row.problem.problem_key));
+            }
+        }
+    }
     let _ = std::fs::create_dir_all(&cache_dir);
     let _ = std::fs::write(cache, data);
     Ok(entry)

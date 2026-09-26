@@ -62,6 +62,29 @@ fn parse_html_links(text: &str, output: &mut Vec<(String, String)>) {
     }
 }
 
+fn canonical_problem(key: String, name: String) -> CanonicalProblem {
+    let (platform, problem_key, problem_id, url) = if let Some(rest) = key.strip_prefix("CF") {
+        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+        let (contest, index) = rest.split_at(digits);
+        if !contest.is_empty() && !index.is_empty() && index.len() <= 3
+            && index.starts_with(|ch: char| ch.is_ascii_uppercase())
+            && index.chars().all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit()) {
+            ("codeforces", format!("{contest}:{index}"), format!("{contest}{index}"), format!("https://codeforces.com/contest/{contest}/problem/{index}"))
+        } else { ("luogu", key.clone(), key.clone(), format!("https://www.luogu.com.cn/problem/{key}")) }
+    } else if let Some(task) = key.strip_prefix("AT_") {
+        let task = task.to_ascii_lowercase();
+        if let Some((contest, suffix)) = task.rsplit_once('_') {
+            let standard_contest = ["abc", "arc", "agc", "ahc"].iter().any(|prefix| contest.strip_prefix(prefix).is_some_and(|number| !number.is_empty() && number.bytes().all(|ch| ch.is_ascii_digit())));
+            if !suffix.is_empty() && (standard_contest || matches!(contest, "dp" | "typical90")) {
+                ("atcoder", task.clone(), task.clone(), format!("https://atcoder.jp/contests/{contest}/tasks/{task}"))
+            } else { ("luogu", key.clone(), key.clone(), format!("https://www.luogu.com.cn/problem/{key}")) }
+        } else { ("luogu", key.clone(), key.clone(), format!("https://www.luogu.com.cn/problem/{key}")) }
+    } else { ("luogu", key.clone(), key.clone(), format!("https://www.luogu.com.cn/problem/{key}")) };
+    let canonical_id = format!("{platform}:{problem_key}");
+    let fallback_name = match platform { "codeforces" => format!("CF {problem_id}"), "atcoder" => format!("AtCoder {problem_id}"), _ => format!("洛谷 {key}") };
+    CanonicalProblem { canonical_id, platform: platform.into(), problem_key, problem_id, name: if name.is_empty() { fallback_name } else { name }, url, difficulty: None, tags: Vec::new(), training_suitability: None, observation_dependency: None, implementation_load: None, knowledge_dependency: None, interactive: false, output_only: false }
+}
+
 pub(crate) fn preview_from_page(id: &str, text: &str) -> Result<ProblemSetInput, String> {
     let url = format!("https://www.luogu.com.cn/training/{id}");
     let mut title = format!("洛谷题单 {id}");
@@ -81,7 +104,7 @@ pub(crate) fn preview_from_page(id: &str, text: &str) -> Result<ProblemSetInput,
     if expected.is_some_and(|count| count > problems.len() as u64) { return Err(format!("洛谷题单标记了 {} 道题，但只读取到 {} 道；为避免漏题，已取消导入。", expected.unwrap_or_default(), problems.len())); }
     let entries = problems.into_iter().enumerate().map(|(position, (key, name))| ProblemSetProblem {
         position: position as i64, role: "Core".into(), note: String::new(),
-        problem: CanonicalProblem { canonical_id: format!("luogu:{key}"), platform: "luogu".into(), problem_key: key.clone(), problem_id: key.clone(), name: if name.is_empty() { format!("洛谷 {key}") } else { name }, url: format!("https://www.luogu.com.cn/problem/{key}"), difficulty: None, tags: Vec::new(), training_suitability: None, observation_dependency: None, implementation_load: None, knowledge_dependency: None, interactive: false, output_only: false },
+        problem: canonical_problem(key, name),
     }).collect();
     Ok(ProblemSetInput { id: None, title, description: format!("来源：{url}"), set_type: "static".into(), tag_visibility: "after_ac".into(), source_set_id: None, source_url: Some(url), problems: entries })
 }
@@ -99,7 +122,7 @@ pub(crate) async fn fetch_preview(client: &Client, input: &str, cookie: &str) ->
     }
     let response = client.get(&url).headers(headers).send().await.map_err(|error| format!("读取洛谷题单失败：{error}"))?;
     if response.url().path().starts_with("/auth/") || response.status().as_u16() == 401 || response.status().as_u16() == 403 {
-        return Err("洛谷要求登录或拒绝访问；请在设置中配置有效的洛谷 Cookie。".into());
+        return Err("洛谷要求登录或拒绝访问；请在当前导入框填写有效的洛谷 Cookie。".into());
     }
     let response = response.error_for_status().map_err(|error| format!("洛谷题单请求失败：{error}"))?;
     if response.content_length().is_some_and(|size| size > 2_000_000) { return Err("洛谷题单页面过大".into()); }
@@ -125,5 +148,17 @@ mod tests {
     fn rejects_partial_page() {
         let page = r#"{"training":{"problemCount":3,"problems":[{"pid":"P1421"}]}}"#;
         assert!(preview_from_page("42", page).is_err());
+    }
+
+    #[test]
+    fn maps_supported_remote_judge_problems_to_original_sites() {
+        let page = r#"{"training":{"problemCount":4,"problems":[{"pid":"CF1234D","title":"Distinct Characters Queries"},{"pid":"AT_abc376_e","title":"Max × Sum"},{"pid":"AT_s8pc_4_h","title":"Unknown contest mapping"},{"pid":"UVA100","title":"The 3n + 1 problem"}]}}"#;
+        let preview = preview_from_page("42", page).unwrap();
+        assert_eq!(preview.problems[0].problem.platform, "codeforces");
+        assert_eq!(preview.problems[0].problem.problem_key, "1234:D");
+        assert_eq!(preview.problems[1].problem.platform, "atcoder");
+        assert_eq!(preview.problems[1].problem.problem_key, "abc376_e");
+        assert_eq!(preview.problems[2].problem.platform, "luogu");
+        assert_eq!(preview.problems[3].problem.platform, "luogu");
     }
 }
