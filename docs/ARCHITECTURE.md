@@ -171,9 +171,9 @@ training/
 └─ match.rs
 ```
 
-数据库持久化进入 `db/training.rs`，Tauri 接口进入 `commands/training.rs`。前端分为 `ProblemSetsPage`、`ContestsPage`、`VpPage`、`TrainingPage` 和 `TrainingReviewPage`。Problem Set 是可复用集合，Contest 是比赛配置快照，Match 是一次 VP 实例；三者共用 canonical problem identity。旧 `training_matches` 原位扩展，保留既有记录。
+数据库持久化进入 `db/training.rs`，Tauri 接口进入 `commands/training.rs`。前端分为 `ProblemSetsPage`、`ContestsPage`、`VpPage`、`TrainingPage` 和 `TrainingReviewPage`。Problem Set 是可复用集合，Contest 是比赛配置快照，Match 是一次 VP 实例；三者共用 canonical problem identity。旧 `training_matches` 原位扩展，保留既有记录。题单与手动比赛的链接解析不依赖外部题目 API，标题与标签可以后续补充；比赛说明和笔记以 Markdown 文本保存，前端负责预览。
 
-自动组题从可靠目录与本地已做记录生成候选池，不使用已有题单作初筛来源。AI 组题包自带指令和 JSON schema，生成结果可导入为题单或比赛。比赛加入参赛区后形成 Match；赛时 verdict 独立保存在 `vp_submissions`，本地同步表仍只承载 AC。复盘时按题绑定的代码以 BLOB 存在 `vp_code_files`，导出的 ZIP 不含账号凭据。
+自动组题从可靠目录与本地已做记录生成候选池，不使用已有题单作初筛来源。AI 组题包自带指令和 JSON schema，生成结果可导入为题单或比赛。比赛加入参赛区后形成 Match；`countdown_seconds` 保存赛前预设，只有点击“开始 VP”才写入倒计时截止时间，到期再转为进行中。赛时 verdict 独立保存在 `vp_submissions`，本地同步表仍只承载 AC。复盘时按题绑定的代码以 BLOB 存在 `vp_code_files`，导出的 ZIP 不含账号凭据。
 
 ## 新增功能时
 
