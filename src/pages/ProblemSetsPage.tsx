@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, ExternalLink, FileUp, Link2, Pencil, Play, Plus, Save, Trash2, X } from 'lucide-react';
+import { Download, ExternalLink, FileUp, Link2, Pencil, Play, Plus, Save, Share2, Trash2, X } from 'lucide-react';
 
 import PlatformIcon from '../components/PlatformIcon';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -22,8 +22,12 @@ export default function ProblemSetsPage({ notify, onTrain }: { notify: (message:
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [setToDelete, setSetToDelete] = useState<ProblemSet | null>(null);
+  const [communityDraftFor, setCommunityDraftFor] = useState<ProblemSet | null>(null);
   const [draft, setDraft] = useState<ProblemSetInput>(emptyDraft);
   const [urlInput, setUrlInput] = useState('');
+  const [luoguUrl, setLuoguUrl] = useState('');
+  const [luoguOpen, setLuoguOpen] = useState(false);
+  const [luoguLoading, setLuoguLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const selected = sets.find((set) => set.id === selectedId) || sets[0] || null;
 
@@ -57,22 +61,62 @@ export default function ProblemSetsPage({ notify, onTrain }: { notify: (message:
   };
   const onImport = async (file?: File) => { if (!file) return; try { const imported = await importSet(await file.text()); setSelectedId(imported.id); setEditing(false); notify(`题单“${imported.title}”已导入`); } catch (error) { notify(String(error)); } finally { if (inputRef.current) inputRef.current.value = ''; } };
   const exportSet = async (set: ProblemSet) => { try { const data = await api.exportProblemSet(set.id); const saved = await saveTrainingJson(`OJ-Insight-题单-${set.id}.json`, data); if (saved) notify(`题单已保存到 ${saved.path}`); } catch (error) { notify(String(error)); } };
+  const exportCommunityDraft = async (set: ProblemSet, id: string, summary: string, author: string, categories: string[], license: string) => {
+    const content = JSON.parse(await api.exportProblemSet(set.id));
+    content.sourceSetId = null;
+    content.sourceUrl = null;
+    const entry = { schema: 'com.ojinsight.community-entry', schemaVersion: 1, id, type: 'problem-set', title: set.title, summary, author: { name: author, url: null }, categories, license, sourceUrl: null, content };
+    const saved = await saveTrainingJson(`${id}.json`, `${JSON.stringify(entry, null, 2)}\n`);
+    if (saved) { setCommunityDraftFor(null); notify(`投稿文件已保存到 ${saved.path}；请在推荐题单仓库发起 PR。`); }
+  };
   const removeSet = async () => { if (!setToDelete) return; try { await deleteSet(setToDelete.id); setSelectedId(null); setEditing(false); setSetToDelete(null); notify('题单已删除'); } catch (error) { notify(String(error)); } };
+  const previewLuogu = async () => {
+    if (!luoguUrl.trim() || luoguLoading) return;
+    setLuoguLoading(true);
+    try {
+      const imported = await api.previewLuoguProblemSet(luoguUrl);
+      setDraft(imported); setEditing(true); setLuoguOpen(false);
+      notify(`已读取 ${imported.problems.length} 道题，请检查后保存。`);
+    } catch (error) { notify(`洛谷题单读取失败：${String(error)}`); }
+    finally { setLuoguLoading(false); }
+  };
 
   return <>
-    <header className="topbar"><div><small>TRAINING CENTER · PROBLEM SETS</small><h1>题单</h1><p>查看、整理和分享跨 OJ 题单。点击题单进入详情，编辑和导出使用卡片右侧操作。</p></div><div className="compact-actions"><input ref={inputRef} hidden type="file" accept="application/json,.json" onChange={(event) => void onImport(event.target.files?.[0])} /><button title="导入 OJ Insight 题单 JSON" onClick={() => inputRef.current?.click()}><FileUp size={15} /><span>导入题单</span></button><button className="primary" onClick={beginNew}><Plus size={15} /><span>新建题单</span></button></div></header>
+    <header className="topbar"><div><small>TRAINING CENTER · PROBLEM SETS</small><h1>题单</h1><p>查看、整理和分享跨 OJ 题单。点击题单进入详情，编辑和导出使用卡片右侧操作。</p></div><div className="compact-actions"><input ref={inputRef} hidden type="file" accept="application/json,.json" onChange={(event) => void onImport(event.target.files?.[0])} /><button title="导入 OJ Insight 题单 JSON" onClick={() => inputRef.current?.click()}><FileUp size={15} /><span>导入题单</span></button><button onClick={() => setLuoguOpen((open) => !open)}><Link2 size={15} /><span>导入洛谷题单</span></button><button className="primary" onClick={beginNew}><Plus size={15} /><span>新建题单</span></button></div></header>
+    {luoguOpen && <section className="panel luogu-import"><div><strong>从洛谷题单链接导入</strong><small>读取题单的题目列表，先预览编辑，再保存到本地。洛谷可能要求登录，可在设置中配置 Cookie。</small></div><div><input aria-label="洛谷题单链接" value={luoguUrl} onChange={(event) => setLuoguUrl(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void previewLuogu(); }} placeholder="https://www.luogu.com.cn/training/12345" /><button className="primary" disabled={!luoguUrl.trim() || luoguLoading} onClick={() => void previewLuogu()}>{luoguLoading ? '读取中…' : '读取题目'}</button></div></section>}
     <div className="problem-sets-layout">
-      <aside className="panel set-gallery"><header><div><strong>题单</strong><small>{loading ? '读取中…' : `${sets.length} 个`}</small></div></header>{sets.length ? sets.map((set) => <article key={set.id} className={selected?.id === set.id && !editing ? 'active' : ''}><button className="set-card-main" onClick={() => { setSelectedId(set.id); setEditing(false); }}><div className="set-card-icons">{[...new Set(set.problems.map((entry) => entry.problem.platform))].slice(0, 4).map((platform) => <PlatformIcon key={platform} platform={platform} />)}</div><strong>{set.title}</strong><span>{set.problems.length} 道题 · {new Set(set.problems.map((entry) => entry.problem.platform)).size} 个平台</span></button><div className="set-card-actions"><button title="编辑题单" onClick={() => beginEdit(set)}><Pencil size={14} /></button><button title="导出题单" onClick={() => void exportSet(set)}><Download size={14} /></button><button title="删除题单" onClick={() => setSetToDelete(set)}><Trash2 size={14} /></button></div></article>) : <div className="set-empty"><strong>还没有题单</strong><span>粘贴题目链接创建，或导入 OJ Insight 题单 JSON。</span><button onClick={beginNew}><Plus size={14} />创建第一个题单</button></div>}</aside>
-      {editing ? <SetEditor draft={draft} setDraft={setDraft} urlInput={urlInput} setUrlInput={setUrlInput} addLinks={addLinks} updateProblem={updateProblem} lookupProblem={lookupDraftProblem} saving={saving} onSave={() => void submit()} onCancel={() => setEditing(false)} /> : selected ? <SetDetail set={selected} onEdit={() => beginEdit(selected)} onExport={() => void exportSet(selected)} onDelete={() => setSetToDelete(selected)} onTrain={() => onTrain(selected.id)} onOpenExports={() => void openTrainingExportDirectory().catch((error) => notify(String(error)))} /> : <section className="panel set-welcome"><Link2 size={30} /><h2>用链接建立第一份题单</h2><p>只需要粘贴题目链接，OJ Insight 会自动识别平台与题目标识。</p><button className="primary" onClick={beginNew}><Plus size={15} />新建题单</button></section>}
+      <aside className="panel set-gallery"><header><div><strong>题单</strong><small>{loading ? '读取中…' : `${sets.length} 个`}</small></div></header>{sets.length ? sets.map((set) => <article key={set.id} className={selected?.id === set.id && !editing ? 'active' : ''}><button className="set-card-main" onClick={() => { setSelectedId(set.id); setEditing(false); }}><div className="set-card-icons">{[...new Set(set.problems.map((entry) => entry.problem.platform))].slice(0, 4).map((platform) => <PlatformIcon key={platform} platform={platform} />)}</div><strong>{set.title}</strong><span>{set.problems.length} 道题 · 已通过 {set.solvedKeys?.length || 0} 题</span></button><div className="set-card-actions"><button title="编辑题单" onClick={() => beginEdit(set)}><Pencil size={14} /></button><button title="导出题单" onClick={() => void exportSet(set)}><Download size={14} /></button><button title="删除题单" onClick={() => setSetToDelete(set)}><Trash2 size={14} /></button></div></article>) : <div className="set-empty"><strong>还没有题单</strong><span>粘贴题目链接创建，或导入 OJ Insight 题单 JSON。</span><button onClick={beginNew}><Plus size={14} />创建第一个题单</button></div>}</aside>
+      {editing ? <SetEditor draft={draft} setDraft={setDraft} urlInput={urlInput} setUrlInput={setUrlInput} addLinks={addLinks} updateProblem={updateProblem} lookupProblem={lookupDraftProblem} saving={saving} onSave={() => void submit()} onCancel={() => setEditing(false)} /> : selected ? <SetDetail set={selected} onEdit={() => beginEdit(selected)} onExport={() => void exportSet(selected)} onCommunityDraft={() => setCommunityDraftFor(selected)} onDelete={() => setSetToDelete(selected)} onTrain={() => onTrain(selected.id)} onOpenExports={() => void openTrainingExportDirectory().catch((error) => notify(String(error)))} /> : <section className="panel set-welcome"><Link2 size={30} /><h2>用链接建立第一份题单</h2><p>只需要粘贴题目链接，OJ Insight 会自动识别平台与题目标识。</p><button className="primary" onClick={beginNew}><Plus size={15} />新建题单</button></section>}
     </div>
     {setToDelete && <ConfirmDialog title="删除题单？" message={`将删除“${setToDelete.title}”。训练记录和同步数据会保留，题单本身无法恢复。`} onCancel={() => setSetToDelete(null)} onConfirm={removeSet} />}
+    {communityDraftFor && <CommunityDraftDialog set={communityDraftFor} onCancel={() => setCommunityDraftFor(null)} onExport={exportCommunityDraft} notify={notify} />}
   </>;
 }
 
-function SetDetail({ set, onEdit, onExport, onDelete, onTrain, onOpenExports }: { set: ProblemSet; onEdit: () => void; onExport: () => void; onDelete: () => void; onTrain: () => void; onOpenExports: () => void }) {
+function SetDetail({ set, onEdit, onExport, onCommunityDraft, onDelete, onTrain, onOpenExports }: { set: ProblemSet; onEdit: () => void; onExport: () => void; onCommunityDraft: () => void; onDelete: () => void; onTrain: () => void; onOpenExports: () => void }) {
   const roles = new Map<TrainingRole, number>();
+  const solved = new Set(set.solvedKeys || []);
   for (const entry of set.problems) roles.set(entry.role, (roles.get(entry.role) || 0) + 1);
-  return <section className="panel set-detail"><header><div><small>固定题单 · {set.problems.length} 题</small><h2>{set.title}</h2><div className="set-description-preview"><MarkdownPreview text={set.description || '暂无说明'} /></div></div><div className="icon-actions"><button title="编辑题单" onClick={onEdit}><Pencil size={15} /></button><button title="导出题单" onClick={onExport}><Download size={15} /></button><button title="打开导出文件夹" onClick={onOpenExports}><ExternalLink size={15} /></button><button className="danger" title="删除题单" onClick={onDelete}><Trash2 size={15} /></button></div></header><div className="set-overview"><div><span>平台</span><strong>{[...new Set(set.problems.map((entry) => entry.problem.platform))].map((platform) => PLATFORM_META[platform].name).join(' · ') || '暂无'}</strong></div><div><span>角色分布</span><strong>{[...roles].map(([role, count]) => `${ROLE_NAMES[role]} ${count}`).join(' · ') || '暂无'}</strong></div><div><span>标签</span><strong>{set.tagVisibility === 'after_ac' ? 'AC 后显示' : set.tagVisibility === 'never' ? '始终隐藏' : '解题前显示'}</strong></div></div><div className="set-problem-list">{set.problems.map((entry) => <a key={entry.problem.canonicalId || `${entry.problem.platform}:${entry.problem.problemKey}`} href={entry.problem.url || undefined} target="_blank" rel="noreferrer"><PlatformIcon platform={entry.problem.platform} /><span className="problem-number">{entry.position + 1}</span><div><strong>{entry.problem.name || `${PLATFORM_META[entry.problem.platform].short} ${entry.problem.problemId || entry.problem.problemKey}`}</strong><small>{PLATFORM_META[entry.problem.platform].name} · {ROLE_NAMES[entry.role]}{entry.note ? ` · ${entry.note}` : ''}</small>{set.tagVisibility === 'before_solving' && entry.problem.tags.length > 0 && <em>{entry.problem.tags.join(' · ')}</em>}</div><ExternalLink size={14} /></a>)}</div><footer><span>题单可反复使用，比赛会保存一份独立快照。</span><button className="primary" onClick={onTrain}><Play size={16} />转为模拟赛</button></footer></section>;
+  return <section className="panel set-detail"><header><div><small>固定题单 · {set.problems.length} 题 · 已通过 {solved.size} 题</small><h2>{set.title}</h2><div className="set-description-preview"><MarkdownPreview text={set.description || '暂无说明'} /></div></div><div className="icon-actions"><button title="编辑题单" onClick={onEdit}><Pencil size={15} /></button><button title="导出题单" onClick={onExport}><Download size={15} /></button><button title="制作社区投稿文件" onClick={onCommunityDraft}><Share2 size={15} /></button><button title="打开导出文件夹" onClick={onOpenExports}><ExternalLink size={15} /></button><button className="danger" title="删除题单" onClick={onDelete}><Trash2 size={15} /></button></div></header><div className="set-overview"><div><span>平台</span><strong>{[...new Set(set.problems.map((entry) => entry.problem.platform))].map((platform) => PLATFORM_META[platform].name).join(' · ') || '暂无'}</strong></div><div><span>角色分布</span><strong>{[...roles].map(([role, count]) => `${ROLE_NAMES[role]} ${count}`).join(' · ') || '暂无'}</strong></div><div><span>标签</span><strong>{set.tagVisibility === 'after_ac' ? 'AC 后显示' : set.tagVisibility === 'never' ? '始终隐藏' : '解题前显示'}</strong></div></div><div className="set-problem-list">{set.problems.map((entry) => { const passed = solved.has(`${entry.problem.platform}:${entry.problem.problemKey}`); return <a key={entry.problem.canonicalId || `${entry.problem.platform}:${entry.problem.problemKey}`} href={entry.problem.url || undefined} target="_blank" rel="noreferrer"><PlatformIcon platform={entry.problem.platform} /><span className="problem-number">{entry.position + 1}</span><div><strong>{entry.problem.name || `${PLATFORM_META[entry.problem.platform].short} ${entry.problem.problemId || entry.problem.problemKey}`}</strong><small>{PLATFORM_META[entry.problem.platform].name} · {ROLE_NAMES[entry.role]}{entry.note ? ` · ${entry.note}` : ''}</small>{(set.tagVisibility === 'before_solving' || set.tagVisibility === 'after_ac' && passed) && entry.problem.tags.length > 0 && <em>{entry.problem.tags.join(' · ')}</em>}</div><span className={`set-solve-badge ${passed ? 'passed' : ''}`}>{passed ? '已通过' : '未记录通过'}</span></a>; })}</div><footer><span>通过状态来自本地同步记录；题单可反复使用。</span><button className="primary" onClick={onTrain}><Play size={16} />转为模拟赛</button></footer></section>;
+}
+
+function CommunityDraftDialog({ set, onCancel, onExport, notify }: { set: ProblemSet; onCancel: () => void; onExport: (set: ProblemSet, id: string, summary: string, author: string, categories: string[], license: string) => Promise<void>; notify: (message: string) => void }) {
+  const [id, setId] = useState('');
+  const [summary, setSummary] = useState('');
+  const [author, setAuthor] = useState('');
+  const [categories, setCategories] = useState('');
+  const [license, setLicense] = useState('CC-BY-4.0');
+  const [confirmed, setConfirmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id) || id.length > 100) { notify('文件标识请使用小写英文字母、数字和连字符。'); return; }
+    if (!summary.trim() || !author.trim() || !confirmed) { notify('请填写简介、作者，并确认可以公开分享。'); return; }
+    setSaving(true);
+    try { await onExport(set, id, summary.trim(), author.trim(), categories.split(',').map((item) => item.trim()).filter(Boolean), license); }
+    catch (error) { notify(`制作投稿文件失败：${String(error)}`); }
+    finally { setSaving(false); }
+  };
+  return <div className="training-confirm-backdrop"><section className="panel community-draft-dialog" role="dialog" aria-modal="true" aria-label="制作社区投稿文件"><header><h2>制作社区投稿文件</h2><button title="关闭" onClick={onCancel}><X size={16} /></button></header><p>从“{set.title}”生成投稿 JSON。检查题单说明和备注后，到「推荐题单」中的仓库发起 PR。</p><label><span>文件标识</span><input value={id} onChange={(event) => setId(event.target.value.toLowerCase())} placeholder="graph-basics-2026" /></label><label><span>简介</span><textarea value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={500} placeholder="用一句话说明适合谁、练什么" /></label><label><span>作者或 GitHub 用户名</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label><label><span>分类（逗号分隔）</span><input value={categories} onChange={(event) => setCategories(event.target.value)} placeholder="图论, 入门" /></label><label><span>授权方式</span><select value={license} onChange={(event) => setLicense(event.target.value)}><option value="CC-BY-4.0">CC BY 4.0</option><option value="CC-BY-SA-4.0">CC BY-SA 4.0</option><option value="CC0-1.0">CC0 1.0</option></select></label><label className="community-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /><span>我确认题单内容可公开，说明与备注不含隐私或无权转载的题面。</span></label><footer><button onClick={onCancel}>取消</button><button className="primary" disabled={saving} onClick={() => void submit()}><Share2 size={15} />{saving ? '导出中…' : '导出投稿 JSON'}</button></footer></section></div>;
 }
 
 type EditorProps = { draft: ProblemSetInput; setDraft: (value: ProblemSetInput | ((current: ProblemSetInput) => ProblemSetInput)) => void; urlInput: string; setUrlInput: (value: string) => void; addLinks: () => void; updateProblem: (index: number, patch: Omit<Partial<ProblemSetProblem>, 'problem'> & { problem?: Partial<ProblemSetProblem['problem']> }) => void; lookupProblem: (index: number) => Promise<void>; saving: boolean; onSave: () => void; onCancel: () => void };

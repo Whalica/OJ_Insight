@@ -37,6 +37,13 @@ pub fn apply_remote(conn: &mut Connection, remote: &RemoteData) -> Result<(i64, 
     if !configured {
         return Err("账号已移除，丢弃此次同步结果".into());
     }
+    if let Some(problem_keys) = &remote.solved_inventory {
+        tx.execute("DELETE FROM solved_inventory WHERE platform=? AND account=?", params![remote.platform, remote.account]).map_err(|e| e.to_string())?;
+        let updated_at = Utc::now().timestamp();
+        for problem_key in problem_keys {
+            tx.execute("INSERT OR IGNORE INTO solved_inventory(platform,account,problem_key,updated_at) VALUES(?,?,?,?)", params![remote.platform, remote.account, problem_key, updated_at]).map_err(|e| e.to_string())?;
+        }
+    }
     if remote
         .submissions
         .iter()
@@ -374,6 +381,7 @@ pub fn clear_platform(conn: &mut Connection, platform: &str) -> Result<(), Strin
 fn clear_platform_tx(conn: &Connection, platform: &str) -> Result<(), String> {
     for sql in [
         "DELETE FROM submissions WHERE platform=?",
+        "DELETE FROM solved_inventory WHERE platform=?",
         "DELETE FROM daily_counts WHERE platform=?",
         "DELETE FROM daily_aggregates WHERE platform=?",
         "DELETE FROM daily_aggregates_accounts WHERE platform=?",

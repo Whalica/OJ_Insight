@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS submissions (
 );
 CREATE INDEX IF NOT EXISTS idx_submissions_platform_time ON submissions(platform, epoch_second);
 CREATE INDEX IF NOT EXISTS idx_submissions_platform_problem ON submissions(platform, problem_key);
+CREATE TABLE IF NOT EXISTS solved_inventory (
+  platform TEXT NOT NULL,
+  account TEXT NOT NULL,
+  problem_key TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY(platform,account,problem_key)
+);
+CREATE INDEX IF NOT EXISTS idx_solved_inventory_problem ON solved_inventory(platform,problem_key);
 CREATE TABLE IF NOT EXISTS daily_counts (
   platform TEXT NOT NULL,
   day TEXT NOT NULL,

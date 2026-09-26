@@ -215,10 +215,12 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 @media (max-width: 620px) { .review-credential-guide, .review-preview-actions { align-items: flex-start; flex-direction: column; }.account-card-head { align-items: flex-start; }.account-card-actions { justify-content: flex-start; }.account-entry.account-entry-cf { grid-template-columns: 24px minmax(0,1fr) 30px; }.account-entry.account-entry-cf>input { grid-column: 2; }.account-entry.account-entry-cf>.remove-account { grid-column: 3; grid-row: 1; } }
 
 /* 0.9.2 credential, review and difficulty polish. */
-.histogram-nowcoder:not(.histogram-daily) { grid-template-columns: repeat(var(--bucket-count),minmax(0,1fr)); column-gap: 12px; overflow: visible; padding-inline: 8px; }
+.histogram-nowcoder:not(.histogram-daily) { display: flex; gap: 4px; overflow: hidden; padding-inline: 4px; }
+.histogram-nowcoder:not(.histogram-daily) .histogram-bucket { flex: 1 1 0; }
+.histogram-nowcoder:not(.histogram-daily) .histogram-bucket:first-child { flex-grow: 1.45; }
 .histogram-nowcoder:not(.histogram-daily) .histogram-bucket { padding-inline: 2px; }
 .histogram-nowcoder:not(.histogram-daily) .histogram-bar i { width: min(var(--histogram-bar-fill),26px); min-width: 8px; }
-.histogram-nowcoder:not(.histogram-daily) .histogram-bucket>span:last-child { white-space: nowrap; overflow-wrap: normal; word-break: keep-all; font-size: max(9px,calc(var(--font-meta) - 1px)); }
+.histogram-nowcoder:not(.histogram-daily) .histogram-bucket>span:last-child { white-space: normal; overflow-wrap: anywhere; font-size: var(--font-meta); }
 .xcpc-problem.tier-gold { --tier-color: var(--qoj-gold); }
 .xcpc-problem.tier-silver { --tier-color: var(--qoj-silver); }
 .xcpc-problem.tier-bronze { --tier-color: var(--qoj-bronze); }

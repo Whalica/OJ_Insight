@@ -72,6 +72,7 @@ mod tests {
                 axis: "图论与树".into(),
                 count: 1,
             }]),
+            solved_inventory: None,
             ratings: Some(vec![RatingPoint {
                 contest_id: "1".into(),
                 contest_name: "Round 1".into(),
@@ -429,6 +430,26 @@ mod tests {
                 .sum::<i64>(),
             0
         );
+    }
+
+    #[test]
+    fn solved_inventory_marks_problems_without_inventing_submissions() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn, "luogu", &[entry("luogu", "alice")]).unwrap();
+        let mut data = remote("luogu", "alice");
+        data.submissions.clear();
+        data.solved_inventory = Some(vec!["P1421".into(), "B2002".into()]);
+        apply_remote(&mut conn, &data).unwrap();
+        assert_eq!(count(&conn, "submissions", "luogu", "alice"), 0);
+        assert!(is_problem_solved(&conn, "luogu", "P1421").unwrap());
+        data.solved_inventory = None;
+        apply_remote(&mut conn, &data).unwrap();
+        assert!(is_problem_solved(&conn, "luogu", "P1421").unwrap());
+        data.solved_inventory = Some(vec!["B2002".into()]);
+        apply_remote(&mut conn, &data).unwrap();
+        assert!(!is_problem_solved(&conn, "luogu", "P1421").unwrap());
+        clear_platform(&mut conn, "luogu").unwrap();
+        assert!(!is_problem_solved(&conn, "luogu", "B2002").unwrap());
     }
 
     #[test]

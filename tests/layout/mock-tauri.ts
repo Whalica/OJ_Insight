@@ -36,7 +36,7 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
         case 'can_install_updates':
           return false;
         case 'check_for_updates':
-          return { currentVersion: '0.10.0', latestVersion: '0.10.0', releaseUrl: '', updateAvailable: false };
+          return { currentVersion: '0.10.1', latestVersion: '0.10.1', releaseUrl: '', updateAvailable: false };
         case 'list_problem_sets':
         case 'list_training_matches':
           return [];

@@ -6,6 +6,7 @@
 .relationship-intro { align-items: flex-start; }
 .relationship-intro strong { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .relationships-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 12px; align-items: stretch; }
+.relationship-events-card { margin-top: 20px; }
 .relationship-people-card, .relationship-events-card { min-width: 0; }
 .relationship-add-trigger { border: 1px solid #3d965d; background: var(--switch-on); color: var(--accent); border-radius: 8px; padding: 9px 13px; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: var(--font-small); font-weight: 680; }
 .relationship-add-trigger:hover { background: var(--interactive-hover); border-color: var(--interactive-border-hover); }

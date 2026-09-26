@@ -16,7 +16,7 @@ export function parseProblemUrl(value: string): ParsedIdentity | null {
   match = path.match(/^\/contests\/([^/]+)\/tasks\/([^/]+)$/i);
   if (host === 'atcoder.jp' && match) return identity('atcoder', match[2], match[2], input);
 
-  match = path.match(/^\/problem\/(P\d+)$/i);
+  match = path.match(/^\/problem\/([A-Z][A-Z0-9_]*)$/i);
   if (host === 'luogu.com.cn' && match) return identity('luogu', match[1].toUpperCase(), match[1].toUpperCase(), input);
 
   match = path.match(/^\/problem\/(\d+)$/i);

@@ -6,7 +6,7 @@ OJ Insight 是一个面向算法竞赛选手的跨平台训练数据面板。目
 
 [下载最新版本](https://github.com/Whalica/OJ_Insight/releases/latest) · [查看更新记录](docs/UPDATEINFO.md) · [反馈问题](https://github.com/Whalica/OJ_Insight/issues) · [源码构建](docs/BUILDING.md) · [用户手册](docs/manual/user-manual.pdf)
 
-当前版本：**v0.10.0**，支持 Windows、MacOS 和 Linux。
+当前版本：**v0.10.1**，支持 Windows、MacOS 和 Linux。
 
 ## 为什么使用 OJ Insight
 
@@ -33,6 +33,8 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 「题单」用于整理和分享跨 OJ 题目；粘贴链接即可离线识别平台与题目标识并保存，真实标题和标签可按需获取或手动填写。「模拟赛」保存独立的比赛配置与历史场次，可由题单生成、手动创建或导入 AI 结果；比赛说明支持 Markdown 和 LaTeX。加入「参赛区」后可预设赛前倒计时秒数，点击「开始 VP」才启动倒计时，到零后开始比赛。赛中可暂停、继续或结束 VP，并记录单题思路和整场笔记。用户仍在原 OJ 提交，OJ Insight 根据本地 AC 同步与可获取的 Codeforces / AtCoder 提交记录更新状态和 verdict。无法获取的错误提交不会被推断为 WA。
 
 「个性化组题」不会把已有题单当作初始候选。OJ Insight 从可靠的 Codeforces、AtCoder 和 QOJ 目录筛选候选题，排除本地已做题，导出包含画像、约束、候选池和完整指令的 ZIP。直接上传 ZIP 即可让大模型生成比赛 JSON；额外要求可选。生成结果可导入为题单或比赛。
+
+「推荐题单」会从 [OJ Insight Community](https://github.com/Whalica/OJ_Insight-Community) 的审核目录浏览社区题单，预览后保存为本地副本。本地题单可制作社区投稿 JSON，再通过仓库 PR 投稿；个人提交记录、笔记和代码不会自动上传。洛谷题单也可通过链接读取并预览后保存；页面如要求登录，可在设置中填写洛谷 Cookie。
 
 ### 把一场比赛直接交给大模型复盘
 
@@ -96,6 +98,8 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 5. 在原 OJ 提交；赛后到「赛后分析」绑定可用的本地代码并导出复盘包。
 
 个性化候选池严格排除本地已做题，并跳过 interactive、output-only 和明确标记为不适合日常训练的题目。手动题单和比赛可由用户自行编排。默认在 AC 后显示标签，减少知识点剧透。
+
+候选池还会按已有逐题难度记录估计每个平台的训练区间，并轮流从各平台取题。洛谷练习页若提供逐题通过标识，题单会显示通过状态，筛题时也会排除这些题目；这份清单不计入提交次数或今日进度。
 
 ### 下载哪个文件
 

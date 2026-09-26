@@ -169,9 +169,11 @@ pub fn list_problem_sets(conn: &Connection) -> Result<Vec<ProblemSet>, String> {
 }
 
 pub fn get_problem_set(conn: &Connection, id: i64) -> Result<ProblemSet, String> {
-    let mut set = conn.query_row("SELECT id,title,description,set_type,tag_visibility,source_set_id,source_url,created_at,updated_at FROM problem_sets WHERE id=?", [id], |row| Ok(ProblemSet { id:row.get(0)?,title:row.get(1)?,description:row.get(2)?,set_type:row.get(3)?,tag_visibility:row.get(4)?,source_set_id:row.get(5)?,source_url:row.get(6)?,created_at:row.get(7)?,updated_at:row.get(8)?,problems:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "题单不存在".to_string())?;
+    let mut set = conn.query_row("SELECT id,title,description,set_type,tag_visibility,source_set_id,source_url,created_at,updated_at FROM problem_sets WHERE id=?", [id], |row| Ok(ProblemSet { id:row.get(0)?,title:row.get(1)?,description:row.get(2)?,set_type:row.get(3)?,tag_visibility:row.get(4)?,source_set_id:row.get(5)?,source_url:row.get(6)?,created_at:row.get(7)?,updated_at:row.get(8)?,problems:Vec::new(),solved_keys:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "题单不存在".to_string())?;
     let mut stmt = conn.prepare("SELECT p.position,p.role,p.note,c.platform,c.problem_key,c.problem_id,c.name,c.url,c.difficulty,c.tags,c.training_suitability,c.observation_dependency,c.implementation_load,c.knowledge_dependency,c.interactive,c.output_only FROM problem_set_problems p JOIN canonical_problems c ON c.platform=p.platform AND c.problem_key=p.problem_key WHERE p.set_id=? ORDER BY p.position").map_err(|e| e.to_string())?;
     set.problems = stmt.query_map([id], |row| Ok(ProblemSetProblem { position:row.get(0)?,role:row.get(1)?,note:row.get(2)?,problem:row_problem(row,3)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e| e.to_string())?;
+    let mut solved_stmt = conn.prepare("SELECT DISTINCT p.platform,p.problem_key FROM problem_set_problems p WHERE p.set_id=? AND (EXISTS(SELECT 1 FROM submissions s WHERE s.platform=p.platform AND s.problem_key=p.problem_key) OR EXISTS(SELECT 1 FROM solved_inventory i WHERE i.platform=p.platform AND i.problem_key=p.problem_key))").map_err(|e| e.to_string())?;
+    set.solved_keys = solved_stmt.query_map([id], |row| Ok(format!("{}:{}", row.get::<_,String>(0)?, row.get::<_,String>(1)?))).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e| e.to_string())?;
     Ok(set)
 }
 
@@ -181,7 +183,7 @@ pub fn delete_problem_set(conn: &Connection, id: i64) -> Result<(), String> {
 }
 
 pub fn is_problem_solved(conn: &Connection, platform: &str, problem_key: &str) -> Result<bool, String> {
-    conn.query_row("SELECT EXISTS(SELECT 1 FROM submissions WHERE platform=? AND problem_key=?)", params![platform,problem_key], |row| row.get(0)).map_err(|e| e.to_string())
+    conn.query_row("SELECT EXISTS(SELECT 1 FROM submissions WHERE platform=? AND problem_key=? UNION SELECT 1 FROM solved_inventory WHERE platform=? AND problem_key=?)", params![platform,problem_key,platform,problem_key], |row| row.get(0)).map_err(|e| e.to_string())
 }
 
 pub fn create_training_match(conn: &mut Connection, set_id: Option<i64>, title: &str, mode: &str, tag_visibility: &str, min: f64, max: f64, duration: i64, problems: &[ProblemSetProblem]) -> Result<TrainingMatch, String> {
