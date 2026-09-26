@@ -113,6 +113,7 @@ pub(super) fn initialize_training_schema(tx: &Transaction<'_>) -> Result<(), Str
     tx.execute_batch(TRAINING_SCHEMA).map_err(|e| format!("初始化 Training 数据库失败：{e}"))?;
     super::connection::ensure_column(tx, "training_matches", "contest_id", "INTEGER")?;
     super::connection::ensure_column(tx, "training_matches", "scheduled_start_at", "INTEGER")?;
+    super::connection::ensure_column(tx, "training_matches", "countdown_seconds", "INTEGER NOT NULL DEFAULT 0")?;
     super::connection::ensure_column(tx, "training_matches", "paused_at", "INTEGER")?;
     super::connection::ensure_column(tx, "training_matches", "total_paused_seconds", "INTEGER NOT NULL DEFAULT 0")?;
     super::connection::ensure_column(tx, "training_matches", "general_note", "TEXT NOT NULL DEFAULT ''")?;
@@ -247,7 +248,7 @@ pub fn list_training_matches(conn: &Connection) -> Result<Vec<TrainingMatch>, St
 }
 
 pub fn get_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch, String> {
-    let mut item = conn.query_row("SELECT id,problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,ended_at,created_at,contest_id,scheduled_start_at,paused_at,total_paused_seconds,general_note FROM training_matches WHERE id=?", [id], |row| Ok(TrainingMatch { id:row.get(0)?,problem_set_id:row.get(1)?,title:row.get(2)?,mode:row.get(3)?,status:row.get(4)?,tag_visibility:row.get(5)?,target_solve_rate_min:row.get(6)?,target_solve_rate_max:row.get(7)?,duration_minutes:row.get(8)?,started_at:row.get(9)?,ended_at:row.get(10)?,created_at:row.get(11)?,contest_id:row.get(12)?,scheduled_start_at:row.get(13)?,paused_at:row.get(14)?,total_paused_seconds:row.get(15)?,general_note:row.get(16)?,problems:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "训练赛不存在".to_string())?;
+    let mut item = conn.query_row("SELECT id,problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,ended_at,created_at,contest_id,scheduled_start_at,paused_at,total_paused_seconds,general_note,countdown_seconds FROM training_matches WHERE id=?", [id], |row| Ok(TrainingMatch { id:row.get(0)?,problem_set_id:row.get(1)?,title:row.get(2)?,mode:row.get(3)?,status:row.get(4)?,tag_visibility:row.get(5)?,target_solve_rate_min:row.get(6)?,target_solve_rate_max:row.get(7)?,duration_minutes:row.get(8)?,started_at:row.get(9)?,ended_at:row.get(10)?,created_at:row.get(11)?,contest_id:row.get(12)?,scheduled_start_at:row.get(13)?,paused_at:row.get(14)?,total_paused_seconds:row.get(15)?,general_note:row.get(16)?,countdown_seconds:row.get(17)?,problems:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "训练赛不存在".to_string())?;
     let mut stmt=conn.prepare("SELECT p.position,p.role,p.note,p.solved,p.solved_at,c.platform,c.problem_key,c.problem_id,c.name,c.url,c.difficulty,c.tags,c.training_suitability,c.observation_dependency,c.implementation_load,c.knowledge_dependency,c.interactive,c.output_only,p.solution_note FROM training_match_problems p JOIN canonical_problems c ON c.platform=p.platform AND c.problem_key=p.problem_key WHERE p.match_id=? ORDER BY p.position").map_err(|e|e.to_string())?;
     item.problems=stmt.query_map([id],|row|Ok(TrainingMatchProblem{position:row.get(0)?,role:row.get(1)?,note:row.get(2)?,solved:row.get::<_,i64>(3)?!=0,solved_at:row.get(4)?,problem:row_problem(row,5)?,solution_note:row.get(18)?})).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
     Ok(item)
@@ -288,10 +289,10 @@ pub fn delete_contest(conn:&Connection,id:i64)->Result<(),String>{
 
 pub fn queue_contest(conn:&mut Connection,id:i64,countdown_seconds:i64)->Result<TrainingMatch,String>{
     let contest=get_contest(conn,id)?;
+    if !(0..=7200).contains(&countdown_seconds) { return Err("倒计时须在 0 秒到 120 分钟之间".into()); }
     let now=chrono::Utc::now().timestamp();
     let tx=conn.transaction().map_err(|e|e.to_string())?;
-    let scheduled=if countdown_seconds>0 {Some(now+countdown_seconds)} else {None};
-    tx.execute("INSERT INTO training_matches(problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,created_at,contest_id,scheduled_start_at) VALUES(?,?,?,'waiting',?,?,?,?,0,?,?,?)",params![contest.source_set_id,contest.title,contest.mode,contest.tag_visibility,contest.target_solve_rate_min,contest.target_solve_rate_max,contest.duration_minutes,now,id,scheduled]).map_err(|e|e.to_string())?;
+    tx.execute("INSERT INTO training_matches(problem_set_id,title,mode,status,tag_visibility,target_solve_rate_min,target_solve_rate_max,duration_minutes,started_at,created_at,contest_id,countdown_seconds) VALUES(?,?,?,'waiting',?,?,?,?,0,?,?,?)",params![contest.source_set_id,contest.title,contest.mode,contest.tag_visibility,contest.target_solve_rate_min,contest.target_solve_rate_max,contest.duration_minutes,now,id,countdown_seconds]).map_err(|e|e.to_string())?;
     let match_id=tx.last_insert_rowid();
     for (position,entry) in contest.problems.iter().enumerate(){
         upsert_problem(&tx,&entry.problem,now)?;
@@ -303,15 +304,20 @@ pub fn queue_contest(conn:&mut Connection,id:i64,countdown_seconds:i64)->Result<
 
 pub fn start_vp(conn:&Connection,id:i64)->Result<TrainingMatch,String>{
     let now=chrono::Utc::now().timestamp();
+    let (status, scheduled, countdown): (String, Option<i64>, i64) = conn.query_row("SELECT status,scheduled_start_at,countdown_seconds FROM training_matches WHERE id=?",[id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).map_err(|e|e.to_string())?;
+    if status != "waiting" { return Err("比赛已开始或不存在".into()); }
+    if scheduled.is_none() && countdown > 0 {
+        conn.execute("UPDATE training_matches SET scheduled_start_at=? WHERE id=? AND status='waiting'",params![now+countdown,id]).map_err(|e|e.to_string())?;
+        return get_training_match(conn,id);
+    }
     let changed=conn.execute("UPDATE training_matches SET status='running',started_at=? WHERE id=? AND status='waiting' AND COALESCE(scheduled_start_at,0)<=?",params![now,id,now]).map_err(|e|e.to_string())?;
     if changed==0 { return Err("比赛未到开始时间，或已开始".into()); }
     get_training_match(conn,id)
 }
 
 pub fn schedule_vp(conn:&Connection,id:i64,countdown_seconds:i64)->Result<TrainingMatch,String>{
-    if !(1..=7200).contains(&countdown_seconds) {return Err("倒计时须在 1 秒到 120 分钟之间".into());}
-    let start_at=chrono::Utc::now().timestamp()+countdown_seconds;
-    if conn.execute("UPDATE training_matches SET scheduled_start_at=? WHERE id=? AND status='waiting'",params![start_at,id]).map_err(|e|e.to_string())? == 0 {return Err("只有待开始的 VP 可以设置倒计时".into());}
+    if !(0..=7200).contains(&countdown_seconds) {return Err("倒计时须在 0 秒到 120 分钟之间".into());}
+    if conn.execute("UPDATE training_matches SET countdown_seconds=? WHERE id=? AND status='waiting' AND scheduled_start_at IS NULL",params![countdown_seconds,id]).map_err(|e|e.to_string())? == 0 {return Err("只有尚未开始倒计时的 VP 可以设置秒数".into());}
     get_training_match(conn,id)
 }
 
