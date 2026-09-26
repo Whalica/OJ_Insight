@@ -6,6 +6,49 @@ use rusqlite::Connection;
 use serde_json::Value;
 
 use super::{CandidatePool, CandidateSourceStatus, CanonicalProblem, ProblemSetProblem};
+use crate::models::KnowledgeBucket;
+
+struct AbilityProfile {
+    median: i64,
+    scores: HashMap<String, i64>,
+}
+
+impl AbilityProfile {
+    fn from_buckets(buckets: &[KnowledgeBucket]) -> Option<Self> {
+        let scores: HashMap<_, _> = buckets.iter().filter(|bucket| bucket.count >= 4)
+            .map(|bucket| (bucket.axis.clone(), bucket.score)).collect();
+        if scores.len() < 3 { return None; }
+        let mut values: Vec<_> = scores.values().copied().collect();
+        values.sort_unstable();
+        Some(Self { median: values[values.len() / 2], scores })
+    }
+
+    fn bias(&self, tags: &[String]) -> Option<i64> {
+        let differences: Vec<_> = tags.iter().filter_map(|tag| crate::db::knowledge_axis(tag))
+            .collect::<HashSet<_>>().into_iter()
+            .filter_map(|axis| self.scores.get(axis).map(|score| *score - self.median)).collect();
+        let minimum = *differences.iter().min()?;
+        let maximum = *differences.iter().max()?;
+        // Mixed strong and weak tags do not give a clear training direction.
+        if minimum < -5 && maximum > 5 { None }
+        else if minimum < -5 { Some(minimum) }
+        else if maximum > 5 { Some(maximum) }
+        else { None }
+    }
+}
+
+fn take_next(group: &mut VecDeque<CanonicalProblem>, profile: Option<&AbilityProfile>, pick_index: usize) -> Option<CanonicalProblem> {
+    let direction = match pick_index % 4 { 1 => -1, 3 => 1, _ => 0 };
+    if direction == 0 { return group.pop_front(); }
+    let selected = profile.and_then(|profile| {
+        group.iter().take(8).enumerate().filter_map(|(index, problem)| {
+            let bias = profile.bias(&problem.tags)?;
+            if bias * direction <= 5 { return None; }
+            Some((index, bias.abs()))
+        }).max_by_key(|(index, strength)| (*strength, std::cmp::Reverse(*index)))
+    });
+    selected.and_then(|(index, _)| group.remove(index)).or_else(|| group.pop_front())
+}
 
 pub(crate) fn filter_candidates(conn: &Connection, candidates: Vec<CanonicalProblem>) -> Result<Vec<CanonicalProblem>, String> {
     filter_candidates_with_count(conn, candidates).map(|value| value.0)
@@ -93,6 +136,12 @@ pub(crate) async fn build_candidate_pool(
 pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool) -> Result<CandidatePool, String> {
     let (candidates, excluded_solved) = filter_candidates_with_count(conn, pool.candidates)?;
     let targets = profile_targets(conn, &pool.mode)?;
+    let mut ability_buckets: HashMap<String, Vec<KnowledgeBucket>> = HashMap::new();
+    for bucket in crate::db::training_ability_buckets(conn)? {
+        ability_buckets.entry(bucket.platform.clone()).or_default().push(bucket);
+    }
+    let abilities: HashMap<_, _> = ability_buckets.into_iter().filter_map(|(platform, buckets)|
+        AbilityProfile::from_buckets(&buckets).map(|profile| (platform, profile))).collect();
     let mut groups: BTreeMap<String, Vec<CanonicalProblem>> = BTreeMap::new();
     for problem in candidates { groups.entry(problem.platform.clone()).or_default().push(problem); }
     let mut groups: BTreeMap<String, VecDeque<CanonicalProblem>> = groups.into_iter().map(|(platform, mut problems)| {
@@ -107,17 +156,33 @@ pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool
         });
         (platform, problems.into())
     }).collect();
+    let active_abilities = abilities.iter().filter(|(platform, profile)| groups.get(*platform)
+        .is_some_and(|group| group.iter().any(|problem| profile.bias(&problem.tags).is_some()))).count();
     let mut candidates = Vec::new();
+    let mut platform_picks: HashMap<String, usize> = HashMap::new();
     while candidates.len() < pool.requested_count {
         let mut added = false;
-        for group in groups.values_mut() {
-            if let Some(problem) = group.pop_front() { candidates.push(problem); added = true; }
+        for (platform, group) in &mut groups {
+            let pick_index = platform_picks.entry(platform.clone()).or_default();
+            if let Some(problem) = take_next(group, abilities.get(platform), *pick_index) {
+                candidates.push(problem);
+                *pick_index += 1;
+                added = true;
+            }
             if candidates.len() == pool.requested_count { break; }
         }
         if !added { break; }
     }
     if candidates.is_empty() { return Err("候选目录中的题目均已完成或不适合本次训练".into()); }
-    pool.selection_basis = if targets.is_empty() { "尚无足够的分平台难度记录；按平台均衡取样，已排除已做题。".into() } else { format!("根据 {} 个平台的已通过题目难度估计训练区间，并保持跨平台覆盖；无难度记录的平台使用固定顺序取样。", targets.len()) };
+    pool.selection_basis = format!("按平台均衡取样并排除已做题；{}。{}。", if targets.is_empty() {
+        "难度记录不足，按目录稳定顺序取样".to_string()
+    } else {
+        format!("依据 {} 个平台的已通过题目难度估计训练区间", targets.len())
+    }, if active_abilities == 0 {
+        "知识方向证据不足，未启用画像调整".to_string()
+    } else {
+        format!("依据 {} 个平台的知识画像，在排序靠前的候选中适度兼顾熟悉与薄弱方向", active_abilities)
+    });
     pool.candidates = candidates;
     pool.excluded_solved = excluded_solved;
     Ok(pool)
@@ -214,4 +279,31 @@ async fn fetch_qoj(client: &Client, cache_path: &Path, cookie: &str) -> Result<V
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bucket(axis: &str, count: i64, score: i64) -> KnowledgeBucket {
+        KnowledgeBucket { platform: "codeforces".into(), axis: axis.into(), count, score }
+    }
+
+    #[test]
+    fn sparse_knowledge_does_not_drive_candidate_selection() {
+        assert!(AbilityProfile::from_buckets(&[
+            bucket("动态规划", 3, 20), bucket("图论与树", 5, 50), bucket("数据结构", 5, 80),
+        ]).is_none());
+    }
+
+    #[test]
+    fn reliable_axes_identify_familiar_and_practice_topics() {
+        let profile = AbilityProfile::from_buckets(&[
+            bucket("动态规划", 8, 35), bucket("图论与树", 10, 50), bucket("数据结构", 9, 70),
+        ]).unwrap();
+        assert_eq!(profile.bias(&["dp".into()]), Some(-15));
+        assert_eq!(profile.bias(&["data structures".into()]), Some(20));
+        assert_eq!(profile.bias(&["dp".into(), "data structures".into()]), None);
+        assert_eq!(profile.bias(&["unknown".into()]), None);
+    }
 }
