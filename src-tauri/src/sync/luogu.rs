@@ -1,5 +1,5 @@
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, REFERER, USER_AGENT},
+    header::{HeaderMap, HeaderValue, ACCEPT, REFERER, USER_AGENT},
     Client,
 };
 use serde_json::Value;
@@ -174,16 +174,10 @@ pub async fn fetch(
     let mut solved_count = None;
     let mut solved_inventory = None;
     let mut difficulty = Vec::new();
-    let mut practice_headers = lentille_headers();
-    if !account.secret.trim().is_empty() {
-        if let Ok(value) = HeaderValue::from_str(account.secret.trim()) {
-            practice_headers.insert(COOKIE, value);
-        }
-    }
     if let Ok(practice_text) = get_text(
         client,
         &format!("https://www.luogu.com.cn/user/{uid}/practice"),
-        practice_headers,
+        lentille_headers(),
     )
     .await
     {

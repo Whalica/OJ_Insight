@@ -130,10 +130,10 @@
 .luogu-import { margin-bottom: 14px; display: grid; gap: 10px; }
 .luogu-import>div:first-child { display: grid; gap: 4px; }
 .luogu-import small { color: var(--muted); }
-.luogu-import>div:last-child { display: flex; gap: 8px; }
+.luogu-import>div:last-child { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1.4fr) auto; gap: 8px; }
 .luogu-import input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; background: var(--input); color: var(--text); }
 .luogu-import button { border-radius: 8px; padding: 8px 13px; white-space: nowrap; cursor: pointer; }
-@media (max-width: 650px) { .luogu-import>div:last-child { flex-direction: column; } }
+@media (max-width: 750px) { .luogu-import>div:last-child { grid-template-columns: 1fr; } }
 .community-draft-dialog { width: min(570px,100%); max-height: min(850px,90vh); overflow: auto; display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 11px; padding: 20px; background: var(--panel); color: var(--text); }
 .community-draft-dialog>header, .community-draft-dialog>footer { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
 .community-draft-dialog h2 { margin: 0; font-size: var(--font-section); }

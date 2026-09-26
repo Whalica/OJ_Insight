@@ -34,7 +34,7 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 
 「个性化组题」不会把已有题单当作初始候选。OJ Insight 从可靠的 Codeforces、AtCoder 和 QOJ 目录筛选候选题，排除本地已做题，导出包含画像、约束、候选池和完整指令的 ZIP。直接上传 ZIP 即可让大模型生成比赛 JSON；额外要求可选。生成结果可导入为题单或比赛。
 
-「推荐题单」会从 [OJ Insight Community](https://github.com/Whalica/OJ_Insight-Community) 的审核目录浏览社区题单，预览后保存为本地副本。本地题单可制作社区投稿 JSON，再通过仓库 PR 投稿；个人提交记录、笔记和代码不会自动上传。洛谷题单也可通过链接读取并预览后保存；页面如要求登录，可在设置中填写洛谷 Cookie。
+「推荐题单」会从 [OJ Insight Community](https://github.com/Whalica/OJ_Insight-Community) 的审核目录浏览社区题单，按本地记录显示通过状态，预览后保存为本地副本。本地题单可制作社区投稿 JSON，再通过仓库 PR 投稿；个人提交记录、笔记和代码不会自动上传。洛谷题单也可通过链接读取并预览后保存；页面如要求登录，可在导入时临时填写洛谷 Cookie，不会保存到账号设置。可可靠识别的 Codeforces、AtCoder 远程题会使用原站身份和链接。
 
 ### 把一场比赛直接交给大模型复盘
 
