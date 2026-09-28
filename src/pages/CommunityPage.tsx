@@ -47,6 +47,8 @@ export default function CommunityPage({ notify, onOpenLocalSets }: { notify: (me
   return <>
     <header className="topbar"><div><small>TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p></div><div className="compact-actions"><button onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>
     {error && <section className="panel community-notice" role="alert">社区目录暂不可用：{error}<button onClick={() => void refresh()}>重试</button></section>}
+    {catalog?.cached && <section className="panel community-notice" role="status">当前显示上次保存的社区目录，可能不是最新内容。<button onClick={() => void refresh()}>重试</button></section>}
+    {entry?.cached && <section className="panel community-notice" role="status">当前题单来自本地缓存，保存前请留意内容可能已更新。</section>}
     <div className="problem-sets-layout community-layout">
       <aside className="panel set-gallery community-gallery"><header><div><strong>社区题单</strong><small>{loading ? '读取中…' : `${visible.length} 份`}</small></div></header><label className="community-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索题单、作者或分类" /></label>
         {visible.map((item) => <article key={item.id} className={selectedId === item.id ? 'active' : ''}><button className="set-card-main" onClick={() => void open(item.id)}><strong>{item.title}</strong><span>{item.problemCount} 道题 · {item.author.name}</span><small>{item.categories.join(' · ') || '未分类'}</small></button></article>)}

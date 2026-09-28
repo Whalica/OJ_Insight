@@ -9,7 +9,7 @@ const KNOWLEDGE_AXES: [&str; 8] = [
     "贪心与思维",
 ];
 
-fn knowledge_axis(tag: &str) -> Option<&'static str> {
+pub(crate) fn knowledge_axis(tag: &str) -> Option<&'static str> {
     let tag = tag.trim().to_lowercase();
     if tag.is_empty() {
         return None;

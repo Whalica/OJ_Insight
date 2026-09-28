@@ -111,6 +111,7 @@ export const api = {
   openExternal: (url: string) => invoke<void>('open_external', { url }),
   writeExportFile: (path: string, data: number[]) =>
     invoke<void>('write_export_file', { path, data }),
+  createDatabaseBackup: (path: string) => invoke<void>('create_database_backup', { path }),
   listProblemSets: () => invoke<ProblemSet[]>('list_problem_sets'),
   saveProblemSet: (input: ProblemSetInput) => invoke<ProblemSet>('save_problem_set', { input }),
   deleteProblemSet: (id: number) => invoke<void>('delete_problem_set', { id }),

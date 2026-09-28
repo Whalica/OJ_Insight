@@ -37,6 +37,8 @@ pub(crate) struct CommunityCatalog {
     pub schema: String,
     pub schema_version: u32,
     pub entries: Vec<CommunityListing>,
+    #[serde(default, skip_deserializing)]
+    pub cached: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -56,6 +58,8 @@ pub(crate) struct CommunityEntry {
     pub content: serde_json::Value,
     #[serde(default, skip_deserializing)]
     pub solved_keys: Vec<String>,
+    #[serde(default, skip_deserializing)]
+    pub cached: bool,
 }
 
 fn valid_id(id: &str) -> bool {
@@ -79,18 +83,35 @@ async fn download(state: &AppState, url: &str, limit: usize) -> Result<Vec<u8>, 
     Ok(bytes.to_vec())
 }
 
-#[tauri::command]
-pub(crate) async fn get_community_catalog(state: State<'_, AppState>) -> Result<CommunityCatalog, String> {
-    let cache = state.data_dir.join("community-catalog.json");
-    let data = match download(&state, &format!("{BASE}/catalog.json"), MAX_CATALOG_BYTES).await {
-        Ok(bytes) => bytes,
-        Err(error) => std::fs::read(&cache).map_err(|_| error)?,
-    };
-    let catalog: CommunityCatalog = serde_json::from_slice(&data).map_err(|error| format!("社区目录无效：{error}"))?;
+fn parse_catalog(data: &[u8]) -> Result<CommunityCatalog, String> {
+    let catalog: CommunityCatalog = serde_json::from_slice(data).map_err(|error| format!("社区目录无效：{error}"))?;
     if catalog.schema != "com.ojinsight.community-catalog" || catalog.schema_version != 1 || catalog.entries.len() > 5000 || catalog.entries.iter().any(|item| !validate_listing(item)) {
         return Err("社区目录格式不受支持".into());
     }
-    let _ = std::fs::write(cache, data);
+    Ok(catalog)
+}
+
+fn parse_entry(data: &[u8], id: &str) -> Result<CommunityEntry, String> {
+    let entry: CommunityEntry = serde_json::from_slice(data).map_err(|error| format!("社区题单无效：{error}"))?;
+    if entry.schema != "com.ojinsight.community-entry" || entry.schema_version != 1 || entry.id != id || entry.content_type != "problem-set" || entry.title.trim().is_empty() {
+        return Err("社区题单格式不受支持".into());
+    }
+    training::import_problem_set(&entry.content.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+pub(crate) async fn get_community_catalog(state: State<'_, AppState>) -> Result<CommunityCatalog, String> {
+    let cache = state.data_dir.join("community-catalog.json");
+    if let Ok(data) = download(&state, &format!("{BASE}/catalog.json"), MAX_CATALOG_BYTES).await {
+        if let Ok(catalog) = parse_catalog(&data) {
+            let _ = std::fs::write(&cache, data);
+            return Ok(catalog);
+        }
+    }
+    let data = std::fs::read(&cache).map_err(|_| "社区目录不可用，且没有可用的本地缓存".to_string())?;
+    let mut catalog = parse_catalog(&data)?;
+    catalog.cached = true;
     Ok(catalog)
 }
 
@@ -100,13 +121,21 @@ pub(crate) async fn get_community_problem_set(state: State<'_, AppState>, id: St
     let url = format!("{BASE}/content/problem-sets/{id}.json");
     let cache_dir = state.data_dir.join("community-entries");
     let cache = cache_dir.join(format!("{id}.json"));
-    let data = match download(&state, &url, MAX_ENTRY_BYTES).await {
-        Ok(bytes) => bytes,
-        Err(error) => std::fs::read(&cache).map_err(|_| error)?,
+    let (mut entry, cache_fallback) = if let Ok(data) = download(&state, &url, MAX_ENTRY_BYTES).await {
+        if let Ok(entry) = parse_entry(&data, &id) {
+            let _ = std::fs::create_dir_all(&cache_dir);
+            let _ = std::fs::write(&cache, data);
+            (entry, false)
+        } else {
+            let cached = std::fs::read(&cache).map_err(|_| "社区题单无效，且没有可用的本地缓存".to_string())?;
+            (parse_entry(&cached, &id)?, true)
+        }
+    } else {
+        let cached = std::fs::read(&cache).map_err(|_| "社区题单不可用，且没有可用的本地缓存".to_string())?;
+        (parse_entry(&cached, &id)?, true)
     };
-    let mut entry: CommunityEntry = serde_json::from_slice(&data).map_err(|error| format!("社区题单无效：{error}"))?;
-    if entry.schema != "com.ojinsight.community-entry" || entry.schema_version != 1 || entry.id != id || entry.content_type != "problem-set" || entry.title.trim().is_empty() {
-        return Err("社区题单格式不受支持".into());
+    if cache_fallback {
+        entry.cached = true;
     }
     let input = training::import_problem_set(&entry.content.to_string())?;
     {
@@ -117,8 +146,6 @@ pub(crate) async fn get_community_problem_set(state: State<'_, AppState>, id: St
             }
         }
     }
-    let _ = std::fs::create_dir_all(&cache_dir);
-    let _ = std::fs::write(cache, data);
     Ok(entry)
 }
 

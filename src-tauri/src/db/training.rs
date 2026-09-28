@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
+use crate::models::KnowledgeBucket;
 use crate::training::{CanonicalProblem, Contest, ContestInput, ProblemSet, ProblemSetInput, ProblemSetProblem, TrainingMatch, TrainingMatchProblem, VpSubmission};
 
 const TRAINING_SCHEMA: &str = r#"
@@ -220,12 +221,29 @@ pub fn training_profile_markdown(conn: &Connection) -> Result<String, String> {
     let mut output = String::from("# Profile\n\nLocal solved-problem summary. Difficulty systems remain platform-specific.\n\n| Platform | Career solved | Last 90 days |\n|---|---:|---:|\n");
     if rows.is_empty() { output.push_str("| No synced data | 0 | 0 |\n"); }
     for (platform, career, recent) in rows { output.push_str(&format!("| {platform} | {career} | {recent} |\n")); }
+    output.push_str("\n## Knowledge profile\n\nScores are platform-specific estimates from solved history, not a guaranteed skill ranking. Use axes with at least 4 solved problems as tentative evidence; missing or sparse axes are unknown, not weaknesses. Keep a mix of familiar topics and targeted practice.\n\n| Platform | Axis | Solved evidence | Estimated score |\n|---|---|---:|---:|\n");
+    let abilities = training_ability_buckets(conn)?;
+    if abilities.iter().all(|bucket| bucket.count == 0) {
+        output.push_str("| No tagged solved history | — | 0 | — |\n");
+    } else {
+        for bucket in abilities.into_iter().filter(|bucket| bucket.count > 0) {
+            output.push_str(&format!("| {} | {} | {} | {} |\n", bucket.platform, bucket.axis, bucket.count, bucket.score));
+        }
+    }
     let mut match_stmt = conn.prepare("SELECT m.mode,COUNT(DISTINCT m.id),SUM(p.solved),COUNT(p.position) FROM training_matches m JOIN training_match_problems p ON p.match_id=m.id WHERE m.status='finished' GROUP BY m.mode ORDER BY m.mode").map_err(|e| e.to_string())?;
     let history = match_stmt.query_map([], |row| Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?,row.get::<_,i64>(2)?,row.get::<_,i64>(3)?))).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
     output.push_str("\n## Training history\n\n| Mode | Matches | Solved | Problems |\n|---|---:|---:|---:|\n");
     if history.is_empty() { output.push_str("| No finished matches | 0 | 0 | 0 |\n"); }
     for (mode, matches, solved, total) in history { output.push_str(&format!("| {mode} | {matches} | {solved} | {total} |\n")); }
     Ok(output)
+}
+
+pub fn training_ability_buckets(conn: &Connection) -> Result<Vec<KnowledgeBucket>, String> {
+    let mut buckets = Vec::new();
+    for platform in ["codeforces", "qoj"] {
+        buckets.extend(super::knowledge_for_platform(conn, platform, None)?);
+    }
+    Ok(buckets)
 }
 
 pub fn finish_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch, String> {

@@ -291,13 +291,14 @@ export interface CommunityListing {
   path: string;
   problemCount: number;
 }
-export interface CommunityCatalog { schema: string; schemaVersion: number; entries: CommunityListing[] }
+export interface CommunityCatalog { schema: string; schemaVersion: number; entries: CommunityListing[]; cached: boolean }
 export interface CommunityEntry extends Omit<CommunityListing, 'path' | 'problemCount'> {
   schema: string;
   schemaVersion: number;
   sourceUrl: string | null;
   content: Omit<ProblemSetInput, 'id'> & { schema: string; schemaVersion: number };
   solvedKeys: string[];
+  cached: boolean;
 }
 
 export interface TrainingMatchProblem extends ProblemSetProblem {

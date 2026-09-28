@@ -22,6 +22,10 @@ pub(crate) async fn sync_platform(
 
     let mut inserted = 0;
     let mut updated = 0;
+    let mut activity_added = 0;
+    let mut activity_updated = 0;
+    let mut records_added = 0;
+    let mut records_updated = 0;
     let mut succeeded = 0;
     let mut partial = false;
     let mut failures = Vec::new();
@@ -104,6 +108,13 @@ pub(crate) async fn sync_platform(
                 }
                 inserted += counts.0;
                 updated += counts.1;
+                if remote.activity_only && (!remote.aggregates.is_empty() || platform == "luogu") {
+                    activity_added += counts.0;
+                    activity_updated += counts.1;
+                } else {
+                    records_added += counts.0;
+                    records_updated += counts.1;
+                }
                 succeeded += 1;
                 log_event(
                     &state.log_dir,
@@ -151,7 +162,14 @@ pub(crate) async fn sync_platform(
     } else {
         "warning"
     };
-    let mut message = format!("同步成功 · 新增 {inserted}，更新 {updated}{suffix}");
+    let mut units = Vec::new();
+    if activity_added > 0 || activity_updated > 0 || platform == "luogu" {
+        units.push(format!("公开活动计数增加 {activity_added}，调整 {activity_updated}"));
+    }
+    if records_added > 0 || records_updated > 0 || units.is_empty() {
+        units.push(format!("逐题记录新增 {records_added}，更新 {records_updated}"));
+    }
+    let mut message = format!("同步成功 · {}{suffix}", units.join("；"));
     for detail in failures.iter().chain(advisories.iter()) {
         message.push_str(&format!("；{detail}"));
     }

@@ -134,17 +134,19 @@ WHERE submissions.source IS NOT excluded.source
         }
         tx.execute("INSERT INTO daily_aggregates_accounts(platform,account,day,metric,count,note,epoch_second) VALUES(?,?,?,?,?,?,?) ON CONFLICT(platform,account,day,metric) DO UPDATE SET count=excluded.count,note=excluded.note,epoch_second=excluded.epoch_second", params![remote.platform,remote.account,a.day,a.metric,a.count,a.note,a.epoch_second]).map_err(|e| e.to_string())?;
     }
-    tx.execute(
-        "DELETE FROM difficulty_stats_accounts WHERE platform=? AND account=?",
-        params![remote.platform, remote.account],
-    )
-    .map_err(|e| e.to_string())?;
-    for d in &remote.difficulty {
+    if let Some(difficulty) = &remote.difficulty {
         tx.execute(
-            "INSERT INTO difficulty_stats_accounts(platform,account,label,count,sort_order) VALUES(?,?,?,?,?)",
-            params![remote.platform, remote.account, d.label, d.count, d.order],
+            "DELETE FROM difficulty_stats_accounts WHERE platform=? AND account=?",
+            params![remote.platform, remote.account],
         )
         .map_err(|e| e.to_string())?;
+        for d in difficulty {
+            tx.execute(
+                "INSERT INTO difficulty_stats_accounts(platform,account,label,count,sort_order) VALUES(?,?,?,?,?)",
+                params![remote.platform, remote.account, d.label, d.count, d.order],
+            )
+            .map_err(|e| e.to_string())?;
+        }
     }
     if let Some(knowledge) = &remote.knowledge {
         tx.execute(
@@ -271,9 +273,10 @@ WHERE submissions.source IS NOT excluded.source
         .notes
         .iter()
         .find_map(|note| note.strip_prefix("警告："));
+    let count_label = if remote.activity_only { "公开活动计数增加" } else { "逐题记录新增" };
     let message = match warning {
-        Some(warning) => format!("同步成功 · 新增 {inserted}，更新 {updated} · {warning}"),
-        None => format!("同步成功 · 新增 {inserted}，更新 {updated}"),
+        Some(warning) => format!("同步成功 · {count_label} {inserted}，更新 {updated} · {warning}"),
+        None => format!("同步成功 · {count_label} {inserted}，更新 {updated}"),
     };
     tx.execute("INSERT INTO sync_state(platform,account,status,message,last_attempt,last_success,cursor_epoch) VALUES(?,?, 'ok', ?, ?, ?, ?) ON CONFLICT(platform) DO UPDATE SET account=excluded.account,status='ok',message=excluded.message,last_attempt=excluded.last_attempt,last_success=excluded.last_success,cursor_epoch=MAX(sync_state.cursor_epoch,excluded.cursor_epoch)", params![remote.platform,remote.account,message,now,now,remote.cursor_epoch]).map_err(|e| e.to_string())?;
     tx.execute("INSERT INTO account_sync_state(platform,account,cursor_epoch,last_success) VALUES(?,?,?,?) ON CONFLICT(platform,account) DO UPDATE SET cursor_epoch=MAX(account_sync_state.cursor_epoch,excluded.cursor_epoch),last_success=excluded.last_success", params![remote.platform,remote.account,remote.cursor_epoch,now]).map_err(|e| e.to_string())?;

@@ -18,7 +18,7 @@ use commands::accounts::{
 use commands::community::{get_community_catalog, get_community_problem_set, save_community_problem_set};
 use commands::analytics::{get_day_detail, get_difficulty_detail, get_snapshot};
 use commands::contest_review::{generate_contest_review, inspect_contest_review};
-use commands::export::write_export_file;
+use commands::export::{create_database_backup, write_export_file};
 use commands::external::open_external;
 use commands::relationships::{
     delete_watched_person, dismiss_watched_event, get_pending_watched_notifications,
@@ -100,6 +100,7 @@ pub fn run() {
             sync_watched_person,
             dismiss_watched_event,
             write_export_file,
+            create_database_backup,
             check_for_updates,
             can_install_updates,
             open_external,
