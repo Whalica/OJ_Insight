@@ -168,6 +168,7 @@ async fn fetch_contest_problems(
             accepted_teams: None,
             total_teams: None,
             tag_axes: vec![],
+            tag_weights: Default::default(),
             tags: vec![],
             solved: false,
         };
@@ -273,6 +274,7 @@ fn parse_category(html: &str) -> ParsedCategory {
                 accepted_teams: None,
                 total_teams: None,
                 tag_axes: vec![],
+                tag_weights: Default::default(),
                 tags: vec![],
                 solved: false,
             });
@@ -397,6 +399,7 @@ fn parse_category_rows_from_html(html: &str) -> ParsedCategory {
                 accepted_teams: None,
                 total_teams: None,
                 tag_axes: vec![],
+                tag_weights: Default::default(),
                 tags: vec![],
                 solved: false,
             });

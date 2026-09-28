@@ -79,10 +79,12 @@ fn filter_candidates_with_count(conn: &Connection, candidates: Vec<CanonicalProb
 }
 
 pub(crate) fn filter_problem_entries(conn: &Connection, entries: Vec<ProblemSetProblem>) -> Result<Vec<ProblemSetProblem>, String> {
+    let filtered = filter_candidates(conn, entries.iter().map(|entry| entry.problem.clone()).collect())?;
+    let mut by_id: HashMap<_, _> = filtered.into_iter().map(|problem| (problem.canonical_id.clone(), problem)).collect();
     let mut out = Vec::new();
     for mut entry in entries {
-        let filtered = filter_candidates(conn, vec![entry.problem])?;
-        if let Some(problem) = filtered.into_iter().next() {
+        let normalized = super::problem_set::normalize_problem(entry.problem)?;
+        if let Some(problem) = by_id.remove(&normalized.canonical_id) {
             entry.problem = problem;
             entry.position = out.len() as i64;
             out.push(entry);
@@ -134,8 +136,8 @@ pub(crate) async fn build_candidate_pool(
 }
 
 pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool) -> Result<CandidatePool, String> {
+    let targets = profile_targets(conn, &pool.mode, &pool.candidates)?;
     let (candidates, excluded_solved) = filter_candidates_with_count(conn, pool.candidates)?;
-    let targets = profile_targets(conn, &pool.mode)?;
     let mut ability_buckets: HashMap<String, Vec<KnowledgeBucket>> = HashMap::new();
     for bucket in crate::db::training_ability_buckets(conn)? {
         ability_buckets.entry(bucket.platform.clone()).or_default().push(bucket);
@@ -147,7 +149,7 @@ pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool
     let mut groups: BTreeMap<String, VecDeque<CanonicalProblem>> = groups.into_iter().map(|(platform, mut problems)| {
         let target = targets.get(&platform).copied();
         problems.sort_by_key(|problem| {
-            let distance = match (target, problem.difficulty.as_deref().and_then(|value| value.parse::<f64>().ok())) {
+            let distance = match (target, problem.difficulty.as_deref().and_then(|value| candidate_difficulty(&platform, value))) {
                 (Some(center), Some(level)) if level.is_finite() => ((level - center).abs() * 10.0) as u64,
                 (Some(_), _) => u64::MAX / 4,
                 _ => 0,
@@ -188,12 +190,43 @@ pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool
     Ok(pool)
 }
 
-fn profile_targets(conn: &Connection, mode: &str) -> Result<HashMap<String, f64>, String> {
-    let mut statement = conn.prepare("SELECT platform,difficulty FROM submissions WHERE difficulty IS NOT NULL AND difficulty<>'' GROUP BY platform,problem_key").map_err(|error| error.to_string())?;
+fn candidate_difficulty(platform: &str, difficulty: &str) -> Option<f64> {
+    let label = difficulty.trim().to_lowercase();
+    if platform == "qoj" {
+        return match label.as_str() {
+            "gold" | "金题" | "金牌题" => Some(90.0),
+            "silver" | "银题" | "银牌题" => Some(76.0),
+            "bronze" | "铜题" | "铜牌题" => Some(58.0),
+            "iron" | "铁题" | "铁牌题" => Some(38.0),
+            _ => None,
+        };
+    }
+    label.parse::<f64>().ok().filter(|value| value.is_finite() && *value >= 0.0)
+}
+
+fn profile_targets(conn: &Connection, mode: &str, catalog: &[CanonicalProblem]) -> Result<HashMap<String, f64>, String> {
+    let mut statement = conn.prepare("SELECT platform,problem_key,difficulty FROM submissions WHERE difficulty IS NOT NULL AND difficulty<>'' ORDER BY epoch_second DESC,submission_id DESC").map_err(|error| error.to_string())?;
     let mut values: HashMap<String, Vec<f64>> = HashMap::new();
-    for row in statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(|error| error.to_string())? {
-        let (platform, difficulty) = row.map_err(|error| error.to_string())?;
-        if let Ok(value) = difficulty.parse::<f64>() { if value.is_finite() && value >= 0.0 { values.entry(platform).or_default().push(value); } }
+    let mut seen = HashSet::new();
+    for row in statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))).map_err(|error| error.to_string())? {
+        let (platform, problem_key, difficulty) = row.map_err(|error| error.to_string())?;
+        if let Some(value) = candidate_difficulty(&platform, &difficulty) {
+            if seen.insert((platform.clone(), problem_key)) { values.entry(platform).or_default().push(value); }
+        }
+    }
+    // The QOJ catalog can supply medal tiers before the XCPC page has written
+    // them back to old submissions. Use those solved catalog problems once.
+    let mut solved_qoj = HashSet::new();
+    let mut solved_stmt = conn.prepare("SELECT DISTINCT problem_key FROM submissions WHERE platform='qoj'").map_err(|error| error.to_string())?;
+    for row in solved_stmt.query_map([], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())? {
+        solved_qoj.insert(row.map_err(|error| error.to_string())?);
+    }
+    for problem in catalog.iter().filter(|problem| problem.platform == "qoj" && solved_qoj.contains(&problem.problem_key)) {
+        if let Some(value) = problem.difficulty.as_deref().and_then(|difficulty| candidate_difficulty("qoj", difficulty)) {
+            if seen.insert(("qoj".to_string(), problem.problem_key.clone())) {
+                values.entry("qoj".into()).or_default().push(value);
+            }
+        }
     }
     let percentile = match mode { "relaxed" => 0.40, "pressure" => 0.75, _ => 0.60 };
     Ok(values.into_iter().filter_map(|(platform, mut levels)| {
@@ -305,5 +338,12 @@ mod tests {
         assert_eq!(profile.bias(&["data structures".into()]), Some(20));
         assert_eq!(profile.bias(&["dp".into(), "data structures".into()]), None);
         assert_eq!(profile.bias(&["unknown".into()]), None);
+    }
+
+    #[test]
+    fn qoj_medal_difficulty_can_drive_initial_selection() {
+        assert_eq!(candidate_difficulty("qoj", "gold"), Some(90.0));
+        assert_eq!(candidate_difficulty("qoj", "铜题"), Some(58.0));
+        assert_eq!(candidate_difficulty("qoj", "unrated"), None);
     }
 }

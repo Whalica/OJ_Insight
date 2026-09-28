@@ -205,6 +205,8 @@ fn knowledge_buckets(
                 let absolute = 20.0 + 0.05 * (estimate - 800.0);
                 let relative = 50.0 + (estimate - center) / 10.0;
                 (absolute * 0.4 + relative * 0.6).round().clamp(5.0, 95.0) as i64
+            } else if platform == "qoj" {
+                (50.0 + (estimate - center) * 0.8).round().clamp(8.0, 95.0) as i64
             } else {
                 estimate.round().clamp(5.0, 95.0) as i64
             };
@@ -299,7 +301,10 @@ fn knowledge_for_platform(
         let (axis, count) = row.map_err(|error| error.to_string())?;
         aggregate_counts.insert(axis, count);
     }
-    if aggregate_counts.values().any(|count| *count > 0) {
+    // LeetCode only exposes aggregate topic counts. QOJ and Codeforces have
+    // per-problem tags; using one global difficulty for every axis makes the
+    // highest-count axis appear strongest regardless of what was solved.
+    if platform == "leetcode" && aggregate_counts.values().any(|count| *count > 0) {
         let mut difficulty_stmt = conn.prepare(
             "SELECT label,SUM(count) FROM difficulty_stats_accounts WHERE platform=? AND (?='' OR account=?) GROUP BY label"
         ).map_err(|error| error.to_string())?;
@@ -544,8 +549,11 @@ pub fn apply_qoj_problem_ratings(
             Some("iron") => Some("铁题"),
             _ => None,
         };
-        let mut tags = problem.tag_axes.clone();
-        tags.extend(problem.tags.iter().cloned());
+        let mut tags = if problem.tag_axes.is_empty() {
+            problem.tags.clone()
+        } else {
+            problem.tag_axes.clone()
+        };
         tags.sort();
         tags.dedup();
         let tags = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into());

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use reqwest::Client;
@@ -32,7 +32,7 @@ pub async fn apply_problem_tags(
     };
     let payload: serde_json::Value = serde_json::from_str(&text)
         .map_err(|error| format!("解析 ICPC/CCPC 标签数据失败：{error}"))?;
-    let mut by_qoj_id = HashMap::<String, (Vec<String>, Vec<String>)>::new();
+    let mut by_qoj_id = HashMap::<String, (Vec<String>, BTreeMap<String, f64>, Vec<String>)>::new();
     for entry in payload
         .get("problems")
         .and_then(serde_json::Value::as_object)
@@ -46,29 +46,38 @@ pub async fn apply_problem_tags(
         let Some(problem_id) = canonical.strip_prefix("qoj:") else {
             continue;
         };
-        let mut axes: Vec<String> = Vec::new();
+        let mut weights = BTreeMap::<String, f64>::new();
         for (key, weight) in entry
             .get("labels")
             .and_then(serde_json::Value::as_object)
             .into_iter()
             .flatten()
         {
-            if weight.as_f64().unwrap_or(0.0) <= 0.0 {
+            let weight = weight.as_f64().unwrap_or(0.0);
+            if !weight.is_finite() || weight <= 0.0 {
                 continue;
             }
             let label = match key.as_str() {
+                "adhoc" | "technique" => "基础与模拟",
+                "search" => "搜索与构造",
+                "offline" | "random" => "贪心与思维",
                 "dataStructure" => "数据结构",
-                "graph" => "图论与树",
+                "graph" | "flow" => "图论与树",
                 "dp" => "动态规划",
-                "math" | "geometry" => "数学与几何",
+                "math" | "probability" | "geometry" => "数学",
                 "string" => "字符串",
-                "basic" => "算法策略",
+                "basic" => "基础与模拟",
                 _ => continue,
             };
-            if !axes.iter().any(|current| current.as_str() == label) {
-                axes.push(label.to_string());
-            }
+            *weights.entry(label.to_string()).or_default() += weight;
         }
+        let strongest = weights.values().copied().fold(0.0, f64::max);
+        weights.retain(|_, weight| *weight >= 0.25 && *weight >= strongest * 0.5);
+        let total = weights.values().sum::<f64>();
+        if total > 0.0 {
+            for weight in weights.values_mut() { *weight /= total; }
+        }
+        let axes = weights.keys().cloned().collect();
         let tags = entry
             .get("detailTags")
             .and_then(serde_json::Value::as_array)
@@ -77,17 +86,18 @@ pub async fn apply_problem_tags(
             .filter_map(serde_json::Value::as_str)
             .map(str::to_string)
             .collect();
-        by_qoj_id.insert(problem_id.to_string(), (axes, tags));
+        by_qoj_id.insert(problem_id.to_string(), (axes, weights, tags));
     }
     let mut matched = 0;
     for problem in contests
         .iter_mut()
         .flat_map(|contest| &mut contest.problems)
     {
-        let Some((axes, tags)) = by_qoj_id.get(&problem.problem_id) else {
+        let Some((axes, weights, tags)) = by_qoj_id.get(&problem.problem_id) else {
             continue;
         };
         problem.tag_axes = axes.clone();
+        problem.tag_weights = weights.clone();
         problem.tags = tags.clone();
         matched += 1;
     }
