@@ -29,7 +29,7 @@ interface Props {
   loading: boolean;
   syncing: string | null;
   syncTip: string;
-  syncProgress: { done: number; total: number; added: number; partial: number; failed: number } | null;
+  syncProgress: { done: number; total: number; partial: number; failed: number } | null;
   onSync: () => void;
   onDay: (day: string) => void;
   onDifficulty: (platform: Platform, label: string, sourceOverride?: string) => void;
@@ -78,7 +78,7 @@ export default function DashboardPage(props: Props) {
   return <>
     <header className="topbar dashboard-head"><div><small>{platform ? `${PLATFORM_META[platform].short} · PLATFORM` : today(timeZone)}</small><h1>{title}</h1><p>{platform ? luoguLimited ? '洛谷公开活动砖与题库难度概况。' : `${PLATFORM_META[platform].name} 的活动砖、难度足迹和逐题记录。` : welcome.message}</p></div><div className="topbar-actions">{(!platform || credentialPlatform) && <button className="credential-help" onClick={openCredentialHelp}><KeyRound size={15} />{!platform ? '配置 API / Cookie' : platform === 'codeforces' ? '配置 API' : '配置 Cookie'}</button>}<button className="primary sync-button" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncProgress ? `${syncProgress.done}/${syncProgress.total}` : syncing ? '同步中' : platform ? `同步 ${PLATFORM_META[platform].short}` : '同步全部'}</button></div></header>
     {!!syncing && syncTip && <div className="tip-banner"><span>比赛小贴士</span><strong>{syncTip}</strong></div>}
-    {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>新增 {syncProgress.added} 条 · 部分可用 {syncProgress.partial} · 失败 {syncProgress.failed}</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
+    {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>部分可用 {syncProgress.partial} · 失败 {syncProgress.failed}；各平台更新数量见“同步与数据”</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
     {!platform && <TodayProgress snapshot={snapshot} timeZone={timeZone} solvedGains={solvedGains} onSelect={onPlatform} onSync={onSync} syncing={!!syncing} />}
     <div className="section-title career-title"><small>CAREER · 不受下方时间范围影响</small><h2>生涯累计</h2></div><StatCards stats={snapshot.career} />
     {platform !== 'luogu' && <RatingOverview ratings={snapshot.ratings} timeZone={timeZone} selectedPlatform={platform} />}

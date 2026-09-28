@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -38,8 +38,42 @@ export default function MarkdownNote({ value, onSave, placeholder }: { value: st
   const [status, setStatus] = useState('');
   const saveRef = useRef(onSave);
   const savedRef = useRef(value);
+  const latestRef = useRef(value);
+  const editedRef = useRef(false);
+  const savingRef = useRef<Promise<void> | null>(null);
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
-  useEffect(() => { savedRef.current = value; setText(value); }, [value]);
-  useEffect(() => { if (text === savedRef.current) return; const timer = window.setTimeout(() => { void saveRef.current(text).then(() => { savedRef.current = text; setStatus('已保存'); }).catch((error) => setStatus(String(error))); }, 700); return () => window.clearTimeout(timer); }, [text]);
-  return <div className="vp-note"><div className="vp-note-head"><span>Markdown · 支持 $公式$ 与 $$独立公式$$</span><small>{status}</small></div><div className="markdown-split"><div><strong>编辑</strong><textarea value={text} onChange={(event) => { setText(event.target.value); setStatus('保存中…'); }} onBlur={() => { if (text !== savedRef.current) void saveRef.current(text).then(() => { savedRef.current = text; setStatus('已保存'); }).catch((error) => setStatus(String(error))); }} placeholder={placeholder} /></div><div><strong>预览</strong><MarkdownPreview text={text} /></div></div></div>;
+  useEffect(() => {
+    // A background VP refresh must not replace text that is still being edited.
+    if (!editedRef.current && latestRef.current === savedRef.current) {
+      latestRef.current = value;
+      savedRef.current = value;
+      setText(value);
+    }
+  }, [value]);
+  const flush = useCallback(async () => {
+    if (savingRef.current) return savingRef.current;
+    const work = (async () => {
+      while (latestRef.current !== savedRef.current) {
+        const next = latestRef.current;
+        setStatus('保存中…');
+        try {
+          await saveRef.current(next);
+          savedRef.current = next;
+        } catch (error) {
+          setStatus(`保存失败：${String(error)}`);
+          return;
+        }
+      }
+      setStatus('已保存');
+    })();
+    savingRef.current = work;
+    try { await work; } finally { savingRef.current = null; }
+  }, []);
+  useEffect(() => {
+    if (text === savedRef.current) return;
+    const timer = window.setTimeout(() => { void flush(); }, 700);
+    return () => window.clearTimeout(timer);
+  }, [text, flush]);
+  useEffect(() => () => { if (latestRef.current !== savedRef.current) void flush(); }, [flush]);
+  return <div className="vp-note"><div className="vp-note-head"><span>Markdown · 支持 $公式$ 与 $$独立公式$$</span><small role="status">{status}</small></div><div className="markdown-split"><div><strong>编辑</strong><textarea value={text} onChange={(event) => { editedRef.current = true; latestRef.current = event.target.value; setText(event.target.value); setStatus('待保存'); }} onBlur={() => { void flush(); }} placeholder={placeholder} /></div><div><strong>预览</strong><MarkdownPreview text={text} /></div></div></div>;
 }

@@ -130,7 +130,9 @@ pub struct RemoteData {
     pub submissions: Vec<Submission>,
     pub aggregates: Vec<AggregateDay>,
     pub solved_count: Option<i64>,
-    pub difficulty: Vec<DifficultyStat>,
+    /// `None` preserves the previous difficulty cache when an optional source
+    /// is unavailable. `Some`, including an empty list, replaces it.
+    pub difficulty: Option<Vec<DifficultyStat>>,
     /// `Some` replaces provider-level lifetime knowledge totals. `None` keeps
     /// the cache and lets submission tags act as the fallback source.
     pub knowledge: Option<Vec<KnowledgeStat>>,

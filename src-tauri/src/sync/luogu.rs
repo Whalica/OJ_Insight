@@ -11,7 +11,7 @@ fn base_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
     h.insert(
         USER_AGENT,
-        HeaderValue::from_static("OJ-Insight/0.5 local analytics"),
+        HeaderValue::from_static(concat!("OJ-Insight/", env!("CARGO_PKG_VERSION"), " local analytics")),
     );
     h.insert(
         ACCEPT,
@@ -88,19 +88,15 @@ async fn resolve_uid(client: &Client, input: &str) -> Result<(String, String), S
         .or_else(|| payload.get("result"))
         .and_then(Value::as_array)
         .ok_or_else(|| SyncError::error("未找到洛谷用户；可改填数字 UID"))?;
-    let mut chosen = candidates.first();
-    for u in candidates {
+    let chosen = candidates.iter().find(|u| {
         let name = u
             .get("name")
             .or_else(|| u.get("username"))
             .and_then(Value::as_str)
             .unwrap_or("");
-        if name.eq_ignore_ascii_case(input) {
-            chosen = Some(u);
-            break;
-        }
-    }
-    let u = chosen.ok_or_else(|| SyncError::error("未找到洛谷用户"))?;
+        name.eq_ignore_ascii_case(input)
+    });
+    let u = chosen.ok_or_else(|| SyncError::error("未找到完全匹配的洛谷用户；请填写数字 UID"))?;
     let uid = u
         .get("uid")
         .or_else(|| u.get("id"))
@@ -142,6 +138,7 @@ pub async fn fetch(
         .or_else(|| payload.get("currentData"))
         .unwrap_or(&payload);
     let mut aggregates = Vec::new();
+    let has_daily_counts = data.get("dailyCounts").and_then(Value::as_object).is_some();
     if let Some(obj) = data.get("dailyCounts").and_then(Value::as_object) {
         for (raw_day, raw) in obj {
             let count = if let Some(a) = raw.as_array() {
@@ -173,7 +170,7 @@ pub async fn fetch(
 
     let mut solved_count = None;
     let mut solved_inventory = None;
-    let mut difficulty = Vec::new();
+    let mut difficulty = None;
     if let Ok(practice_text) = get_text(
         client,
         &format!("https://www.luogu.com.cn/user/{uid}/practice"),
@@ -190,10 +187,12 @@ pub async fn fetch(
                 solved_count = Some(passed.len() as i64);
                 solved_inventory = Some(passed.iter().filter_map(passed_problem_id).collect());
                 let mut buckets = [0_i64; 9];
+                let mut recognized_difficulty = passed.is_empty();
                 for p in passed {
                     if let Some(d) = p.get("difficulty").and_then(Value::as_i64) {
-                        if (1..=8).contains(&d) {
+                        if (0..=8).contains(&d) {
                             buckets[d as usize] += 1;
+                            recognized_difficulty = true;
                         }
                     }
                 }
@@ -208,25 +207,28 @@ pub async fn fetch(
                     "省选/NOI-",
                     "NOI/NOI+/CTS",
                 ];
-                for (i, c) in buckets.into_iter().enumerate().skip(1) {
+                let mut stats = Vec::new();
+                for (i, c) in buckets.into_iter().enumerate() {
                     if c > 0 {
-                        difficulty.push(DifficultyStat {
+                        stats.push(DifficultyStat {
                             label: labels[i].into(),
                             count: c,
                             order: i as i64,
                         });
                     }
                 }
+                if recognized_difficulty { difficulty = Some(stats); }
             }
         }
     }
 
-    if aggregates.is_empty() && solved_count.is_none() && difficulty.is_empty() {
+    if !has_daily_counts && solved_count.is_none() {
         return Err(SyncError::error(
             "洛谷没有返回可用的提交、活动或题目统计数据",
         ));
     }
 
+    let missing_difficulty = difficulty.is_none();
     Ok(RemoteData {
         platform: "luogu".into(),
         account: display,
@@ -239,13 +241,18 @@ pub async fn fetch(
         solved_inventory,
         ratings: None,
         activity_only: true,
-        notes: vec![
-            format!("洛谷个人页 dailyCounts · UID {uid}"),
-            "遵循洛谷规则，不请求提交记录；活动数据通常仅覆盖近期，且没有逐题明细".into(),
-        ],
+        notes: {
+            let mut notes = vec!["遵循洛谷规则，不请求提交记录；活动数据通常仅覆盖近期，且没有逐题明细".into()];
+            if has_daily_counts { notes.push(format!("洛谷个人页 dailyCounts · UID {uid}")); }
+            else { notes.push("警告：个人页未返回 dailyCounts，已保留旧活动数据".into()); }
+            if missing_difficulty { notes.push("警告：本次未获取到难度分布，已保留旧难度数据".into()); }
+            notes
+        },
         cursor_epoch: now_epoch().saturating_sub(48 * 3600),
         replace_submissions: false,
-        replace_aggregates: true,
+        // The public calendar may contain only recent days. Merge observed days
+        // so older activity remains in the local long-term history.
+        replace_aggregates: false,
     })
 }
 

@@ -204,6 +204,8 @@ OJ Insight/
 
 迁移前请先退出应用，再复制整个目录。Windows 版需要放在普通用户可写的位置，不建议放进 `Program Files`。
 
+设置页可以在应用运行时创建经过 SQLite 完整性检查的数据库 ZIP 快照，包含账号、同步数据、题单、比赛和训练记录。ZIP 包含账号凭据，请妥善保管；它不包含界面偏好、已导出文件或 WebView 数据。要恢复数据库，请先退出应用，把原 `data/` 文件夹移到安全位置，再从 ZIP 解出 `data/oj-insight.sqlite3` 到应用目录。需要完整迁移时，仍应退出应用后复制整个目录。
+
 ## 更新与故障排查
 
 应用可以自动检查并安装带签名的新版本，也可以从 [Releases](https://github.com/Whalica/OJ_Insight/releases/latest) 手动下载。

@@ -63,11 +63,11 @@ mod tests {
                 note: String::new(),
             }],
             solved_count: Some(1),
-            difficulty: vec![DifficultyStat {
+            difficulty: Some(vec![DifficultyStat {
                 label: "1200".into(),
                 count: 1,
                 order: 1200,
-            }],
+            }]),
             knowledge: Some(vec![KnowledgeStat {
                 axis: "图论与树".into(),
                 count: 1,
@@ -464,6 +464,40 @@ mod tests {
         data.ratings = Some(vec![]);
         apply_remote(&mut conn, &data).unwrap();
         assert_eq!(count(&conn, "rating_history", "codeforces", "alice"), 0);
+    }
+
+    #[test]
+    fn unavailable_aggregate_and_difficulty_sources_preserve_previous_values() {
+        let mut conn = open(Path::new(":memory:")).unwrap();
+        replace_accounts(&mut conn, "luogu", &[entry("luogu", "alice")]).unwrap();
+        let mut data = remote("luogu", "alice");
+        data.submissions.clear();
+        data.activity_only = true;
+        data.replace_aggregates = true;
+        apply_remote(&mut conn, &data).unwrap();
+        assert_eq!(count(&conn, "daily_aggregates_accounts", "luogu", "alice"), 1);
+        assert_eq!(count(&conn, "difficulty_stats_accounts", "luogu", "alice"), 1);
+
+        data.aggregates.clear();
+        data.replace_aggregates = false;
+        data.difficulty = None;
+        apply_remote(&mut conn, &data).unwrap();
+        assert_eq!(count(&conn, "daily_aggregates_accounts", "luogu", "alice"), 1);
+        assert_eq!(count(&conn, "difficulty_stats_accounts", "luogu", "alice"), 1);
+
+        data.aggregates.push(AggregateDay {
+            day: "2026-01-02".into(), epoch_second: None,
+            metric: "activity".into(), count: 1, note: String::new(),
+        });
+        apply_remote(&mut conn, &data).unwrap();
+        assert_eq!(count(&conn, "daily_aggregates_accounts", "luogu", "alice"), 2);
+
+        data.aggregates.clear();
+        data.replace_aggregates = true;
+        data.difficulty = Some(vec![]);
+        apply_remote(&mut conn, &data).unwrap();
+        assert_eq!(count(&conn, "daily_aggregates_accounts", "luogu", "alice"), 0);
+        assert_eq!(count(&conn, "difficulty_stats_accounts", "luogu", "alice"), 0);
     }
 
     #[test]

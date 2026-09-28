@@ -188,7 +188,7 @@ pub async fn fetch(
         submissions: out,
         aggregates: vec![],
         solved_count: None,
-        difficulty,
+        difficulty: Some(difficulty),
         knowledge: None,
         solved_inventory: None,
         ratings,

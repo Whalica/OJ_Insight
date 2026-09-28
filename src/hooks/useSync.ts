@@ -4,7 +4,7 @@ import { SYNC_TIPS, type AccountMap } from '../lib/ui';
 import { api } from '../services/api';
 import type { Platform } from '../types';
 
-type SyncProgress = { done: number; total: number; added: number; partial: number; failed: number };
+type SyncProgress = { done: number; total: number; partial: number; failed: number };
 
 type UseSyncOptions = {
   accounts: AccountMap;
@@ -45,26 +45,33 @@ export function useSync(options: UseSyncOptions) {
     setSyncing('all');
     chooseTip();
     let done = 0;
-    let added = 0;
     let partial = 0;
     let failed = 0;
-    setSyncProgress({ done, total: configured.length, added, partial, failed });
+    let changedPlatforms = 0;
+    const problems: string[] = [];
+    setSyncProgress({ done, total: configured.length, partial, failed });
     try {
       for (const platform of configured) {
         try {
           const result = await api.syncPlatform(platform);
-          added += result.inserted;
-          if (result.partial) partial += 1;
-          else if (result.status !== 'ok' && result.status !== 'warning') failed += 1;
-        } catch {
+          if (result.inserted > 0 || result.updated > 0) changedPlatforms += 1;
+          if (result.partial || result.status === 'warning') {
+            partial += 1;
+            problems.push(`${PLATFORM_META[platform].name}：${result.message}`);
+          } else if (result.status !== 'ok') {
+            failed += 1;
+            problems.push(`${PLATFORM_META[platform].name}：${result.message}`);
+          }
+        } catch (error) {
           failed += 1;
+          problems.push(`${PLATFORM_META[platform].name}：${String(error)}`);
         }
         done += 1;
-        setSyncProgress({ done, total: configured.length, added, partial, failed });
+        setSyncProgress({ done, total: configured.length, partial, failed });
         await loadStatuses();
       }
-      if (!automatic || added > 0 || partial > 0 || failed > 0) {
-        notify(configured.length ? `同步完成：新增 ${added} 条，部分可用 ${partial}，失败 ${failed}` : '还没有配置账号，请先到设置页填写');
+      if (!automatic || changedPlatforms > 0 || partial > 0 || failed > 0) {
+        notify(configured.length ? `同步完成：${configured.length - partial - failed} 个平台成功，${changedPlatforms} 个平台有新增或更新，部分可用 ${partial}，失败 ${failed}${problems.length ? `；${problems.join('；')}` : ''}` : '还没有配置账号，请先到设置页填写');
       }
       await Promise.all([loadSnapshot(true), loadStatuses()]);
     } finally {
