@@ -1,0 +1,28 @@
+/* Small section labels share the current theme's green accent. */
+:root :is(
+  .topbar small,
+  .panel-head small,
+  .today-copy small,
+  .storage-card > small,
+  .leetcode-strip > div > small,
+  .section-title small,
+  .nav-title,
+  .preference-heading small,
+  .credential-confirm small,
+  .drawer-head small,
+  .relationship-add-dialog-head small,
+  .review-form > header small,
+  .review-preview > header small,
+  .export-preview-sheet header small,
+  .today-detail > header small,
+  .set-editor header small,
+  .training-section-title small
+) {
+  color: var(--accent);
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-synthesis: weight;
+}
+
+:root[data-theme] .nav-title {
+  color: var(--accent);
+}

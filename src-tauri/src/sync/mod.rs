@@ -28,7 +28,7 @@ pub async fn fetch_platform(
         "atcoder" => atcoder::fetch(client, account, full, cursor, cache_dir).await,
         "codeforces" => codeforces::fetch(client, account, full, cursor).await,
         "luogu" => luogu::fetch(client, account, full, cursor).await,
-        "nowcoder" => nowcoder::fetch(client, account, full, cursor).await,
+        "nowcoder" => nowcoder::fetch(client, account, full, cursor, cache_dir).await,
         "qoj" => qoj::fetch(client, account, full, cursor).await,
         "leetcode" => leetcode::fetch(client, account, full, cursor).await,
         _ => Err(SyncError::error("不支持的平台")),

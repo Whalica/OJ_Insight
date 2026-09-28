@@ -4,9 +4,9 @@ import luoguIcon from '../assets/platforms/luogu.ico';
 import nowcoderIcon from '../assets/platforms/nowcoder.ico';
 import leetcodeIcon from '../assets/platforms/leetcode.ico';
 import { PLATFORM_META } from '../lib/platforms';
-import type { Platform } from '../types';
+import type { TrainingPlatform } from '../types';
 
-const PLATFORM_ICONS: Partial<Record<Platform, string>> = {
+const PLATFORM_ICONS: Partial<Record<TrainingPlatform, string>> = {
   codeforces: codeforcesIcon,
   atcoder: atcoderIcon,
   luogu: luoguIcon,
@@ -15,7 +15,7 @@ const PLATFORM_ICONS: Partial<Record<Platform, string>> = {
 };
 
 interface Props {
-  platform: Platform;
+  platform: TrainingPlatform;
   className?: string;
 }
 

@@ -688,6 +688,9 @@ mod tests {
         assert_eq!(bucket_label("leetcode", "Medium"), (2, "Medium".into()));
         assert_eq!(bucket_label("qoj", "bronze"), (2, "铜题".into()));
         assert_eq!(bucket_label("qoj", "金题"), (4, "金题".into()));
+        assert_eq!(bucket_label("nowcoder", "1599"), (1100, "1100–1599".into()));
+        assert_eq!(bucket_label("nowcoder", "1600"), (1600, "1600–2099".into()));
+        assert_eq!(bucket_label_for_source("nowcoder", "3", "daily"), (3, "3".into()));
         assert_eq!(
             bucket_label("codeforces", ""),
             (UNRATED_ORDER, UNRATED_LABEL.into())

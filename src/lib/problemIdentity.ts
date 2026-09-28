@@ -7,6 +7,7 @@ export function parseProblemUrl(value: string): ParsedIdentity | null {
   if (!input) return null;
   let url: URL;
   try { url = new URL(input); } catch { return null; }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
   const host = url.hostname.replace(/^www\./, '').toLowerCase();
   const path = url.pathname.replace(/\/+$/, '');
 
@@ -27,7 +28,9 @@ export function parseProblemUrl(value: string): ParsedIdentity | null {
 
   match = path.match(/\/(?:questionTerminal|practice)\/([^/?#]+)/i);
   if (host.endsWith('nowcoder.com') && match) return identity('nowcoder', match[1], match[1], input);
-  return null;
+  url.hash = '';
+  const canonicalUrl = url.toString();
+  return { platform: 'other', problemKey: canonicalUrl, problemId: path.split('/').filter(Boolean).at(-1) || host, name: host, url: canonicalUrl };
 }
 
 function identity(platform: Platform, problemKey: string, problemId: string, url: string): ParsedIdentity {

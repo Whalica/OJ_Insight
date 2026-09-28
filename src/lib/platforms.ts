@@ -1,14 +1,16 @@
-import type { Platform } from '../types';
+import type { Platform, TrainingPlatform } from '../types';
 
 export const PLATFORM_ORDER: Platform[] = ['codeforces', 'atcoder', 'luogu', 'nowcoder', 'qoj', 'leetcode'];
+export const TRAINING_PLATFORM_ORDER: TrainingPlatform[] = [...PLATFORM_ORDER, 'other'];
 
-export const PLATFORM_META: Record<Platform, { name: string; short: string; accent: string; accountHint: string; secretHint?: string }> = {
+export const PLATFORM_META: Record<TrainingPlatform, { name: string; short: string; accent: string; accountHint: string; secretHint?: string }> = {
   codeforces: { name: 'Codeforces', short: 'CF', accent: '#5aa6e8', accountHint: 'Handle', secretHint: '可选：Codeforces API Key / Secret' },
   atcoder: { name: 'AtCoder', short: 'ATC', accent: 'var(--atcoder-accent)', accountHint: '用户名' },
   luogu: { name: 'Luogu', short: 'LG', accent: '#2d9cdb', accountHint: '用户名或数字 UID' },
   nowcoder: { name: 'NowCoder', short: 'NC', accent: '#00b96b', accountHint: '个人主页 users/ 后的数字 User ID', secretHint: '可选：牛客网页 Cookie（用于同步每日一题打卡记录）' },
   qoj: { name: 'QOJ', short: 'QOJ', accent: '#48d0c0', accountHint: '用户名', secretHint: '可选：UOJSESSID=...（QOJ 当前需登录查看完整提交）' },
   leetcode: { name: 'LeetCode', short: 'LC', accent: '#f3b23c', accountHint: '国际站用户名；中国站写 cn:用户名', secretHint: '可选：对应站点 Cookie（中国站活动与最近 AC 兜底）' },
+  other: { name: '其他 OJ', short: 'OJ', accent: '#8b96a8', accountHint: '题目链接' },
 };
 
 export const METRICS = [
@@ -65,6 +67,11 @@ export function difficultyColor(platform: Platform, label: string, order = 0) {
     if (/easy/i.test(label)) return '#00B8A3'; if (/medium/i.test(label)) return '#FFC01E'; return '#FF375F';
   }
   if (platform === 'nowcoder') {
+    if (label === '0–1099') return '#6b7280';
+    if (label === '1100–1599') return '#22a06b';
+    if (label === '1600–2099') return '#2878c7';
+    if (label === '2100–2599') return '#8250df';
+    if (label === '2600+') return '#d64545';
     const score = Number(label) || order;
     if (score <= 5) return ['#6b7280', '#54a879', '#3f8dd4', '#8a63d2', '#d85a5a'][Math.max(0, score - 1)];
     if (score < 1100) return '#6b7280'; if (score < 1600) return '#22a06b';

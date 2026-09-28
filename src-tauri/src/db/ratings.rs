@@ -506,7 +506,7 @@ fn difficulty_for_platform(
         if !seen.insert(format!("{row_account}\0{problem}")) {
             continue;
         }
-        let (order, label) = bucket_label(p, difficulty.as_deref().unwrap_or(""));
+        let (order, label) = bucket_label_for_source(p, difficulty.as_deref().unwrap_or(""), source);
         *bucket.entry((order, label)).or_default() += 1;
     }
     Ok(bucket
@@ -558,6 +558,10 @@ pub fn apply_qoj_problem_ratings(
 }
 
 fn bucket_label(p: &str, difficulty: &str) -> (i64, String) {
+    bucket_label_for_source(p, difficulty, "")
+}
+
+fn bucket_label_for_source(p: &str, difficulty: &str, source: &str) -> (i64, String) {
     let d = difficulty.trim();
     if d.is_empty() || d.eq_ignore_ascii_case("unknown") || d.eq_ignore_ascii_case("unrated") {
         return (UNRATED_ORDER, UNRATED_LABEL.into());
@@ -576,7 +580,20 @@ fn bucket_label(p: &str, difficulty: &str) -> (i64, String) {
     }
     if p == "nowcoder" {
         if let Ok(x) = d.parse::<i64>() {
-            return (x, x.to_string());
+            if source == "daily" {
+                return (x, x.to_string());
+            }
+            return if x < 1100 {
+                (800, "0–1099".into())
+            } else if x < 1600 {
+                (1100, "1100–1599".into())
+            } else if x < 2100 {
+                (1600, "1600–2099".into())
+            } else if x < 2600 {
+                (2100, "2100–2599".into())
+            } else {
+                (2600, "2600+".into())
+            };
         }
     }
     if p == "leetcode" {
@@ -637,24 +654,25 @@ fn difficulty_daily_for_platform(
     let e = end.unwrap_or("9999-99-99");
     let account = account.unwrap_or("");
     let source = source.unwrap_or("");
-    let mut stmt = conn.prepare("SELECT epoch_second,difficulty,source_day FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second").map_err(|e|e.to_string())?;
+    let mut stmt = conn.prepare("SELECT epoch_second,difficulty,source_day,source FROM submissions WHERE platform=? AND (?='' OR account=?) AND (?='' OR source=?) ORDER BY epoch_second").map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map(params![p, account, account, source, source], |r| {
             Ok((
                 r.get::<_, i64>(0)?,
                 r.get::<_, Option<String>>(1)?,
                 r.get::<_, Option<String>>(2)?,
+                r.get::<_, String>(3)?,
             ))
         })
         .map_err(|e| e.to_string())?;
     let mut days: BTreeMap<String, (i64, String)> = BTreeMap::new();
     for row in rows {
-        let (ts, difficulty, source_day) = row.map_err(|e| e.to_string())?;
+        let (ts, difficulty, source_day, row_source) = row.map_err(|e| e.to_string())?;
         let day = source_day.unwrap_or_else(|| day_in_time_zone(ts, time_zone));
         if day.as_str() < s || day.as_str() > e {
             continue;
         }
-        let (order, label) = bucket_label(p, difficulty.as_deref().unwrap_or(""));
+        let (order, label) = bucket_label_for_source(p, difficulty.as_deref().unwrap_or(""), &row_source);
         let rank = if order == UNRATED_ORDER { -1 } else { order };
         match days.get(&day) {
             Some((current, _))
