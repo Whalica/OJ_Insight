@@ -8,14 +8,22 @@ const TAG_VISIBILITY: [&str; 3] = ["never", "before_solving", "after_ac"];
 pub(crate) fn normalize_problem(mut problem: CanonicalProblem) -> Result<CanonicalProblem, String> {
     problem.platform = problem.platform.trim().to_ascii_lowercase();
     problem.problem_key = problem.problem_key.trim().to_string();
-    if !PLATFORMS.contains(&problem.platform.as_str()) {
+    if !PLATFORMS.contains(&problem.platform.as_str()) && problem.platform != "other" {
         return Err(format!("不支持的平台：{}", problem.platform));
+    }
+    problem.url = problem.url.trim().to_string();
+    if problem.platform == "other" {
+        if !problem.url.starts_with("https://") && !problem.url.starts_with("http://") {
+            return Err("其他 OJ 题目需要 http:// 或 https:// 链接".into());
+        }
+        if problem.problem_key.is_empty() {
+            problem.problem_key = problem.url.clone();
+        }
     }
     if problem.problem_key.is_empty() { return Err("题目标识不能为空；粘贴受支持平台的题目链接可以自动识别".into()); }
     problem.canonical_id = format!("{}:{}", problem.platform, problem.problem_key);
     problem.problem_id = problem.problem_id.trim().to_string();
     problem.name = problem.name.trim().to_string();
-    problem.url = problem.url.trim().to_string();
     if !problem.url.is_empty() && !problem.url.starts_with("https://") && !problem.url.starts_with("http://") { return Err("题目链接必须以 http:// 或 https:// 开头".into()); }
     problem.tags = problem.tags.into_iter().map(|tag| tag.trim().to_string()).filter(|tag| !tag.is_empty()).collect();
     problem.tags.sort();
@@ -78,4 +86,21 @@ pub(crate) fn import_problem_set(data: &str) -> Result<ProblemSetInput, String> 
         problems: serde_json::from_value::<Vec<ProblemSetProblem>>(value.get("problems").cloned().unwrap_or_default()).map_err(|e| format!("题目列表无效：{e}"))?,
     };
     normalize_problem_set(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn other_oj_uses_the_link_as_a_stable_problem_key() {
+        let problem: CanonicalProblem = serde_json::from_value(serde_json::json!({
+            "platform": "other", "problemKey": "", "url": "https://example.org/tasks/42",
+            "difficulty": null, "trainingSuitability": null, "observationDependency": null,
+            "implementationLoad": null, "knowledgeDependency": null
+        })).unwrap();
+        let normalized = normalize_problem(problem).unwrap();
+        assert_eq!(normalized.problem_key, "https://example.org/tasks/42");
+        assert_eq!(normalized.canonical_id, "other:https://example.org/tasks/42");
+    }
 }

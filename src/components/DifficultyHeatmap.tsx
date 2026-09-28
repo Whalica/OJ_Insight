@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { DifficultyDayPoint, Platform } from '../types';
 import { useHeatmapLayout } from '../hooks/useHeatmapLayout';
+import { visibleMonthLabels } from '../lib/heatmapMonths';
 
 interface Props {
   platform: Platform;
@@ -37,7 +38,7 @@ export default function DifficultyHeatmap({ platform, startDay, endDay, daily, o
 
   return <div className="heatmap-shell difficulty-map">
     <div className="heatmap-scroll" ref={scrollRef}><div className="heatmap" style={{ width, height }}>
-      <div className="month-labels">{months.map((m, i) => <span key={`${m.label}-${i}`} style={{ left: 46 + m.week * STEP }}>{m.label}</span>)}</div>
+      <div className="month-labels">{visibleMonthLabels(months, STEP).map((m, i) => <span key={`${m.label}-${i}`} style={{ left: 46 + m.week * STEP }}>{m.label}</span>)}</div>
       <div className="weekday-labels" style={{ top: 28 + STEP, gridTemplateRows: `repeat(3, ${2 * STEP}px)` }}><span>一</span><span>三</span><span>五</span></div>
       <div className="cells" style={{ width: weeks * STEP, height: 7 * STEP }}>{days.map((item) => {
         const color = item.point ? colorFor(platform, item.point.label, item.point.order) : undefined;

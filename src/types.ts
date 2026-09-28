@@ -1,4 +1,5 @@
 export type Platform = 'codeforces' | 'atcoder' | 'luogu' | 'nowcoder' | 'qoj' | 'leetcode';
+export type TrainingPlatform = Platform | 'other';
 export type Metric = 'first_ac' | 'daily_unique' | 'accepted_submissions' | 'activity';
 
 export interface AccountConfig {
@@ -241,7 +242,7 @@ export type TagVisibility = 'never' | 'before_solving' | 'after_ac';
 
 export interface CanonicalProblem {
   canonicalId: string;
-  platform: Platform;
+  platform: TrainingPlatform;
   problemKey: string;
   problemId: string;
   name: string;

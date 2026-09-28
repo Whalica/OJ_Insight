@@ -152,6 +152,7 @@
 :root[data-theme="gray"] .xcpc-problem.tier-iron { --tier-color: #858d94; }
 :root[data-theme="gray"] .xcpc-legend .silver { color: #d6dade; }
 :root[data-theme="gray"] .xcpc-legend .iron { color: #858d94; }
+:root[data-theme="light"] { --qoj-gold: #e3a21c; --qoj-silver: #8e989f; --qoj-bronze: #e97342; --qoj-iron: #3f494f; }
 :root[data-density="compact"] .compact-problems .xcpc-table td.xcpc-contest-column, :root[data-density="compact"] .compact-problems .xcpc-problems-cell, :root[data-density="compact"] .compact-problems .xcpc-problem-list { height: 51px; }
 :root[data-density="compact"] .show-problem-names .xcpc-table td.xcpc-contest-column, :root[data-density="compact"] .show-problem-names .xcpc-problems-cell, :root[data-density="compact"] .show-problem-names .xcpc-problem-list, :root[data-density="compact"] .show-problem-names .xcpc-problem { height: 72px; }
 :root[data-density="compact"] .show-problem-names .xcpc-problem>button { height: 71px; }

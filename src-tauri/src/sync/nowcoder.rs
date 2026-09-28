@@ -4,6 +4,8 @@ use reqwest::Client;
 use scraper::{Html, Selector};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use serde::{Deserialize, Serialize};
 
 use super::{
     browser_headers, get_json, get_text, now_epoch, polite_sleep, with_raw_cookie, with_referer,
@@ -17,6 +19,7 @@ pub async fn fetch(
     account: &AccountConfig,
     full: bool,
     cursor: i64,
+    cache_dir: &Path,
 ) -> Result<RemoteData, SyncError> {
     let uid = account.account.trim();
     if uid.is_empty() || !uid.chars().all(|c| c.is_ascii_digit()) {
@@ -74,8 +77,8 @@ pub async fn fetch(
         page += 1;
         polite_sleep(260).await;
     }
-    let (tracker, tracker_note) = match fetch_tracker_catalog(client).await {
-        Ok(items) => (items, "已读取牛客 Tracker 题目 Rating".to_string()),
+    let (tracker, tracker_note) = match cached_catalog(client, cache_dir, "nowcoder-tracker.json", 24 * 3600, full, "tracker").await {
+        Ok((items, cached)) => (items, (if cached { "已使用牛客 Tracker 题目 Rating 缓存" } else { "已读取牛客 Tracker 题目 Rating" }).to_string()),
         Err(error) => (
             TrackerCatalog::default(),
             format!("警告：牛客 Tracker 暂不可用（{}）", error.message),
@@ -95,8 +98,8 @@ pub async fn fetch(
         }
     }
 
-    let (mut daily_catalog, daily_note) = match fetch_tracker_problems(client).await {
-        Ok(items) => (items, "已读取牛客每日一题日历".to_string()),
+    let (mut daily_catalog, daily_note) = match cached_catalog(client, cache_dir, "nowcoder-daily.json", 3600, full, "daily").await {
+        Ok((items, cached)) => (items, (if cached { "已使用牛客每日一题日历缓存" } else { "已读取牛客每日一题日历" }).to_string()),
         Err(error) => (
             TrackerCatalog::default(),
             format!("警告：牛客每日一题日历暂不可用（{}）", error.message),
@@ -298,7 +301,7 @@ fn number_value(value: &Value) -> Option<f64> {
     value.as_f64().or_else(|| value.as_str()?.parse().ok())
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct TrackerProblem {
     day: String,
     problem_id: String,
@@ -307,10 +310,54 @@ struct TrackerProblem {
     difficulty: Option<String>,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 struct TrackerCatalog {
     by_key: HashMap<String, TrackerProblem>,
     by_day: HashMap<String, TrackerProblem>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CatalogCache {
+    version: u8,
+    fetched_at: i64,
+    catalog: TrackerCatalog,
+}
+
+async fn cached_catalog(
+    client: &Client,
+    directory: &Path,
+    filename: &str,
+    fresh_seconds: i64,
+    force: bool,
+    kind: &str,
+) -> Result<(TrackerCatalog, bool), SyncError> {
+    let path = directory.join(filename);
+    let cached = std::fs::read(&path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<CatalogCache>(&bytes).ok())
+        .filter(|entry| entry.version == 1 && entry.fetched_at <= now_epoch());
+    if !force && cached.as_ref().is_some_and(|entry| now_epoch() - entry.fetched_at < fresh_seconds) {
+        return Ok((cached.unwrap().catalog, true));
+    }
+    let downloaded = if kind == "tracker" { fetch_tracker_catalog(client).await } else { fetch_tracker_problems(client).await };
+    match downloaded {
+        Ok(catalog) => {
+            if std::fs::create_dir_all(directory).is_ok() {
+                let entry = CatalogCache { version: 1, fetched_at: now_epoch(), catalog: TrackerCatalog {
+                    by_key: catalog.by_key.clone(), by_day: catalog.by_day.clone(),
+                } };
+                let temporary = path.with_extension("json.tmp");
+                if let Ok(bytes) = serde_json::to_vec(&entry) {
+                    if std::fs::write(&temporary, bytes).is_ok() {
+                        let _ = std::fs::rename(&temporary, &path);
+                    }
+                }
+                let _ = std::fs::remove_file(&temporary);
+            }
+            Ok((catalog, false))
+        }
+        Err(error) => cached.map(|entry| (entry.catalog, true)).ok_or(error),
+    }
 }
 
 impl TrackerCatalog {
@@ -471,16 +518,30 @@ async fn fetch_tracker_problems(client: &Client) -> Result<TrackerCatalog, SyncE
     let mut year = now.year();
     let mut month = now.month() as i32;
     let mut result = TrackerCatalog::default();
+    let mut months = Vec::with_capacity(18);
     for _ in 0..18 {
-        let url = format!(
-            "https://www.nowcoder.com/problem/tracker/clock/monthinfo?year={year}&month={month}"
-        );
-        let payload = get_json(
-            client,
-            &url,
-            with_referer(browser_headers(), "https://www.nowcoder.com/"),
-        )
-        .await?;
+        months.push((year, month));
+        month -= 1;
+        if month == 0 {
+            month = 12;
+            year -= 1;
+        }
+    }
+    let mut pending = tokio::task::JoinSet::new();
+    let mut next = 0;
+    while next < months.len() || !pending.is_empty() {
+        while next < months.len() && pending.len() < 4 {
+            let (year, month) = months[next];
+            let client = client.clone();
+            pending.spawn(async move {
+                let url = format!("https://www.nowcoder.com/problem/tracker/clock/monthinfo?year={year}&month={month}");
+                get_json(&client, &url, with_referer(browser_headers(), "https://www.nowcoder.com/")).await
+            });
+            next += 1;
+        }
+        let payload = pending.join_next().await
+            .ok_or_else(|| SyncError::error("牛客每日一题请求意外结束"))?
+            .map_err(|error| SyncError::error(format!("牛客每日一题请求失败：{error}")))??;
         if payload.get("code").and_then(Value::as_i64).unwrap_or(-1) == 0 {
             if let Some(items) = tracker_problem_rows(&payload) {
                 for item in items {
@@ -564,12 +625,6 @@ async fn fetch_tracker_problems(client: &Client) -> Result<TrackerCatalog, SyncE
                 }
             }
         }
-        month -= 1;
-        if month == 0 {
-            month = 12;
-            year -= 1;
-        }
-        polite_sleep(90).await;
     }
     Ok(result)
 }

@@ -754,7 +754,7 @@ pub fn difficulty_detail(
     let mut items = Vec::new();
     for row in rows {
         let item = row.map_err(|e| e.to_string())?;
-        let matches = bucket_label(platform, item.difficulty.as_deref().unwrap_or("")).1 == label;
+        let matches = bucket_label_for_source(platform, item.difficulty.as_deref().unwrap_or(""), &item.source).1 == label;
         if matches && seen.insert(format!("{}\0{}", item.account, item.problem_key)) {
             items.push(item);
         }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpenCheck, ChevronDown, CircleHelp, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
 import PlatformIcon from './PlatformIcon';
+import icpcIcon from '../assets/platforms/icpc.ico';
 import type { Page } from '../lib/navigation';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
@@ -49,7 +50,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle }: { page:
         <section className={`nav-group ${openGroup === 'trackers' && !collapsed ? 'open' : ''}`}>
           <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
           <div className="nav-group-items tracker-items">
-            <button title={collapsed ? 'ICPC/CCPC' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="acm-nav-logo" aria-hidden="true">ACM</span><span className="nav-label">ICPC / CCPC</span></button>
+            <button title={collapsed ? 'ICPC/CCPC' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span className="nav-label">ICPC / CCPC</span></button>
             <button className={page === 'tracker-codeforces' ? 'active' : ''} onClick={() => onChange('tracker-codeforces')}><PlatformIcon platform="codeforces" className="sidebar-platform-icon" /><span className="nav-label">Codeforces</span></button>
             <button className={page === 'tracker-atcoder' ? 'active' : ''} onClick={() => onChange('tracker-atcoder')}><PlatformIcon platform="atcoder" className="sidebar-platform-icon" /><span className="nav-label">AtCoder</span></button>
           </div>
