@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
+use crate::models::KnowledgeBucket;
 use crate::training::{CanonicalProblem, Contest, ContestInput, ProblemSet, ProblemSetInput, ProblemSetProblem, TrainingMatch, TrainingMatchProblem, VpSubmission};
 
 const TRAINING_SCHEMA: &str = r#"
