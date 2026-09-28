@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpenCheck, ChevronDown, CircleHelp, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
+import { BookOpenCheck, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
 import PlatformIcon from './PlatformIcon';
 import icpcIcon from '../assets/platforms/icpc.ico';
 import type { Page } from '../lib/navigation';
@@ -8,7 +8,7 @@ import type { Platform } from '../types';
 
 type NavGroup = 'platforms' | 'trackers' | 'training';
 
-export default function Sidebar({ page, onChange, collapsed, onToggle }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void }) {
+export default function Sidebar({ page, onChange, collapsed, onToggle, onAssistant, assistantVisible }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void; onAssistant: () => void; assistantVisible: boolean }) {
   const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'problem-sets' || page === 'community' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
   const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
   const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' || savedGroup === 'platforms' || savedGroup === 'training' ? savedGroup : null));
@@ -65,6 +65,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle }: { page:
             <button title={collapsed ? '参赛区' : undefined} className={page === 'vp' ? 'active' : ''} onClick={() => onChange('vp')}><Play size={14} /><span className="nav-label">参赛区</span></button>
             <button title={collapsed ? '个性化组题' : undefined} className={page === 'training' ? 'active' : ''} onClick={() => onChange('training')}><Dumbbell size={14} /><span className="nav-label">个性化组题</span></button>
             <button title={collapsed ? '赛后分析' : undefined} className={page === 'contest-review' ? 'active' : ''} onClick={() => onChange('contest-review')}><BookOpenCheck size={14} /><span className="nav-label">赛后分析</span></button>
+            <button title={collapsed ? '做题小助手' : undefined} aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={14} /><span className="nav-label">做题小助手</span></button>
           </div>
         </section>
 

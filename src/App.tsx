@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import DayDrawer from './components/DayDrawer';
 import DifficultyDrawer from './components/DifficultyDrawer';
 import RelationshipNotice from './components/RelationshipNotice';
+import StudyAssistant from './components/StudyAssistant';
 import DashboardPage from './pages/DashboardPage';
 import AboutPage from './pages/AboutPage';
 import DataPage from './pages/DataPage';
@@ -49,6 +50,8 @@ export default function App() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [selectedDay, setSelectedDay] = useState(() => today(timeZone));
   const [toast, setToast] = useState('');
+  const [assistantVisible, setAssistantVisible] = useState(() => localStorage.getItem('oj-insight.study-assistant.visible') === 'true');
+  const [assistantExpanded, setAssistantExpanded] = useState(false);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
   const range = useMemo(() => selectedPlatform === 'luogu' ? recentHalfYearRange(timeZone) : scopeRange(timeScope, timeZone), [selectedPlatform, timeScope, selectedDay, timeZone]);
@@ -132,8 +135,21 @@ export default function App() {
     localStorage.setItem('oj-insight.sidebar-collapsed', String(!current));
     return !current;
   });
+  const openAssistant = () => {
+    if (assistantVisible) setAssistantExpanded(true);
+    else {
+      localStorage.setItem('oj-insight.study-assistant.visible', 'true');
+      setAssistantVisible(true);
+      setAssistantExpanded(false);
+    }
+  };
+  const closeAssistant = () => {
+    localStorage.setItem('oj-insight.study-assistant.visible', 'false');
+    setAssistantVisible(false);
+    setAssistantExpanded(false);
+  };
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} onAssistant={openAssistant} assistantVisible={assistantVisible} />
     <main className={`main ${page.startsWith('tracker-') ? 'main-tracker' : ''}`}>
       {page === 'training' ? <TrainingPage notify={notify} onOpenProblemSets={() => setPage('problem-sets')} onOpenContests={() => setPage('contests')} /> :
        page === 'problem-sets' ? <ProblemSetsPage notify={notify} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
@@ -146,11 +162,12 @@ export default function App() {
        page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage syncing={syncing} /> :
-       page === 'xcpc' ? <XcpcTrackerPage syncing={syncing === 'qoj'} onSync={() => syncOne('qoj').then(() => undefined)} notify={notify} /> :
+       page === 'xcpc' ? <XcpcTrackerPage syncing={syncing === 'qoj'} onSync={() => syncOne('qoj').then(() => undefined)} onOpenSettings={() => setPage('settings')} notify={notify} /> :
        embeddedTracker ? null :
       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} solvedGains={solvedGains} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} onOpenSettings={() => setPage('settings')} />}
       {mountedTracker && <div className={`tracker-keepalive-layer ${embeddedTracker === mountedTracker ? 'active' : ''}`} aria-hidden={embeddedTracker !== mountedTracker}><ExternalTrackerPage tracker={mountedTracker} accounts={accounts[mountedTracker] || []} /></div>}
     </main>
+    <StudyAssistant visible={assistantVisible} expanded={assistantExpanded} onExpand={setAssistantExpanded} onClose={closeAssistant} />
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />
     <DifficultyDrawer detail={difficultyDetail} loading={difficultyLoading} timeZone={timeZone} onClose={closeDifficulty} />
     <RelationshipNotice events={watchedNotifications} timeZone={timeZone} onDismiss={(eventId) => { void dismissWatched(eventId); }} />

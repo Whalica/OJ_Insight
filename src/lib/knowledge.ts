@@ -36,21 +36,33 @@ export function knowledgeDifficultyLevel(platform: Platform, difficulty?: string
   return null;
 }
 
-export function buildKnowledgeProfile(platform: Platform, problems: Array<{ problemId?: string; solved?: boolean; tagAxes?: string[]; tags?: string[]; difficulty?: string | null; tier?: string | null }>): KnowledgeBucket[] {
+export function buildKnowledgeProfile(platform: Platform, problems: Array<{ problemId?: string; solved?: boolean; tagAxes?: string[]; tagWeights?: Record<string, number>; tags?: string[]; difficulty?: string | null; tier?: string | null }>): KnowledgeBucket[] {
   const evidence = new Map<string, Array<{ value: number; weight: number }>>();
   const all: Array<{ value: number; weight: number }> = [];
   const seenProblems = new Set<string>();
-  for (const problem of problems.filter((item) => item.solved !== false)) {
-    const axes = new Set([...(problem.tagAxes || []), ...(problem.tags || [])].map(knowledgeAxis).filter((axis): axis is KnowledgeAxis => axis !== null));
+  for (const problem of problems.filter((item) => item.solved === true)) {
     const value = knowledgeDifficultyLevel(platform, problem.difficulty, problem.tier);
-    if (value == null || !axes.size) continue;
+    if (value == null) continue;
+    const axisWeights = new Map<KnowledgeAxis, number>();
+    for (const [label, weight] of Object.entries(problem.tagWeights || {})) {
+      const axis = knowledgeAxis(label);
+      if (axis && Number.isFinite(weight) && weight > 0) axisWeights.set(axis, (axisWeights.get(axis) || 0) + weight);
+    }
+    if (!axisWeights.size) {
+      const labels = problem.tagAxes?.length ? problem.tagAxes : problem.tags || [];
+      for (const label of labels) {
+        const axis = knowledgeAxis(label);
+        if (axis) axisWeights.set(axis, 1);
+      }
+    }
+    if (!axisWeights.size) continue;
     if (problem.problemId) {
       if (seenProblems.has(problem.problemId)) continue;
       seenProblems.add(problem.problemId);
     }
-    const item = { value, weight: 1 / axes.size };
-    all.push(item);
-    for (const axis of axes) evidence.set(axis, [...(evidence.get(axis) || []), item]);
+    const totalWeight = [...axisWeights.values()].reduce((sum, weight) => sum + weight, 0);
+    all.push({ value, weight: 1 });
+    for (const [axis, weight] of axisWeights) evidence.set(axis, [...(evidence.get(axis) || []), { value, weight: weight / totalWeight }]);
   }
   if (![...evidence.values()].some((items) => items.length > 0)) return [];
   const prior = weightedQuantile(all) || 50;
@@ -60,10 +72,9 @@ export function buildKnowledgeProfile(platform: Platform, problems: Array<{ prob
     const representative = weightedQuantile(items);
     const effective = Math.min(20, items.reduce((sum, item) => sum + item.weight, 0));
     if (platform === 'qoj') {
-      const relative = 50 + (representative - prior) * 1.15;
-      const estimate = representative * .58 + relative * .42;
-      const confidence = effective / (effective + 4);
-      return { platform, axis, count: items.length, score: Math.round(Math.max(8, Math.min(95, confidence * estimate + (1 - confidence) * 50))) };
+      const confidence = effective / (effective + 8);
+      const relative = 50 + (representative - prior);
+      return { platform, axis, count: items.length, score: Math.round(Math.max(8, Math.min(95, 50 + confidence * (relative - 50)))) };
     }
     const shrink = effective / (effective + 6);
     return { platform, axis, count: items.length, score: Math.round(Math.max(5, Math.min(95, shrink * representative + (1 - shrink) * prior))) };

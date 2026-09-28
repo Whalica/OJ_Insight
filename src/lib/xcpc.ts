@@ -9,6 +9,7 @@ export interface XcpcProblem {
   acceptedTeams: number | null;
   totalTeams: number | null;
   tagAxes?: string[];
+  tagWeights?: Record<string, number>;
   tags?: string[];
   solved: boolean;
 }

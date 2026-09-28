@@ -38,7 +38,7 @@ export default function KnowledgeRadar({ data, selectedPlatform }: { data: Knowl
   const grid = [25, 50, 75, 100].map((value) => points(displayRows, value));
   const shape = points(displayRows, (item) => item.score);
   return <section className="panel knowledge-panel">
-    <div className="panel-head"><div><small>ABILITY EVIDENCE · 生涯累计</small><h2>能力画像</h2><p>{active === 'overview' ? '综合各 OJ 的稳健代表难度；题量只提高可信度，不再直接把分数堆到 100。' : active === 'codeforces' ? '近期 Rating 提供绝对水平，各方向 P75 难度显示相对个人强弱；比赛类型、时间和证据量共同决定可信度。' : active === 'qoj' ? '按已 AC 的独立 QOJ 题目、奖牌难度和标签估算；同题只计一次，分数不代表官方 Rating。' : '以各方向 P75 难度估算，题量只决定结果向个人整体水平靠拢的程度。'}</p></div></div>
+    <div className="panel-head"><div><small>ABILITY EVIDENCE · 生涯累计</small><h2>能力画像</h2><p>{active === 'overview' ? '综合各 OJ 的稳健代表难度；题量只提高可信度，不再直接把分数堆到 100。' : active === 'codeforces' ? '近期 Rating 提供绝对水平，各方向 P75 难度显示相对个人强弱；比赛类型、时间和证据量共同决定可信度。' : active === 'qoj' ? '按已 AC 的独立 QOJ 题目、主标签权重与奖牌档次估计相对优势；少量证据会向 50 分靠拢，不代表官方 Rating。' : '以各方向 P75 难度估算，题量只决定结果向个人整体水平靠拢的程度。'}</p></div></div>
     {!preferred && <div className="knowledge-tabs"><button aria-label="总览" aria-pressed={active === 'overview'} className={active === 'overview' ? 'active' : ''} onClick={() => setActive('overview')}><i className="overview" />总览</button>{available.map((platform) => <button aria-label={LABELS[platform]} aria-pressed={active === platform} className={active === platform ? 'active' : ''} onClick={() => setActive(platform)} key={platform}><i style={{ background: PLATFORM_META[platform].accent }} />{LABELS[platform]}</button>)}</div>}
     <div className="knowledge-body">
       <svg viewBox="0 0 420 320" role="img" aria-label={`${LABELS[active]} 能力雷达图`}>

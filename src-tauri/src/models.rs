@@ -189,6 +189,8 @@ pub struct XcpcProblem {
     #[serde(default)]
     pub tag_axes: Vec<String>,
     #[serde(default)]
+    pub tag_weights: std::collections::BTreeMap<String, f64>,
+    #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
     pub solved: bool,

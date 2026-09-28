@@ -51,6 +51,7 @@ mod tests {
                     accepted_teams: None,
                     total_teams: None,
                     tag_axes: vec![],
+                    tag_weights: Default::default(),
                     tags: vec![],
                     solved: position == 0,
                 })
@@ -446,6 +447,7 @@ mod tests {
                 accepted_teams: Some(5),
                 total_teams: Some(100),
                 tag_axes: vec![],
+                tag_weights: Default::default(),
                 tags: vec![],
                 solved: true,
             }],
@@ -541,6 +543,7 @@ mod tests {
                 accepted_teams: None,
                 total_teams: None,
                 tag_axes: vec![],
+                tag_weights: Default::default(),
                 tags: vec![],
                 solved: false,
             }],
