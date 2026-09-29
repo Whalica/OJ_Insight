@@ -82,6 +82,9 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
         case 'drag_study_assistant':
         case 'close_study_assistant':
           return undefined;
+        case 'plugin:window|start_resize_dragging':
+          (window as unknown as { __ASSISTANT_RESIZE_DIRECTION__: unknown }).__ASSISTANT_RESIZE_DIRECTION__ = args.value;
+          return undefined;
         case 'sync_watched_people':
           (window as unknown as { __WATCHED_SYNC_COUNT__: number }).__WATCHED_SYNC_COUNT__ = ((window as unknown as { __WATCHED_SYNC_COUNT__?: number }).__WATCHED_SYNC_COUNT__ || 0) + 1;
           return { checked: watchedPeople.length, insertedEvents: 0, events: [], failures: [] };
@@ -101,7 +104,7 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
           throw new Error(`Unhandled Tauri command in layout test: ${command}`);
       }
     };
-    (window as unknown as { __TAURI_INTERNALS__: { invoke: typeof invoke } }).__TAURI_INTERNALS__ = { invoke };
+    (window as unknown as { __TAURI_INTERNALS__: { invoke: typeof invoke; metadata: { currentWindow: { label: string } } } }).__TAURI_INTERNALS__ = { invoke, metadata: { currentWindow: { label: 'study-assistant' } } };
   }, {
     snapshot: fixtures.snapshot || EMPTY_SNAPSHOT,
     afterSyncSnapshot: fixtures.afterSyncSnapshot,

@@ -230,8 +230,13 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 .review-post-option>input:checked+i { border-color: #2f9e55; background: #2f9e55; box-shadow: 0 0 0 2px color-mix(in srgb,#2f9e55 18%,transparent); }
 .review-post-option>input:checked+i::after { background: #effff4; }
 .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.credential-help { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--interactive-border); border-radius: 7px; padding: 8px 10px; background: var(--panel-soft); color: var(--text-soft); cursor: pointer; }
-.credential-help:hover { border-color: var(--interactive-border-hover); background: var(--interactive-hover); color: var(--text); }
+.credential-help, .xcpc-action.credential-help { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 7px; padding: 8px 10px; background: var(--panel-soft); color: var(--text); cursor: pointer; }
+.credential-help:hover, .xcpc-action.credential-help:hover { border-color: var(--accent); background: var(--interactive-hover); color: var(--text); }
+:root[data-theme="light"] .level-0 { background: color-mix(in srgb, var(--brick-empty) 52%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 60%, transparent); }
+:root[data-theme="gray"] .level-0 { background: #414548; box-shadow: inset 0 0 0 1px #62686b; }
+:root[data-theme="light"] .level-1, :root[data-theme="gray"] .level-1 { background: rgb(var(--heatmap-rgb) / .76); }
+:root[data-theme="light"] .level-2, :root[data-theme="gray"] .level-2 { background: rgb(var(--heatmap-rgb) / .88); }
+:root[data-theme="light"] .level-3, :root[data-theme="gray"] .level-3 { background: rgb(var(--heatmap-rgb) / .96); }
 .today-problem-meta { display: flex; align-items: flex-end; gap: 4px; text-align: right; }
 .today-problem-meta>b { display: inline-flex; align-items: center; gap: 5px; color: var(--text-soft); font-size: var(--font-meta); white-space: nowrap; }
 .today-problem-meta>b>i { width: 8px; height: 8px; border-radius: 2px; }
