@@ -183,7 +183,7 @@ fn weighted_mean(items: &[(f64, f64)]) -> Option<f64> {
 
 fn qoj_knowledge_score(representative: f64, prior: f64, evidence: f64) -> i64 {
     let effective = evidence.clamp(0.0, 20.0);
-    let confidence = effective / (effective + 8.0);
+    let confidence = effective / (effective + 5.0);
     (50.0 + confidence * (representative - prior))
         .round()
         .clamp(8.0, 95.0) as i64

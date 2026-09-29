@@ -77,7 +77,7 @@ export function buildKnowledgeProfile(platform: Platform, problems: Array<{ prob
     const representative = platform === 'qoj' ? weightedMean(items) : weightedQuantile(items);
     const effective = Math.min(20, items.reduce((sum, item) => sum + item.weight, 0));
     if (platform === 'qoj') {
-      const confidence = effective / (effective + 8);
+      const confidence = effective / (effective + 5);
       const relative = 50 + (representative - prior);
       return { platform, axis, count: items.length, score: Math.round(Math.max(8, Math.min(95, 50 + confidence * (relative - 50)))) };
     }
