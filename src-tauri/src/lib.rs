@@ -15,6 +15,7 @@ use app::state::AppState;
 use commands::accounts::{
     get_accounts, get_sync_statuses, save_account, save_accounts, save_all_accounts,
 };
+use commands::assistant::{close_study_assistant, drag_study_assistant, open_study_assistant, resize_study_assistant};
 use commands::community::{get_community_catalog, get_community_problem_set, save_community_problem_set};
 use commands::analytics::{get_day_detail, get_difficulty_detail, get_snapshot};
 use commands::contest_review::{generate_contest_review, inspect_contest_review};
@@ -72,6 +73,10 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            open_study_assistant,
+            resize_study_assistant,
+            drag_study_assistant,
+            close_study_assistant,
             get_storage_info,
             get_accounts,
             get_xcpc_contests,

@@ -5,7 +5,7 @@ use reqwest::{
 use serde_json::Value;
 
 use super::{get_json, get_text, now_epoch};
-use crate::models::{AccountConfig, AggregateDay, DifficultyStat, RemoteData, SyncError};
+use crate::models::{AccountConfig, AggregateDay, DifficultyStat, RatingPoint, RemoteData, SyncError};
 
 fn base_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
@@ -115,6 +115,30 @@ async fn resolve_uid(client: &Client, input: &str) -> Result<(String, String), S
     Ok((uid, name))
 }
 
+fn parse_rating_history(data: &Value) -> Option<Vec<RatingPoint>> {
+    let entries = data.get("elo")?.as_array()?;
+    let mut history = Vec::new();
+    for entry in entries {
+        let Some(new_rating) = entry.get("rating").and_then(Value::as_i64) else { continue };
+        let Some(mut epoch_second) = entry.get("time").and_then(Value::as_i64) else { continue };
+        if epoch_second > 10_000_000_000 { epoch_second /= 1000; }
+        if epoch_second <= 0 || new_rating <= 0 { continue; }
+        let contest = entry.get("contest");
+        let contest_id = contest.and_then(|item| item.get("id")).and_then(|value| value.as_i64().map(|value| value.to_string()).or_else(|| value.as_str().map(str::to_string)))
+            .unwrap_or_else(|| format!("rating-{epoch_second}"));
+        let contest_name = contest.and_then(|item| item.get("name")).and_then(Value::as_str)
+            .filter(|name| !name.trim().is_empty()).unwrap_or("洛谷 Rated 比赛").to_string();
+        let change = entry.get("prevDiff").and_then(Value::as_i64).unwrap_or(0);
+        history.push(RatingPoint {
+            contest_id, contest_name, epoch_second,
+            old_rating: (new_rating - change).max(0), new_rating,
+            rank: entry.get("rank").and_then(Value::as_i64),
+        });
+    }
+    history.sort_by_key(|point| point.epoch_second);
+    Some(history)
+}
+
 pub async fn fetch(
     client: &Client,
     account: &AccountConfig,
@@ -137,6 +161,7 @@ pub async fn fetch(
         .get("data")
         .or_else(|| payload.get("currentData"))
         .unwrap_or(&payload);
+    let ratings = parse_rating_history(data);
     let mut aggregates = Vec::new();
     let has_daily_counts = data.get("dailyCounts").and_then(Value::as_object).is_some();
     if let Some(obj) = data.get("dailyCounts").and_then(Value::as_object) {
@@ -239,13 +264,14 @@ pub async fn fetch(
         difficulty,
         knowledge: None,
         solved_inventory,
-        ratings: None,
+        ratings,
         activity_only: true,
         notes: {
             let mut notes = vec!["遵循洛谷规则，不请求提交记录；活动数据通常仅覆盖近期，且没有逐题明细".into()];
             if has_daily_counts { notes.push(format!("洛谷个人页 dailyCounts · UID {uid}")); }
             else { notes.push("警告：个人页未返回 dailyCounts，已保留旧活动数据".into()); }
             if missing_difficulty { notes.push("警告：本次未获取到难度分布，已保留旧难度数据".into()); }
+            if data.get("elo").is_none() { notes.push("警告：本次未获取到比赛等级分，已保留旧 Rating 数据".into()); }
             notes
         },
         cursor_epoch: now_epoch().saturating_sub(48 * 3600),
@@ -294,5 +320,21 @@ mod tests {
         assert_eq!(passed_problem_id(&serde_json::json!("p1421")), Some("P1421".into()));
         assert_eq!(passed_problem_id(&serde_json::json!({"pid":"B2002"})), Some("B2002".into()));
         assert_eq!(passed_problem_id(&serde_json::json!({"pid":"../../x"})), None);
+    }
+
+    #[test]
+    fn rating_history_uses_contest_elo_not_guzhi() {
+        let data = serde_json::json!({
+            "gu": {"rating": 135},
+            "elo": [
+                {"rating": 972, "prevDiff": -54, "time": 1752600000, "contest": {"id": 232, "name": "月赛"}},
+                {"rating": 1026, "prevDiff": 26, "time": 1750000000, "contest": {"id": 220, "name": "练习赛"}}
+            ]
+        });
+        let history = parse_rating_history(&data).unwrap();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].new_rating, 1026);
+        assert_eq!(history[1].old_rating, 1026);
+        assert_eq!(history[1].contest_id, "232");
     }
 }

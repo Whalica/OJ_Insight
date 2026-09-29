@@ -59,8 +59,8 @@ pub async fn apply_problem_tags(
             }
             let label = match key.as_str() {
                 "adhoc" | "technique" => "基础与模拟",
-                "search" => "搜索与构造",
-                "offline" | "random" => "贪心与思维",
+                "search" | "bruteForce" | "backtracking" | "construction" | "constructive" => "搜索与构造",
+                "greedy" | "offline" | "random" | "divideConquer" => "贪心与思维",
                 "dataStructure" => "数据结构",
                 "graph" | "flow" => "图论与树",
                 "dp" => "动态规划",
@@ -71,14 +71,7 @@ pub async fn apply_problem_tags(
             };
             *weights.entry(label.to_string()).or_default() += weight;
         }
-        let strongest = weights.values().copied().fold(0.0, f64::max);
-        weights.retain(|_, weight| *weight >= 0.25 && *weight >= strongest * 0.5);
-        let total = weights.values().sum::<f64>();
-        if total > 0.0 {
-            for weight in weights.values_mut() { *weight /= total; }
-        }
-        let axes = weights.keys().cloned().collect();
-        let tags = entry
+        let tags: Vec<String> = entry
             .get("detailTags")
             .and_then(serde_json::Value::as_array)
             .into_iter()
@@ -86,6 +79,27 @@ pub async fn apply_problem_tags(
             .filter_map(serde_json::Value::as_str)
             .map(str::to_string)
             .collect();
+        let strongest = weights.values().copied().fold(0.0, f64::max);
+        // The broad labels often call a greedy/search solution only "technique".
+        // Retain those explicit detail tags as modest evidence without letting
+        // every secondary label count as a full independent solved problem.
+        for tag in &tags {
+            let lower = tag.to_lowercase();
+            let axis = if lower.contains("greedy") || lower.contains("贪心") || lower.contains("two pointers") {
+                Some("贪心与思维")
+            } else if lower.contains("search") || lower.contains("搜索") || lower.contains("backtracking") || lower == "dfs" || lower == "bfs" {
+                Some("搜索与构造")
+            } else { None };
+            if let Some(axis) = axis {
+                weights.entry(axis.to_string()).or_insert_with(|| strongest.max(0.5) * 0.3);
+            }
+        }
+        weights.retain(|_, weight| *weight >= 0.12 && *weight >= strongest * 0.2);
+        let total = weights.values().sum::<f64>();
+        if total > 0.0 {
+            for weight in weights.values_mut() { *weight /= total; }
+        }
+        let axes = weights.keys().cloned().collect();
         by_qoj_id.insert(problem_id.to_string(), (axes, weights, tags));
     }
     let mut matched = 0;

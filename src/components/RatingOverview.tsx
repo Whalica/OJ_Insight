@@ -5,7 +5,7 @@ import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform, RatingHistoryPoint, RatingSummary } from '../types';
 
 type Period = '30' | '90' | 'all';
-const RATING_PLATFORMS: Platform[] = PLATFORM_ORDER.filter((platform) => platform !== 'luogu');
+const RATING_PLATFORMS: Platform[] = PLATFORM_ORDER;
 
 function ratingLabel(platform: Platform, rating: number) {
   if (platform === 'codeforces') {
@@ -21,6 +21,7 @@ function ratingLabel(platform: Platform, rating: number) {
     return 'Newbie';
   }
   if (platform === 'atcoder') return 'Rating';
+  if (platform === 'luogu') return '比赛等级分';
   if (platform === 'leetcode') return 'Contest Rating';
   return 'Rating';
 }
@@ -45,6 +46,13 @@ function ratingColor(platform: Platform, rating: number) {
     if (rating >= 400) return '#804000';
     return '#808080';
   }
+  if (platform === 'luogu') {
+    if (rating >= 2800) return '#e55353';
+    if (rating >= 2200) return '#e29a41';
+    if (rating >= 1600) return '#8b75cf';
+    if (rating >= 1000) return '#4c91d4';
+    return '#748994';
+  }
   return PLATFORM_META[platform].accent;
 }
 
@@ -60,6 +68,7 @@ function dateLabel(epoch: number, timeZone: string) {
 function contestUrl(platform: Platform, point: RatingHistoryPoint) {
   if (platform === 'codeforces' && /^\d+$/.test(point.contest_id)) return `https://codeforces.com/contest/${point.contest_id}`;
   if (platform === 'atcoder' && point.contest_id) return `https://atcoder.jp/contests/${encodeURIComponent(point.contest_id)}`;
+  if (platform === 'luogu' && /^\d+$/.test(point.contest_id)) return `https://www.luogu.com.cn/contest/${point.contest_id}`;
   if (platform === 'nowcoder' && /^\d+$/.test(point.contest_id)) return `https://ac.nowcoder.com/acm/contest/${point.contest_id}`;
   if (platform === 'leetcode' && point.contest_name) {
     const slug = point.contest_name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -127,7 +136,7 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
           <span className="oj-dot" style={{ background: PLATFORM_META[item].accent }} />{PLATFORM_META[item].short}<small>{PLATFORM_META[item].name}</small>{available.has(item) && <i />}
         </button>)}
       </div>
-      {!summary ? <div className="rating-empty"><strong>{PLATFORM_META[platform].name} 暂无 Rating 记录</strong><span>{['codeforces', 'atcoder', 'leetcode', 'nowcoder', 'qoj'].includes(platform) ? '请配置 ID 后同步；未参加 Rated 比赛或接口暂不可用时不会显示为 0。LeetCode 当前仅接入国际站，QOJ 读取登录后个人页。' : '该平台的 Rating 历史暂未接入，不显示 0 或估算值。'}</span></div> : <div className="rating-layout">
+      {!summary ? <div className="rating-empty"><strong>{PLATFORM_META[platform].name} 暂无 Rating 记录</strong><span>请配置 ID 后同步；未参加 Rated 比赛或接口暂不可用时不会显示为 0。LeetCode 当前仅接入国际站，QOJ 读取登录后个人页。</span></div> : <div className="rating-layout">
         <div className="rating-summary">
           <div className="rating-account">{accounts.length > 1 ? <div className="select-wrap"><select aria-label={`${PLATFORM_META[platform].name} Rating 账号`} style={{ color }} value={summary.account} onChange={(event) => { const value = event.target.value; setAccount(value); localStorage.setItem(`oj-insight.rating-account.${platform}`, value); }}>{accounts.map((item) => <option key={item.account} value={item.account}>{item.display_name || item.account}{item.display_name && item.display_name !== item.account ? ` · ${item.account}` : ''}</option>)}</select><ChevronDown size={14} /></div> : <div className="rating-account-name"><strong style={{ color }}>{summary.display_name || summary.account}</strong>{summary.display_name && summary.display_name !== summary.account && <small>{summary.account}</small>}</div>}</div>
           <div className="rating-milestones"><div className="rating-current"><small>当前 Rating</small><strong>{summary.current.toLocaleString()}</strong><span>{ratingLabel(platform, summary.current)}</span></div><div className="rating-maximum" style={{ '--maximum-color': maximumColor } as CSSProperties}><small>历史最高</small><strong>{summary.maximum.toLocaleString()}</strong><span>{ratingLabel(platform, summary.maximum)}</span></div></div>
