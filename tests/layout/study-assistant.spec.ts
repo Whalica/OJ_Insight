@@ -15,16 +15,21 @@ test('study assistant opens from tools and keeps its timer and side-by-side Mark
 
   await page.getByRole('button', { name: '做题小助手' }).click();
   await page.goto('/?study_assistant=1');
-  await page.setViewportSize({ width: 220, height: 96 });
+  await page.setViewportSize({ width: 160, height: 160 });
   const bubble = page.getByRole('button', { name: /展开做题小助手/ });
   await expect(bubble).toBeVisible();
-  await expect.poll(async () => (await bubble.boundingBox())?.width).toBe(220);
-  await expect(bubble).toHaveCSS('border-radius', '0px');
+  await expect.poll(async () => await bubble.boundingBox()).toMatchObject({ x: 6, y: 6, width: 148, height: 148 });
+  await expect(bubble).toHaveCSS('border-bottom-width', '3px');
+  await expect(bubble).toHaveCSS('border-right-width', '3px');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(48, 50, 52)');
   await bubble.hover();
   await expect(bubble).toHaveCSS('transform', 'none');
   await bubble.click();
   await page.setViewportSize({ width: 720, height: 540 });
+  const panel = page.locator('.study-assistant-panel');
+  await expect.poll(async () => await panel.boundingBox()).toMatchObject({ x: 6, y: 6, width: 708, height: 528 });
+  await expect(panel).toHaveCSS('border-bottom-width', '2px');
+  await expect(panel).toHaveCSS('border-right-width', '2px');
   await expect(page.locator('.study-assistant-resize')).toHaveCount(8);
   await page.locator('.study-assistant-resize-southeast').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ASSISTANT_RESIZE_DIRECTION__?: string }).__ASSISTANT_RESIZE_DIRECTION__)).toBe('SouthEast');
@@ -46,7 +51,7 @@ test('study assistant opens from tools and keeps its timer and side-by-side Mark
   await expect(page.locator('.study-assistant-note-pane')).toHaveCount(2);
 
   await page.getByRole('button', { name: '收起小助手' }).click();
-  await page.setViewportSize({ width: 220, height: 96 });
+  await page.setViewportSize({ width: 160, height: 160 });
   await expect(bubble).toBeVisible();
   await page.reload();
   await expect(bubble).toBeVisible();
@@ -69,7 +74,7 @@ test('light assistant primary action remains legible', async ({ page }) => {
 test('collapsed assistant keeps a long elapsed time inside its window', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('oj-insight.study-assistant.v1', JSON.stringify({ elapsedMs: ((123 * 60 + 4) * 60 + 5) * 1000, startedAt: null, status: 'paused', note: '' })));
   await installTauriMock(page);
-  await page.setViewportSize({ width: 220, height: 96 });
+  await page.setViewportSize({ width: 160, height: 160 });
   await page.goto('/?study_assistant=1');
   const card = page.getByRole('button', { name: /展开做题小助手/ });
   await expect(card.locator('time')).toHaveText('123:04:05');
