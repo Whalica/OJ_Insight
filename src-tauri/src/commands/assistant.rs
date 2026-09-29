@@ -14,8 +14,8 @@ pub(crate) async fn open_study_assistant(app: AppHandle) -> Result<(), String> {
     let webview_dir = app.state::<AppState>().webview_dir.clone();
     let builder = WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App("index.html?study_assistant=1".into()))
         .title("OJ Insight · 做题小助手")
-        .inner_size(220.0, 96.0)
-        .min_inner_size(220.0, 96.0)
+        .inner_size(160.0, 160.0)
+        .min_inner_size(160.0, 160.0)
         .resizable(false)
         .center()
         .decorations(false)
@@ -34,14 +34,14 @@ pub(crate) fn resize_study_assistant(app: AppHandle, expanded: bool) -> Result<(
     let window = app.get_webview_window(LABEL).ok_or("小助手窗口尚未打开")?;
     window
         .set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize::new(
-            if expanded { 560.0 } else { 220.0 },
-            if expanded { 480.0 } else { 96.0 },
+            if expanded { 560.0 } else { 160.0 },
+            if expanded { 480.0 } else { 160.0 },
         ))))
         .map_err(|error| error.to_string())?;
     window
         .set_resizable(expanded)
         .map_err(|error| error.to_string())?;
-    let (width, height) = if expanded { (720.0, 540.0) } else { (220.0, 96.0) };
+    let (width, height) = if expanded { (720.0, 540.0) } else { (160.0, 160.0) };
     window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(width, height)))
         .map_err(|error| error.to_string())?;
     if expanded {
