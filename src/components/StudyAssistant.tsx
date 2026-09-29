@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Clock3, Pause, Play, RotateCcw, Square, X } from 'lucide-react';
 import { MarkdownPreview } from './MarkdownNote';
 
@@ -41,15 +42,17 @@ function formatElapsed(milliseconds: number) {
   return [hours, minutes, remainder].map((part) => String(part).padStart(2, '0')).join(':');
 }
 
-export default function StudyAssistant({ visible, expanded, onExpand, onClose }: {
+export default function StudyAssistant({ visible, expanded, detached = false, onExpand, onClose }: {
   visible: boolean;
   expanded: boolean;
+  detached?: boolean;
   onExpand: (value: boolean) => void;
   onClose: () => void;
 }) {
   const [session, setSession] = useState<AssistantState>(loadState);
   const [now, setNow] = useState(Date.now);
-  const [noteView, setNoteView] = useState<'edit' | 'preview'>('edit');
+  const dragOrigin = useRef<{ x: number; y: number } | null>(null);
+  const wasDragged = useRef(false);
   useEffect(() => { saveState(session); }, [session]);
   useEffect(() => {
     if (session.status !== 'running') return;
@@ -88,11 +91,23 @@ export default function StudyAssistant({ visible, expanded, onExpand, onClose }:
     }
     onClose();
   };
+  const beginDrag = (event: PointerEvent<HTMLElement>) => {
+    if (!detached || event.button !== 0 || (event.target as HTMLElement).closest('button') && expanded) return;
+    dragOrigin.current = { x: event.screenX, y: event.screenY };
+    wasDragged.current = false;
+  };
+  const drag = (event: PointerEvent<HTMLElement>) => {
+    const start = dragOrigin.current;
+    if (!start || Math.hypot(event.screenX - start.x, event.screenY - start.y) < 6) return;
+    dragOrigin.current = null;
+    wasDragged.current = true;
+    void invoke('drag_study_assistant');
+  };
   if (!visible) return null;
 
-  return <aside className={`study-assistant ${expanded ? 'expanded' : 'collapsed'}`} aria-label="做题小助手">
+  return <aside className={`study-assistant ${expanded ? 'expanded' : 'collapsed'} ${detached ? 'detached' : ''}`} aria-label="做题小助手">
     {expanded ? <div className="study-assistant-panel">
-      <header><div><small>STUDY ASSISTANT</small><strong>做题小助手</strong></div><div className="study-assistant-window-actions"><button type="button" onClick={() => onExpand(false)} aria-label="收起小助手">−</button><button type="button" onClick={close} aria-label="关闭小助手"><X size={16} /></button></div></header>
+      <header onPointerDown={beginDrag} onPointerMove={drag}><div><small>STUDY ASSISTANT</small><strong>做题小助手</strong></div><div className="study-assistant-window-actions"><button type="button" onClick={() => onExpand(false)} aria-label="收起小助手">−</button><button type="button" onClick={close} aria-label="关闭小助手"><X size={16} /></button></div></header>
       <div className="study-assistant-timer"><Clock3 size={20} /><time aria-label="已用时间">{formatElapsed(elapsed)}</time><span>{session.status === 'running' ? '计时中' : session.status === 'paused' ? '已暂停' : session.status === 'stopped' ? '已停止' : '准备开始'}</span></div>
       <div className="study-assistant-controls">
         {session.status === 'running' ? <button type="button" onClick={pause}><Pause size={15} />暂停</button> : <button type="button" className="primary" onClick={start}><Play size={15} />{session.status === 'paused' ? '继续' : '开始'}</button>}
@@ -101,13 +116,12 @@ export default function StudyAssistant({ visible, expanded, onExpand, onClose }:
       </div>
       <div className="study-assistant-notes">
         <div className="study-assistant-note-head"><strong>Markdown 笔记</strong><span>自动保存在本机</span></div>
-        <div className="study-assistant-note-tabs"><button type="button" className={noteView === 'edit' ? 'active' : ''} onClick={() => setNoteView('edit')}>编辑</button><button type="button" className={noteView === 'preview' ? 'active' : ''} onClick={() => setNoteView('preview')}>预览</button></div>
-        {noteView === 'edit' ? <textarea aria-label="小助手 Markdown 笔记" value={session.note} onChange={(event) => setSession((current) => {
+        <div className="study-assistant-note-columns"><div className="study-assistant-note-pane"><span>编辑</span><textarea aria-label="小助手 Markdown 笔记" value={session.note} onChange={(event) => setSession((current) => {
           const next = { ...current, note: event.target.value };
           saveState(next);
           return next;
-        })} placeholder="记录思路、样例和待验证的想法。支持 Markdown、$行内公式$ 与 $$独立公式$$。" /> : <div className="study-assistant-preview"><MarkdownPreview text={session.note || '暂无笔记'} /></div>}
+        })} placeholder="记录思路、样例和待验证的想法。支持 Markdown、$行内公式$ 与 $$独立公式$$。" /></div><div className="study-assistant-note-pane"><span>预览</span><div className="study-assistant-preview"><MarkdownPreview text={session.note || '暂无笔记'} /></div></div></div>
       </div>
-    </div> : <button type="button" className="study-assistant-bubble" onClick={() => onExpand(true)} aria-label={`展开做题小助手，已计时 ${formatElapsed(elapsed)}`}><Clock3 size={17} /><time>{formatElapsed(elapsed)}</time><small>{session.status === 'running' ? '计时中' : session.status === 'paused' ? '已暂停' : session.status === 'stopped' ? '已停止' : '小助手'}</small></button>}
+    </div> : <button type="button" className="study-assistant-bubble" onPointerDown={beginDrag} onPointerMove={drag} onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } onExpand(true); }} aria-label={`展开做题小助手，已计时 ${formatElapsed(elapsed)}`}><Clock3 size={17} /><time>{formatElapsed(elapsed)}</time><small>{session.status === 'running' ? '计时中' : session.status === 'paused' ? '已暂停' : session.status === 'stopped' ? '已停止' : '小助手'}</small></button>}
   </aside>;
 }

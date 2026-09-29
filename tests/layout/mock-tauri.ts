@@ -75,6 +75,13 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
           return undefined;
         case 'prepare_tracker_session':
           return undefined;
+        case 'open_study_assistant':
+          (window as unknown as { __ASSISTANT_OPEN_COUNT__: number }).__ASSISTANT_OPEN_COUNT__ = ((window as unknown as { __ASSISTANT_OPEN_COUNT__?: number }).__ASSISTANT_OPEN_COUNT__ || 0) + 1;
+          return undefined;
+        case 'resize_study_assistant':
+        case 'drag_study_assistant':
+        case 'close_study_assistant':
+          return undefined;
         case 'sync_watched_people':
           (window as unknown as { __WATCHED_SYNC_COUNT__: number }).__WATCHED_SYNC_COUNT__ = ((window as unknown as { __WATCHED_SYNC_COUNT__?: number }).__WATCHED_SYNC_COUNT__ || 0) + 1;
           return { checked: watchedPeople.length, insertedEvents: 0, events: [], failures: [] };

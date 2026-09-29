@@ -81,7 +81,7 @@ export default function DashboardPage(props: Props) {
     {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>部分可用 {syncProgress.partial} · 失败 {syncProgress.failed}；各平台更新数量见“同步与数据”</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
     {!platform && <TodayProgress snapshot={snapshot} timeZone={timeZone} solvedGains={solvedGains} onSelect={onPlatform} onSync={onSync} syncing={!!syncing} />}
     <div className="section-title career-title"><small>CAREER · 不受下方时间范围影响</small><h2>生涯累计</h2></div><StatCards stats={snapshot.career} />
-    {platform !== 'luogu' && <RatingOverview ratings={snapshot.ratings} timeZone={timeZone} selectedPlatform={platform} />}
+    <RatingOverview ratings={snapshot.ratings} timeZone={timeZone} selectedPlatform={platform} />
     {(!platform || platform === 'codeforces' || platform === 'leetcode' || platform === 'qoj') && <KnowledgeRadar data={snapshot.knowledge || []} selectedPlatform={platform} />}
     <div className="toolbar">
       <label>时间范围{luoguLimited ? <div className="range-fixed">近半年</div> : <div className="year-control"><button onClick={() => move(-1)} disabled={timeScope === 'until' || timeScope <= 2010}><ChevronLeft size={15} /></button><div className="select-wrap"><select value={timeScope} onChange={(event) => setTimeScope(event.target.value === 'until' ? 'until' : Number(event.target.value))}><option value="until">至今（近一年）</option>{years.map((year) => <option value={year} key={year}>{year}</option>)}</select><ChevronDown size={14} /></div><button onClick={() => move(1)} disabled={timeScope === 'until' || timeScope >= currentYear(timeZone)}><ChevronRight size={15} /></button></div>}</label>
@@ -90,7 +90,7 @@ export default function DashboardPage(props: Props) {
       {platform === 'nowcoder' && <label>记录来源<div className="source-segments"><button className={!sourceFilter ? 'active' : ''} onClick={() => setSourceFilter('')}>总计</button><button className={sourceFilter === 'oj' ? 'active' : ''} onClick={() => setSourceFilter('oj')}>普通 OJ</button><button className={sourceFilter === 'daily' ? 'active' : ''} onClick={() => setSourceFilter('daily')}>每日一题</button></div></label>}
       <span className="toolbar-note">按 {timeZoneLabel(timeZone)} 统计</span>
     </div>
-    {luoguLimited && <div className="warning"><AlertTriangle size={16} />洛谷仅使用公开个人页 dailyCounts，固定展示近半年活动；不抓取提交记录，因此没有当天逐题明细。</div>}
+    {luoguLimited && <div className="warning"><AlertTriangle size={16} />洛谷活动使用公开个人页 dailyCounts，固定展示近半年；比赛等级分来自同页记录。不抓取提交记录，因此没有当天逐题明细。</div>}
     {!snapshot.metric_available && <div className="warning"><AlertTriangle size={16} />当前平台没有这一口径的逐日数据。</div>}
     {snapshot.warnings.map((warning) => <div className="warning" key={warning}><AlertTriangle size={16} />{warning}</div>)}
     <div className="section-title"><small>CURRENT RANGE</small><h2>{label}的训练状态</h2></div><StatCards stats={snapshot.stats} />

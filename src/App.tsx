@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, X } from 'lucide-react';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import Sidebar from './components/Sidebar';
 import DayDrawer from './components/DayDrawer';
 import DifficultyDrawer from './components/DifficultyDrawer';
@@ -52,6 +53,16 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [assistantVisible, setAssistantVisible] = useState(() => localStorage.getItem('oj-insight.study-assistant.visible') === 'true');
   const [assistantExpanded, setAssistantExpanded] = useState(false);
+  useEffect(() => {
+    if (isTauri() && assistantVisible) void invoke('open_study_assistant').catch((error) => notify(String(error)));
+  }, []);
+  useEffect(() => {
+    const update = (event: StorageEvent) => {
+      if (event.key === 'oj-insight.study-assistant.visible') setAssistantVisible(event.newValue === 'true');
+    };
+    window.addEventListener('storage', update);
+    return () => window.removeEventListener('storage', update);
+  }, []);
 
   const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
   const range = useMemo(() => selectedPlatform === 'luogu' ? recentHalfYearRange(timeZone) : scopeRange(timeScope, timeZone), [selectedPlatform, timeScope, selectedDay, timeZone]);
@@ -136,6 +147,13 @@ export default function App() {
     return !current;
   });
   const openAssistant = () => {
+    if (isTauri()) {
+      void invoke('open_study_assistant').then(() => {
+        localStorage.setItem('oj-insight.study-assistant.visible', 'true');
+        setAssistantVisible(true);
+      }).catch((error) => notify(`打开小助手失败：${error}`));
+      return;
+    }
     if (assistantVisible) setAssistantExpanded(true);
     else {
       localStorage.setItem('oj-insight.study-assistant.visible', 'true');
@@ -167,7 +185,7 @@ export default function App() {
       <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} solvedGains={solvedGains} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} onOpenSettings={() => setPage('settings')} />}
       {mountedTracker && <div className={`tracker-keepalive-layer ${embeddedTracker === mountedTracker ? 'active' : ''}`} aria-hidden={embeddedTracker !== mountedTracker}><ExternalTrackerPage tracker={mountedTracker} accounts={accounts[mountedTracker] || []} /></div>}
     </main>
-    <StudyAssistant visible={assistantVisible} expanded={assistantExpanded} onExpand={setAssistantExpanded} onClose={closeAssistant} />
+    {!isTauri() && <StudyAssistant visible={assistantVisible} expanded={assistantExpanded} onExpand={setAssistantExpanded} onClose={closeAssistant} />}
     <DayDrawer detail={dayDetail} loading={dayLoading} timeZone={timeZone} onClose={closeDay} />
     <DifficultyDrawer detail={difficultyDetail} loading={difficultyLoading} timeZone={timeZone} onClose={closeDifficulty} />
     <RelationshipNotice events={watchedNotifications} timeZone={timeZone} onDismiss={(eventId) => { void dismissWatched(eventId); }} />
