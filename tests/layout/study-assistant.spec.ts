@@ -18,18 +18,26 @@ test('study assistant opens from tools and keeps its timer and side-by-side Mark
   await page.setViewportSize({ width: 160, height: 160 });
   const bubble = page.getByRole('button', { name: /展开做题小助手/ });
   await expect(bubble).toBeVisible();
-  await expect.poll(async () => await bubble.boundingBox()).toMatchObject({ x: 6, y: 6, width: 148, height: 148 });
-  await expect(bubble).toHaveCSS('border-bottom-width', '3px');
-  await expect(bubble).toHaveCSS('border-right-width', '3px');
+  await expect.poll(async () => await bubble.boundingBox()).toMatchObject({ x: 0, y: 0, width: 160, height: 160 });
+  await expect(bubble).toHaveCSS('border-radius', '0px');
+  await expect(bubble).toHaveCSS('border-width', '0px');
+  await expect(bubble.evaluate((element) => {
+    const stroke = getComputedStyle(element, '::after');
+    return [stroke.borderTopWidth, stroke.borderRightWidth, stroke.borderBottomWidth, stroke.borderLeftWidth];
+  })).resolves.toEqual(['3px', '3px', '3px', '3px']);
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(48, 50, 52)');
   await bubble.hover();
   await expect(bubble).toHaveCSS('transform', 'none');
   await bubble.click();
   await page.setViewportSize({ width: 720, height: 540 });
   const panel = page.locator('.study-assistant-panel');
-  await expect.poll(async () => await panel.boundingBox()).toMatchObject({ x: 6, y: 6, width: 708, height: 528 });
-  await expect(panel).toHaveCSS('border-bottom-width', '2px');
-  await expect(panel).toHaveCSS('border-right-width', '2px');
+  await expect.poll(async () => await panel.boundingBox()).toMatchObject({ x: 0, y: 0, width: 720, height: 540 });
+  await expect(panel).toHaveCSS('border-radius', '0px');
+  await expect(panel).toHaveCSS('border-width', '0px');
+  await expect(panel.evaluate((element) => {
+    const stroke = getComputedStyle(element, '::after');
+    return [stroke.borderTopWidth, stroke.borderRightWidth, stroke.borderBottomWidth, stroke.borderLeftWidth];
+  })).resolves.toEqual(['2px', '2px', '2px', '2px']);
   await expect(page.locator('.study-assistant-resize')).toHaveCount(8);
   await page.locator('.study-assistant-resize-southeast').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ASSISTANT_RESIZE_DIRECTION__?: string }).__ASSISTANT_RESIZE_DIRECTION__)).toBe('SouthEast');
