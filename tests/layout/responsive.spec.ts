@@ -174,12 +174,13 @@ test('daily check-in is saved locally and cannot be repeated on reload', async (
   await expect(page.getByRole('button', { name: '撤销', exact: true })).toHaveCount(0);
 });
 
-test('production UI has no animation test button and Luogu omits unsupported detail panels', async ({ page }) => {
+test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Platforms', exact: true }).click();
   await page.getByRole('button', { name: 'Luogu', exact: true }).click();
-  await expect(page.locator('.rating-panel')).toHaveCount(0);
+  await expect(page.locator('.rating-panel')).toBeVisible();
+  await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');
   await expect(page.locator('.recent-panel')).toHaveCount(0);
 });
 
