@@ -63,6 +63,23 @@ async function checkHeatmaps(page: Page, fill: boolean) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
 
+test('activity and difficulty heatmaps share empty-cell treatment in light and gray themes', async ({ page }) => {
+  await openPage(page, 'codeforces');
+  for (const theme of ['light', 'gray']) {
+    await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+    const colors = await page.evaluate(() => {
+      const background = (selector: string) => getComputedStyle(document.querySelector(selector)!).backgroundColor;
+      return {
+        activityEmpty: background('.heatmap-shell:not(.difficulty-map) .level-0'),
+        difficultyEmpty: background('.difficulty-map .difficulty-cell.is-empty'),
+        difficultyRated: background('.difficulty-map .difficulty-cell.is-rated'),
+      };
+    });
+    expect(colors.difficultyEmpty).toBe(colors.activityEmpty);
+    expect(colors.difficultyRated).not.toBe(colors.difficultyEmpty);
+  }
+});
+
 for (const [width, height, dpr] of [[1920, 1080, 1], [2560, 1440, 1], [3840, 2160, 1], [1920, 1080, 2], [1707, 960, 1.5]]) {
   test.describe(`${width}x${height} @${dpr}`, () => {
     test.use({ viewport: { width, height }, deviceScaleFactor: dpr });

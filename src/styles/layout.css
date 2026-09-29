@@ -240,6 +240,12 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 :root[data-theme="gray"] .level-1 { background: rgb(var(--heatmap-rgb) / .38); }
 :root[data-theme="gray"] .level-2 { background: rgb(var(--heatmap-rgb) / .58); }
 :root[data-theme="gray"] .level-3 { background: rgb(var(--heatmap-rgb) / .78); }
+.difficulty-map .difficulty-cell.is-empty { background: var(--brick-empty); }
+.difficulty-map .difficulty-cell.is-rated { background: var(--difficulty-cell-color); }
+:root[data-theme="light"] .difficulty-map .difficulty-cell.is-empty { background: color-mix(in srgb, var(--brick-empty) 52%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 60%, transparent); }
+:root[data-theme="gray"] .difficulty-map .difficulty-cell.is-empty { background: #414548; box-shadow: inset 0 0 0 1px #62686b; }
+:root[data-theme="light"] .difficulty-map .difficulty-cell.is-rated { box-shadow: inset 0 0 0 1px rgb(0 0 0 / .22); }
+:root[data-theme="gray"] .difficulty-map .difficulty-cell.is-rated { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .22); }
 .today-problem-meta { display: flex; align-items: flex-end; gap: 4px; text-align: right; }
 .today-problem-meta>b { display: inline-flex; align-items: center; gap: 5px; color: var(--text-soft); font-size: var(--font-meta); white-space: nowrap; }
 .today-problem-meta>b>i { width: 8px; height: 8px; border-radius: 2px; }

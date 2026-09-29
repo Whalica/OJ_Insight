@@ -18,10 +18,15 @@ fn set_assistant_window_shape(window: &WebviewWindow, round: bool) -> Result<(),
 
     let hwnd = window.hwnd().map_err(|error| error.to_string())?.0 as isize;
     let region = if round {
-        // The collapsed window is 100 logical pixels; Win32 regions use physical pixels.
+        // The webview's client area may be inset from the native window even without decorations.
+        let outer = window.outer_position().map_err(|error| error.to_string())?;
+        let inner = window.inner_position().map_err(|error| error.to_string())?;
         let scale = window.scale_factor().map_err(|error| error.to_string())?;
-        let diameter = (100.0 * scale).round() as i32;
-        unsafe { CreateEllipticRgn(0, 0, diameter, diameter) }
+        // CSS centers a 96px bubble inside a 100px client area.
+        let left = inner.x - outer.x + (2.0 * scale).round() as i32;
+        let top = inner.y - outer.y + (2.0 * scale).round() as i32;
+        let diameter = (96.0 * scale).round() as i32;
+        unsafe { CreateEllipticRgn(left, top, left + diameter, top + diameter) }
     } else {
         0
     };
