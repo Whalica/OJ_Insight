@@ -15,11 +15,14 @@ test('study assistant opens from tools and keeps its timer and side-by-side Mark
 
   await page.getByRole('button', { name: '做题小助手' }).click();
   await page.goto('/?study_assistant=1');
-  await page.setViewportSize({ width: 100, height: 100 });
+  await page.setViewportSize({ width: 220, height: 96 });
   const bubble = page.getByRole('button', { name: /展开做题小助手/ });
   await expect(bubble).toBeVisible();
-  await expect.poll(async () => (await bubble.boundingBox())?.width).toBe(96);
-  await expect(bubble).toHaveCSS('border-radius', '50%');
+  await expect.poll(async () => (await bubble.boundingBox())?.width).toBe(220);
+  await expect(bubble).toHaveCSS('border-radius', '0px');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(48, 50, 52)');
+  await bubble.hover();
+  await expect(bubble).toHaveCSS('transform', 'none');
   await bubble.click();
   await page.setViewportSize({ width: 720, height: 540 });
   await expect(page.locator('.study-assistant-resize')).toHaveCount(8);
@@ -43,7 +46,7 @@ test('study assistant opens from tools and keeps its timer and side-by-side Mark
   await expect(page.locator('.study-assistant-note-pane')).toHaveCount(2);
 
   await page.getByRole('button', { name: '收起小助手' }).click();
-  await page.setViewportSize({ width: 100, height: 100 });
+  await page.setViewportSize({ width: 220, height: 96 });
   await expect(bubble).toBeVisible();
   await page.reload();
   await expect(bubble).toBeVisible();
@@ -61,4 +64,19 @@ test('light assistant primary action remains legible', async ({ page }) => {
   const action = page.getByRole('button', { name: '开始', exact: true });
   await expect(action).toHaveCSS('background-color', 'rgb(37, 135, 73)');
   await expect(action).toHaveCSS('color', 'rgb(255, 255, 255)');
+});
+
+test('collapsed assistant keeps a long elapsed time inside its window', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('oj-insight.study-assistant.v1', JSON.stringify({ elapsedMs: ((123 * 60 + 4) * 60 + 5) * 1000, startedAt: null, status: 'paused', note: '' })));
+  await installTauriMock(page);
+  await page.setViewportSize({ width: 220, height: 96 });
+  await page.goto('/?study_assistant=1');
+  const card = page.getByRole('button', { name: /展开做题小助手/ });
+  await expect(card.locator('time')).toHaveText('123:04:05');
+  const fits = await card.evaluate((element) => {
+    const outer = element.getBoundingClientRect();
+    const timer = element.querySelector('time')!.getBoundingClientRect();
+    return timer.left >= outer.left + 8 && timer.right <= outer.right - 8 && timer.top >= outer.top && timer.bottom <= outer.bottom;
+  });
+  expect(fits).toBe(true);
 });
