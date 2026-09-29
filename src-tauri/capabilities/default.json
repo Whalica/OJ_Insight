@@ -8,6 +8,7 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-start-resize-dragging",
     "dialog:default",
     "opener:default",
     "process:allow-restart",

@@ -167,6 +167,28 @@ fn weighted_quantile(items: &[(f64, f64)], quantile: f64) -> Option<f64> {
     values.last().map(|item| item.0)
 }
 
+fn weighted_mean(items: &[(f64, f64)]) -> Option<f64> {
+    let total = items
+        .iter()
+        .map(|(_, weight)| weight.max(0.0))
+        .sum::<f64>();
+    (total > 0.0).then(|| {
+        items
+            .iter()
+            .map(|(value, weight)| value * weight.max(0.0))
+            .sum::<f64>()
+            / total
+    })
+}
+
+fn qoj_knowledge_score(representative: f64, prior: f64, evidence: f64) -> i64 {
+    let effective = evidence.clamp(0.0, 20.0);
+    let confidence = effective / (effective + 8.0);
+    (50.0 + confidence * (representative - prior))
+        .round()
+        .clamp(8.0, 95.0) as i64
+}
+
 fn robust_knowledge_estimate(
     representative: f64,
     prior: f64,
@@ -396,8 +418,39 @@ fn knowledge_for_platform(
             .flatten()
             .map(|(level, weight, _)| (*level, *weight))
             .collect::<Vec<_>>();
-        weighted_quantile(&all, 0.75).unwrap_or(50.0)
+        if platform == "qoj" {
+            weighted_mean(&all).unwrap_or(50.0)
+        } else {
+            weighted_quantile(&all, 0.75).unwrap_or(50.0)
+        }
     };
+    if platform == "qoj" {
+        return Ok(KNOWLEDGE_AXES
+            .iter()
+            .map(|axis| {
+                let items = evidence.get(axis).cloned().unwrap_or_default();
+                let weighted = items
+                    .iter()
+                    .map(|(level, weight, _)| (*level, *weight))
+                    .collect::<Vec<_>>();
+                let score = weighted_mean(&weighted)
+                    .map(|representative| {
+                        qoj_knowledge_score(
+                            representative,
+                            prior,
+                            weighted.iter().map(|(_, weight)| *weight).sum(),
+                        )
+                    })
+                    .unwrap_or(0);
+                KnowledgeBucket {
+                    platform: platform.into(),
+                    axis: (*axis).into(),
+                    count: items.len() as i64,
+                    score,
+                }
+            })
+            .collect());
+    }
     let values = KNOWLEDGE_AXES
         .iter()
         .map(|axis| {

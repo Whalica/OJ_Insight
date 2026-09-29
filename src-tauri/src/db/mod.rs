@@ -724,4 +724,14 @@ mod tests {
         assert!(three - two < two - one);
         assert!(three < 95.0);
     }
+
+    #[test]
+    fn qoj_knowledge_uses_all_solved_tiers_and_discounted_sparse_evidence() {
+        assert_eq!(weighted_mean(&[(38.0, 3.0), (90.0, 1.0)]), Some(51.0));
+        let one_gold = qoj_knowledge_score(90.0, 42.0, 1.0);
+        let weak_secondary = qoj_knowledge_score(90.0, 42.0, 0.1);
+        let repeated_gold = qoj_knowledge_score(90.0, 42.0, 8.0);
+        assert!(weak_secondary < one_gold && one_gold < repeated_gold);
+        assert!(one_gold < 60);
+    }
 }

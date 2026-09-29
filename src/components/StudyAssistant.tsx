@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Clock3, Pause, Play, RotateCcw, Square, X } from 'lucide-react';
 import { MarkdownPreview } from './MarkdownNote';
 
@@ -14,6 +15,7 @@ interface AssistantState {
 }
 
 const emptyState: AssistantState = { elapsedMs: 0, startedAt: null, status: 'idle', note: '' };
+const resizeDirections = ['North', 'NorthEast', 'East', 'SouthEast', 'South', 'SouthWest', 'West', 'NorthWest'] as const;
 
 function loadState(): AssistantState {
   try {
@@ -107,6 +109,7 @@ export default function StudyAssistant({ visible, expanded, detached = false, on
 
   return <aside className={`study-assistant ${expanded ? 'expanded' : 'collapsed'} ${detached ? 'detached' : ''}`} aria-label="做题小助手">
     {expanded ? <div className="study-assistant-panel">
+      {detached && resizeDirections.map((direction) => <div key={direction} className={`study-assistant-resize study-assistant-resize-${direction.toLowerCase()}`} aria-label={`调整小助手窗口大小：${direction}`} onPointerDown={(event) => { if (event.button === 0) { event.preventDefault(); event.stopPropagation(); void getCurrentWindow().startResizeDragging(direction); } }} />)}
       <header onPointerDown={beginDrag} onPointerMove={drag}><div><small>STUDY ASSISTANT</small><strong>做题小助手</strong></div><div className="study-assistant-window-actions"><button type="button" onClick={() => onExpand(false)} aria-label="收起小助手">−</button><button type="button" onClick={close} aria-label="关闭小助手"><X size={16} /></button></div></header>
       <div className="study-assistant-timer"><Clock3 size={20} /><time aria-label="已用时间">{formatElapsed(elapsed)}</time><span>{session.status === 'running' ? '计时中' : session.status === 'paused' ? '已暂停' : session.status === 'stopped' ? '已停止' : '准备开始'}</span></div>
       <div className="study-assistant-controls">

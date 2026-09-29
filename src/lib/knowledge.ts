@@ -25,6 +25,11 @@ function weightedQuantile(items: Array<{ value: number; weight: number }>, quant
   return sorted.at(-1)?.value ?? 0;
 }
 
+function weightedMean(items: Array<{ value: number; weight: number }>) {
+  const total = items.reduce((sum, item) => sum + item.weight, 0);
+  return total > 0 ? items.reduce((sum, item) => sum + item.value * item.weight, 0) / total : 0;
+}
+
 export function knowledgeDifficultyLevel(platform: Platform, difficulty?: string | null, tier?: string | null) {
   const label = (tier || difficulty || '').trim().toLowerCase();
   if (platform === 'codeforces') {
@@ -65,11 +70,11 @@ export function buildKnowledgeProfile(platform: Platform, problems: Array<{ prob
     for (const [axis, weight] of axisWeights) evidence.set(axis, [...(evidence.get(axis) || []), { value, weight: weight / totalWeight }]);
   }
   if (![...evidence.values()].some((items) => items.length > 0)) return [];
-  const prior = weightedQuantile(all) || 50;
+  const prior = platform === 'qoj' ? weightedMean(all) : weightedQuantile(all) || 50;
   return KNOWLEDGE_AXES.map((axis) => {
     const items = evidence.get(axis) || [];
     if (!items.length) return { platform, axis, count: 0, score: 0 };
-    const representative = weightedQuantile(items);
+    const representative = platform === 'qoj' ? weightedMean(items) : weightedQuantile(items);
     const effective = Math.min(20, items.reduce((sum, item) => sum + item.weight, 0));
     if (platform === 'qoj') {
       const confidence = effective / (effective + 8);
