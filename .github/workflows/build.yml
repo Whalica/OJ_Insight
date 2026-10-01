@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '留空为普通测试构建；填写与源码一致的版本号（如 v0.10.2）会创建签名更新和 Draft Release'
+        description: '留空为普通测试构建；填写与源码一致的版本号（如 v0.10.3）会创建签名更新和 Draft Release'
         required: false
         type: string
   push:
@@ -67,6 +67,7 @@ jobs:
 
   build-windows:
     name: Windows
+    if: github.event_name != 'pull_request'
     needs: [quality, rust-quality]
     runs-on: windows-latest
     steps:
@@ -106,6 +107,7 @@ jobs:
 
   build-macos:
     name: MacOS
+    if: github.event_name != 'pull_request'
     needs: [quality, rust-quality]
     runs-on: macos-latest
     steps:
@@ -153,6 +155,7 @@ jobs:
 
   build-linux:
     name: Linux
+    if: github.event_name != 'pull_request'
     needs: [quality, rust-quality]
     runs-on: ubuntu-24.04
     steps:
@@ -220,6 +223,7 @@ jobs:
 
   package-release:
     name: Package all platforms
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs:
       - build-windows
