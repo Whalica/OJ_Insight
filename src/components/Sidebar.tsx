@@ -9,7 +9,7 @@ import type { Platform } from '../types';
 type NavGroup = 'platforms' | 'trackers' | 'training';
 
 export default function Sidebar({ page, onChange, collapsed, onToggle, onAssistant, assistantVisible }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void; onAssistant: () => void; assistantVisible: boolean }) {
-  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'problem-sets' || page === 'community' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
+  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'solve-journal' || page === 'problem-sets' || page === 'community' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
   const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
   const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' || savedGroup === 'platforms' || savedGroup === 'training' ? savedGroup : null));
 
@@ -64,12 +64,13 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
             <button title={collapsed ? '模拟赛' : undefined} className={page === 'contests' ? 'active' : ''} onClick={() => onChange('contests')}><TableProperties size={14} /><span className="nav-label">模拟赛</span></button>
             <button title={collapsed ? '参赛区' : undefined} className={page === 'vp' ? 'active' : ''} onClick={() => onChange('vp')}><Play size={14} /><span className="nav-label">参赛区</span></button>
             <button title={collapsed ? '个性化组题' : undefined} className={page === 'training' ? 'active' : ''} onClick={() => onChange('training')}><Dumbbell size={14} /><span className="nav-label">个性化组题</span></button>
+            <button title={collapsed ? '解题手记' : undefined} className={page === 'solve-journal' ? 'active' : ''} onClick={() => onChange('solve-journal')}><BookOpenCheck size={14} /><span className="nav-label">解题手记</span></button>
+            <button title={collapsed ? '做题小助手' : undefined} aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={14} /><span className="nav-label">做题小助手</span></button>
             <button title={collapsed ? '赛后分析' : undefined} className={page === 'contest-review' ? 'active' : ''} onClick={() => onChange('contest-review')}><BookOpenCheck size={14} /><span className="nav-label">赛后分析</span></button>
           </div>
         </section>
 
         <div className="nav-title">TOOLS</div>
-        <button title={collapsed ? '做题小助手' : undefined} aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={17} /><span className="nav-label">做题小助手</span></button>
         <button title={collapsed ? '关注' : undefined} className={page === 'relationships' ? 'active' : ''} onClick={() => onChange('relationships')}><Users size={17} /><span className="nav-label">关注</span></button>
         <button title={collapsed ? '导出' : undefined} className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} /><span className="nav-label">导出</span></button>
         <button title={collapsed ? '数据源' : undefined} className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} /><span className="nav-label">数据源</span></button>

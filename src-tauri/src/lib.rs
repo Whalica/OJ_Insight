@@ -16,6 +16,8 @@ use commands::accounts::{
     get_accounts, get_sync_statuses, save_account, save_accounts, save_all_accounts,
 };
 use commands::assistant::{close_study_assistant, drag_study_assistant, open_study_assistant, resize_study_assistant};
+use commands::companion::{get_companion_status, set_companion_port, CompanionBridge};
+use commands::solve_journal::{delete_solve_record, list_solve_records, save_solve_record};
 use commands::community::{get_community_catalog, get_community_problem_set, save_community_problem_set};
 use commands::analytics::{get_day_detail, get_difficulty_detail, get_snapshot};
 use commands::contest_review::{generate_contest_review, inspect_contest_review};
@@ -61,7 +63,9 @@ pub fn run() {
             let root_dir = portable_root_dir(app.handle())?;
             let state = AppState::initialize(root_dir)?;
             let webview_dir = state.webview_dir.clone();
+            let companion_data_dir = state.data_dir.clone();
             app.manage(state);
+            app.manage(CompanionBridge::new(app.handle().clone(), companion_data_dir));
 
             // The main WebView is created manually so WebView localStorage/cache also
             // stays inside the application root instead of the system app-data folders.
@@ -77,6 +81,11 @@ pub fn run() {
             resize_study_assistant,
             drag_study_assistant,
             close_study_assistant,
+            get_companion_status,
+            set_companion_port,
+            list_solve_records,
+            save_solve_record,
+            delete_solve_record,
             get_storage_info,
             get_accounts,
             get_xcpc_contests,

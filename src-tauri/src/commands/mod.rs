@@ -1,5 +1,7 @@
 pub(crate) mod accounts;
 pub(crate) mod assistant;
+pub(crate) mod companion;
+pub(crate) mod solve_journal;
 pub(crate) mod community;
 pub(crate) mod analytics;
 pub(crate) mod contest_review;

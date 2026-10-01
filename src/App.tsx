@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import Sidebar from './components/Sidebar';
 import DayDrawer from './components/DayDrawer';
 import DifficultyDrawer from './components/DifficultyDrawer';
@@ -16,11 +17,13 @@ import XcpcTrackerPage from './pages/XcpcTrackerPage';
 import ProblemSetsPage from './pages/ProblemSetsPage';
 import CommunityPage from './pages/CommunityPage';
 import TrainingPage from './pages/TrainingPage';
+import SolveJournalPage from './pages/SolveJournalPage';
 import ContestsPage from './pages/ContestsPage';
 import VpPage from './pages/VpPage';
 import TrainingReviewPage from './pages/TrainingReviewPage';
 import ExternalTrackerPage, { type ExternalTracker } from './pages/ExternalTrackerPage';
 import { api } from './services/api';
+import { JOURNAL_CHANGED, newSolveRecord, saveSolveRecord, selectSolveDraft } from './services/solveJournal';
 import { initialTimeZone, millisecondsUntilNextDay, today } from './lib/date';
 import type { Page } from './lib/navigation';
 import { PLATFORM_ORDER } from './lib/platforms';
@@ -31,7 +34,7 @@ import { useFollowing } from './hooks/useFollowing';
 import { useSnapshot } from './hooks/useSnapshot';
 import { useSync } from './hooks/useSync';
 import { useUpdater } from './hooks/useUpdater';
-import type { Metric, Platform } from './types';
+import type { Metric, Platform, ProblemSetProblem } from './types';
 
 export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
@@ -39,7 +42,7 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
-    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'community', 'contests', 'vp', 'training', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
+    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'community', 'contests', 'vp', 'training', 'solve-journal', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
     return saved.startupPage === 'last' && last && valid ? last : 'overview';
   });
   const embeddedTracker = page.startsWith('tracker-') ? page.slice('tracker-'.length) as ExternalTracker : null;
@@ -78,6 +81,16 @@ export default function App() {
     setToast(message);
     window.setTimeout(() => setToast(''), 3600);
   }, []);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    let unlisten: (() => void) | null = null;
+    void listen<{ id: string; title: string; created: boolean }>('companion-draft-received', (event) => {
+      window.dispatchEvent(new Event(JOURNAL_CHANGED));
+      notify(event.payload.created ? `已从 Competitive Companion 创建草稿：${event.payload.title}` : `已保留这道题的现有草稿：${event.payload.title}`);
+    }).then((stop) => { if (active) unlisten = stop; else stop(); }).catch((error) => notify(`小助手联动事件监听失败：${error}`));
+    return () => { active = false; unlisten?.(); };
+  }, [notify]);
   const { accounts, statuses, accountsLoaded, loadAccounts, loadStatuses } = useAccounts();
   const {
     snapshot, solvedGains, loading,
@@ -166,11 +179,20 @@ export default function App() {
     setAssistantVisible(false);
     setAssistantExpanded(false);
   };
+  const solveFromSet = async (problem: ProblemSetProblem['problem']) => {
+    try {
+      const record = { ...newSolveRecord(), title: problem.name || problem.problemId || problem.problemKey, url: problem.url, platform: problem.platform };
+      await saveSolveRecord(record);
+      selectSolveDraft(record.id);
+      openAssistant();
+    } catch (error) { notify(`启动小助手失败：${error}`); }
+  };
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} onAssistant={openAssistant} assistantVisible={assistantVisible} />
     <main className={`main ${page.startsWith('tracker-') ? 'main-tracker' : ''}`}>
       {page === 'training' ? <TrainingPage notify={notify} onOpenProblemSets={() => setPage('problem-sets')} onOpenContests={() => setPage('contests')} /> :
-       page === 'problem-sets' ? <ProblemSetsPage notify={notify} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
+       page === 'solve-journal' ? <SolveJournalPage notify={notify} onOpenAssistant={openAssistant} /> :
+       page === 'problem-sets' ? <ProblemSetsPage notify={notify} onSolveProblem={(problem) => void solveFromSet(problem)} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
        page === 'community' ? <CommunityPage notify={notify} onOpenLocalSets={() => setPage('problem-sets')} /> :
        page === 'contests' ? <ContestsPage notify={notify} onOpenVp={() => setPage('vp')} /> :
        page === 'vp' ? <VpPage notify={notify} /> :

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { installTauriMock } from './mock-tauri';
 
-test('study assistant opens from tools and keeps its timer and side-by-side Markdown notes', async ({ page }) => {
+test('study assistant opens from training center and keeps its timer and side-by-side Markdown notes', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('oj-insight.preferences', JSON.stringify({
       theme: 'gray', autoSync: false, autoCheckUpdates: false, startupPage: 'last',
@@ -65,8 +65,15 @@ test('study assistant opens from tools and keeps its timer and side-by-side Mark
   await expect(bubble).toBeVisible();
   await bubble.click();
   await expect(page.getByRole('textbox', { name: '小助手 Markdown 笔记' })).toHaveValue('## 思路\n**先枚举**');
-  await page.getByRole('button', { name: '停止', exact: true }).click();
-  await expect(page.getByText('已停止')).toBeVisible();
+  await page.getByRole('button', { name: '结束本次做题' }).click();
+  await expect(page.getByText('已保存到训练中心 · 解题手记')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('oj-insight.solve-journal.v1') || '[]') as Array<{ status: string }>).some((item) => item.status === 'finished'))).toBe(true);
+  await page.goto('/');
+  await page.getByRole('button', { name: '解题手记' }).click();
+  await expect(page.getByRole('heading', { name: '解题手记' })).toBeVisible();
+  await page.getByRole('button', { name: /未命名练习/ }).click();
+  await expect(page.getByRole('heading', { name: '做题笔记' })).toBeVisible();
+  await expect(page.locator('.journal-note strong')).toHaveText('先枚举');
 });
 
 test('light assistant primary action remains legible', async ({ page }) => {

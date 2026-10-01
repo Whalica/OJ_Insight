@@ -1,130 +1,131 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Clock3, Pause, Play, RotateCcw, Square, X } from 'lucide-react';
+import { Clock3, Flag, Pause, Play, RotateCcw, X } from 'lucide-react';
 import { MarkdownPreview } from './MarkdownNote';
+import { parseProblemUrl } from '../lib/problemIdentity';
+import { PLATFORM_META, TRAINING_PLATFORM_ORDER } from '../lib/platforms';
+import { activeSolveDraftId, JOURNAL_CHANGED, listSolveRecords, migrateLegacyAssistant, newSolveRecord, saveSolveRecord, selectSolveDraft, stageSolveRecord, type SolveRecord } from '../services/solveJournal';
 
-const STORAGE_KEY = 'oj-insight.study-assistant.v1';
-
-type TimerStatus = 'idle' | 'running' | 'paused' | 'stopped';
-interface AssistantState {
-  elapsedMs: number;
-  startedAt: number | null;
-  status: TimerStatus;
-  note: string;
-}
-
-const emptyState: AssistantState = { elapsedMs: 0, startedAt: null, status: 'idle', note: '' };
 const resizeDirections = ['North', 'NorthEast', 'East', 'SouthEast', 'South', 'SouthWest', 'West', 'NorthWest'] as const;
+const commonTags = ['DP', '贪心', '图论', '搜索', '数学', '数据结构', '字符串', '二分'];
+const reasons = ['粗心', '思路偏差', '实现错误', '知识盲点', '时间分配', '其他'];
+const tagsIn = (note: string) => [...new Set([...note.matchAll(/(?:^|\s)#([^\s#]+)/gu)].map((match) => match[1]))];
+const hasWork = (record: SolveRecord, running: boolean) => !!(record.title.trim() || record.url.trim() || record.note.trim() || record.elapsedMs || record.mistakes.length || running);
+function formatElapsed(ms: number) { const s = Math.floor(Math.max(0, ms) / 1000); return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map((n) => String(n).padStart(2, '0')).join(':'); }
 
-function loadState(): AssistantState {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') as Partial<AssistantState> | null;
-    if (!saved || !['idle', 'running', 'paused', 'stopped'].includes(saved.status || '')) return emptyState;
-    return {
-      elapsedMs: typeof saved.elapsedMs === 'number' && Number.isFinite(saved.elapsedMs) ? Math.max(0, saved.elapsedMs) : 0,
-      startedAt: typeof saved.startedAt === 'number' && Number.isFinite(saved.startedAt) ? saved.startedAt : null,
-      status: saved.status === 'running' && !saved.startedAt ? 'paused' : saved.status as TimerStatus,
-      note: typeof saved.note === 'string' ? saved.note : '',
-    };
-  } catch {
-    return emptyState;
-  }
-}
-
-function saveState(value: AssistantState) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); } catch { /* Storage may be unavailable. */ }
-}
-
-function formatElapsed(milliseconds: number) {
-  const seconds = Math.floor(Math.max(0, milliseconds) / 1000);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor(seconds / 60) % 60;
-  const remainder = seconds % 60;
-  return [hours, minutes, remainder].map((part) => String(part).padStart(2, '0')).join(':');
-}
-
-export default function StudyAssistant({ visible, expanded, detached = false, onExpand, onClose }: {
-  visible: boolean;
-  expanded: boolean;
-  detached?: boolean;
-  onExpand: (value: boolean) => void;
-  onClose: () => void;
-}) {
-  const [session, setSession] = useState<AssistantState>(loadState);
+export default function StudyAssistant({ visible, expanded, detached = false, onExpand, onClose }: { visible: boolean; expanded: boolean; detached?: boolean; onExpand: (value: boolean) => void; onClose: () => void }) {
+  const [record, setRecord] = useState<SolveRecord | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now);
+  const [stopped, setStopped] = useState(false);
+  const [message, setMessage] = useState('');
+  const [reason, setReason] = useState(reasons[0]);
+  const [lostMinutes, setLostMinutes] = useState('');
+  const [mistakeNote, setMistakeNote] = useState('');
+  const [outcome, setOutcome] = useState<'solved' | 'unfinished'>('unfinished');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const latest = useRef<SolveRecord | null>(null);
+  const runningAt = useRef<number | null>(null);
+  const timer = useRef<number | null>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
   const dragOrigin = useRef<{ x: number; y: number } | null>(null);
   const wasDragged = useRef(false);
-  useEffect(() => { saveState(session); }, [session]);
-  useEffect(() => {
-    if (session.status !== 'running') return;
-    const interval = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, [session.status]);
 
-  const elapsed = session.elapsedMs + (session.status === 'running' && session.startedAt != null ? Math.max(0, now - session.startedAt) : 0);
-  const update = (change: (current: AssistantState) => AssistantState) => {
-    setNow(Date.now());
-    setSession((current) => change(current));
+  useEffect(() => { let active = true; void (async () => { await migrateLegacyAssistant(); const rows = await listSolveRecords(); if (!active) return; const draft = rows.find((row) => row.id === activeSolveDraftId() && row.status === 'draft') || rows.find((row) => row.status === 'draft') || newSolveRecord(); latest.current = draft; setRecord(draft); selectSolveDraft(draft.id); })().catch((error) => setMessage(`读取失败：${error}`)); return () => { active = false; }; }, []);
+  useEffect(() => { if (startedAt == null) return; const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id); }, [startedAt]);
+  useEffect(() => () => { if (timer.current != null) window.clearTimeout(timer.current); }, []);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const current = latest.current;
+      const started = runningAt.current;
+      if (!current || started == null) return;
+      const time = Date.now();
+      runningAt.current = time;
+      setStartedAt(time);
+      setNow(time);
+      change({ elapsedMs: current.elapsedMs + Math.max(0, time - started) }, true);
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+  useEffect(() => {
+    const flushOnUnload = () => {
+      const current = latest.current;
+      if (!current || !hasWork(current, runningAt.current != null)) return;
+      const time = Date.now();
+      stageSolveRecord({ ...current, elapsedMs: current.elapsedMs + (runningAt.current == null ? 0 : Math.max(0, time - runningAt.current)), updatedAt: Math.max(time, current.updatedAt + 1) });
+    };
+    window.addEventListener('beforeunload', flushOnUnload);
+    return () => window.removeEventListener('beforeunload', flushOnUnload);
+  }, []);
+  useEffect(() => {
+    let switching = false;
+    const switchDraft = () => { const id = activeSolveDraftId(); if (id === latest.current?.id || switching) return; switching = true; void (async () => {
+      if (!id) {
+        const rows = await listSolveRecords();
+        if (latest.current && !rows.some((item) => item.id === latest.current?.id)) {
+          if (timer.current != null) window.clearTimeout(timer.current);
+          runningAt.current = null; setStartedAt(null);
+          const fresh = newSolveRecord(); latest.current = fresh; setRecord(fresh); selectSolveDraft(fresh.id);
+        }
+        return;
+      }
+      if (timer.current != null) window.clearTimeout(timer.current);
+      timer.current = null;
+      const previous = latest.current;
+      if (previous && hasWork(previous, runningAt.current != null)) {
+        const time = Date.now();
+        await saveSolveRecord({ ...previous, elapsedMs: previous.elapsedMs + (runningAt.current == null ? 0 : Math.max(0, time - runningAt.current)), updatedAt: time });
+      }
+      runningAt.current = null; setStartedAt(null);
+      const next = (await listSolveRecords()).find((item) => item.id === id && item.status === 'draft');
+      if (next) { latest.current = next; setRecord(next); setMessage('已切换到所选草稿'); }
+    })().catch((error) => setMessage(`切换草稿失败：${error}`)).finally(() => { switching = false; }); };
+    window.addEventListener('storage', switchDraft);
+    window.addEventListener(JOURNAL_CHANGED, switchDraft);
+    return () => { window.removeEventListener('storage', switchDraft); window.removeEventListener(JOURNAL_CHANGED, switchDraft); };
+  }, []);
+
+  const elapsed = (record?.elapsedMs || 0) + (startedAt == null ? 0 : Math.max(0, now - startedAt));
+  const persist = async (value: SolveRecord) => { if (timer.current != null) window.clearTimeout(timer.current); timer.current = null; try { await saveSolveRecord(value); } catch (error) { setMessage(`保存失败：${error}`); } };
+  const change = (patch: Partial<SolveRecord>, immediate = false) => {
+    if (!latest.current) return;
+    const next = { ...latest.current, ...patch, updatedAt: Math.max(Date.now(), latest.current.updatedAt + 1) };
+    latest.current = next; setRecord(next); stageSolveRecord(next);
+    if (timer.current != null) window.clearTimeout(timer.current);
+    if (immediate) void persist(next); else timer.current = window.setTimeout(() => { if (latest.current) void persist(latest.current); }, 450);
   };
-  const start = () => update((current) => ({
-    ...current,
-    elapsedMs: current.status === 'stopped' ? 0 : current.elapsedMs,
-    startedAt: Date.now(),
-    status: 'running',
-  }));
-  const pause = () => update((current) => ({
-    ...current,
-    elapsedMs: current.elapsedMs + (current.startedAt == null ? 0 : Math.max(0, Date.now() - current.startedAt)),
-    startedAt: null,
-    status: 'paused',
-  }));
-  const stop = () => update((current) => ({
-    ...current,
-    elapsedMs: current.elapsedMs + (current.startedAt == null ? 0 : Math.max(0, Date.now() - current.startedAt)),
-    startedAt: null,
-    status: 'stopped',
-  }));
-  const close = () => {
-    if (session.status === 'running') {
-      const paused = { ...session, elapsedMs: elapsed, startedAt: null, status: 'paused' as const };
-      saveState(paused);
-      setSession(paused);
-    }
-    onClose();
+  const start = () => { if (!latest.current) return; if (stopped && elapsed > 0 && !window.confirm('重新开始计时会将本次用时清零，继续吗？')) return; const time = Date.now(); if (stopped) change({ elapsedMs: 0 }, true); setStopped(false); runningAt.current = time; setStartedAt(time); setNow(time); change({}, true); };
+  const pause = () => { const time = Date.now(); const startTime = runningAt.current; runningAt.current = null; setStartedAt(null); setStopped(false); setNow(time); if (startTime != null) change({ elapsedMs: (latest.current?.elapsedMs || 0) + Math.max(0, time - startTime) }, true); };
+  const stop = () => { const time = Date.now(); const startTime = runningAt.current; runningAt.current = null; setStartedAt(null); setStopped(true); setNow(time); if (startTime != null) change({ elapsedMs: (latest.current?.elapsedMs || 0) + Math.max(0, time - startTime) }, true); };
+  const close = async () => { const current = latest.current; if (current && hasWork(current, runningAt.current != null)) { const time = Date.now(); const next = { ...current, elapsedMs: current.elapsedMs + (runningAt.current == null ? 0 : Math.max(0, time - runningAt.current)), updatedAt: time }; try { await saveSolveRecord(next); } catch (error) { setMessage(`关闭前保存失败：${error}`); return; } } onClose(); };
+  const finish = async () => {
+    const current = latest.current; if (!current) return;
+    if (!current.title.trim() && !current.url.trim() && !current.note.trim() && !current.elapsedMs && runningAt.current == null && !current.mistakes.length) { setMessage('请先填写题目、记录笔记或开始计时'); return; }
+    const time = Date.now();
+    const next: SolveRecord = { ...current, title: current.title.trim() || current.url.trim() || '未命名练习', status: 'finished', outcome, elapsedMs: current.elapsedMs + (runningAt.current == null ? 0 : Math.max(0, time - runningAt.current)), updatedAt: time, endedAt: time };
+    if (timer.current != null) window.clearTimeout(timer.current);
+    try { await saveSolveRecord(next); runningAt.current = null; setStartedAt(null); setStopped(false); const fresh = newSolveRecord(); latest.current = fresh; setRecord(fresh); selectSolveDraft(fresh.id); setMessage('已保存到训练中心 · 解题手记'); } catch (error) { setMessage(`归档失败：${error}`); }
   };
-  const beginDrag = (event: PointerEvent<HTMLElement>) => {
-    if (!detached || event.button !== 0 || (event.target as HTMLElement).closest('button') && expanded) return;
-    dragOrigin.current = { x: event.screenX, y: event.screenY };
-    wasDragged.current = false;
-  };
-  const drag = (event: PointerEvent<HTMLElement>) => {
-    const start = dragOrigin.current;
-    if (!start || Math.hypot(event.screenX - start.x, event.screenY - start.y) < 6) return;
-    dragOrigin.current = null;
-    wasDragged.current = true;
-    void invoke('drag_study_assistant');
-  };
+  const addMistake = () => { if (!record) return; const minutes = lostMinutes.trim() ? Number(lostMinutes) : null; if (minutes != null && (!Number.isFinite(minutes) || minutes < 0 || minutes > 100000)) { setMessage('失误耗时应为非负分钟数'); return; } change({ mistakes: [...record.mistakes, { id: crypto.randomUUID(), at: Date.now(), reason, note: mistakeNote.trim(), lostMinutes: minutes }] }, true); setLostMinutes(''); setMistakeNote(''); };
+  const insertTag = (tag: string) => { const input = textarea.current; const current = latest.current; if (!input || !current) return; const caret = input.selectionStart; const match = current.note.slice(0, caret).match(/(?:^|\s)#([^\s#]*)$/u); const from = match ? caret - match[1].length - 1 : caret; const insertion = `${match ? '' : ' '}#${tag} `; const note = current.note.slice(0, from) + insertion + current.note.slice(caret); change({ note, tags: tagsIn(note) }); setSuggestions([]); window.requestAnimationFrame(() => { input.focus(); input.setSelectionRange(from + insertion.length, from + insertion.length); }); };
+  const beginDrag = (event: PointerEvent<HTMLElement>) => { if (!detached || event.button !== 0 || (event.target as HTMLElement).closest('button') && expanded) return; dragOrigin.current = { x: event.screenX, y: event.screenY }; wasDragged.current = false; };
+  const drag = (event: PointerEvent<HTMLElement>) => { const origin = dragOrigin.current; if (!origin || Math.hypot(event.screenX - origin.x, event.screenY - origin.y) < 6) return; dragOrigin.current = null; wasDragged.current = true; void invoke('drag_study_assistant'); };
   if (!visible) return null;
 
   return <aside className={`study-assistant ${expanded ? 'expanded' : 'collapsed'} ${detached ? 'detached' : ''}`} aria-label="做题小助手">
     {expanded ? <div className="study-assistant-panel">
       {detached && resizeDirections.map((direction) => <div key={direction} className={`study-assistant-resize study-assistant-resize-${direction.toLowerCase()}`} aria-label={`调整小助手窗口大小：${direction}`} onPointerDown={(event) => { if (event.button === 0) { event.preventDefault(); event.stopPropagation(); void getCurrentWindow().startResizeDragging(direction); } }} />)}
-      <header onPointerDown={beginDrag} onPointerMove={drag}><div><small>STUDY ASSISTANT</small><strong>做题小助手</strong></div><div className="study-assistant-window-actions"><button type="button" onClick={() => onExpand(false)} aria-label="收起小助手">−</button><button type="button" onClick={close} aria-label="关闭小助手"><X size={16} /></button></div></header>
-      <div className="study-assistant-timer"><Clock3 size={20} /><time aria-label="已用时间">{formatElapsed(elapsed)}</time><span>{session.status === 'running' ? '计时中' : session.status === 'paused' ? '已暂停' : session.status === 'stopped' ? '已停止' : '准备开始'}</span></div>
-      <div className="study-assistant-controls">
-        {session.status === 'running' ? <button type="button" onClick={pause}><Pause size={15} />暂停</button> : <button type="button" className="primary" onClick={start}><Play size={15} />{session.status === 'paused' ? '继续' : '开始'}</button>}
-        <button type="button" onClick={stop} disabled={session.status === 'idle' || session.status === 'stopped'}><Square size={14} />停止</button>
-        <button type="button" onClick={() => update((current) => ({ ...current, elapsedMs: 0, startedAt: null, status: 'idle' }))} disabled={session.status === 'idle'}><RotateCcw size={14} />重置</button>
+      <header onPointerDown={beginDrag} onPointerMove={drag}><div><small>STUDY ASSISTANT</small><strong>做题小助手</strong></div><div className="study-assistant-window-actions"><button type="button" onClick={() => onExpand(false)} aria-label="收起小助手">−</button><button type="button" onClick={() => void close()} aria-label="关闭小助手"><X size={16} /></button></div></header>
+      <div className="study-assistant-body">
+        <div className="study-assistant-problem"><input aria-label="题目名称" placeholder="题目名称（可稍后填写）" value={record?.title || ''} onChange={(event) => change({ title: event.target.value })} /><input aria-label="题目链接" placeholder="题目链接（可选）" value={record?.url || ''} onChange={(event) => { const url = event.target.value; change({ url, platform: parseProblemUrl(url)?.platform || record?.platform || '' }); }} /><select aria-label="题目平台" value={record?.platform || ''} onChange={(event) => change({ platform: event.target.value })}><option value="">未指定平台</option>{TRAINING_PLATFORM_ORDER.map((platform) => <option key={platform} value={platform}>{PLATFORM_META[platform].name}</option>)}</select></div>
+        <div className="study-assistant-timer"><Clock3 size={20} /><time aria-label="已用时间">{formatElapsed(elapsed)}</time><span>{startedAt != null ? '计时中' : stopped ? '已停止' : elapsed > 0 ? '已暂停' : '准备开始'}</span></div>
+        <div className="study-assistant-controls">{startedAt != null ? <button type="button" onClick={pause}><Pause size={15} />暂停</button> : <button type="button" className="primary" onClick={start}><Play size={15} />{stopped ? '重新开始' : elapsed > 0 ? '继续' : '开始'}</button>}<button type="button" onClick={stop} disabled={startedAt == null && (elapsed === 0 || stopped)}>停止</button><button type="button" onClick={() => { if (elapsed > 0 && !window.confirm('重置本次计时？笔记和失误记录会保留。')) return; runningAt.current = null; setStartedAt(null); setStopped(false); change({ elapsedMs: 0 }, true); }} disabled={elapsed === 0}><RotateCcw size={14} />重置</button></div>
+        <div className="study-assistant-mistakes"><select aria-label="失误原因" value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((item) => <option key={item}>{item}</option>)}</select><input aria-label="失误耗时分钟" type="number" min="0" placeholder="耗时分钟（可选）" value={lostMinutes} onChange={(event) => setLostMinutes(event.target.value)} /><input aria-label="失误备注" placeholder="备注（可选）" value={mistakeNote} onChange={(event) => setMistakeNote(event.target.value)} /><button type="button" onClick={addMistake}>+ 记一次失误</button><small>已记 {record?.mistakes.length || 0} 次</small></div>
+        <div className="study-assistant-finish"><select aria-label="完成情况" value={outcome} onChange={(event) => setOutcome(event.target.value as 'solved' | 'unfinished')}><option value="solved">已完成</option><option value="unfinished">未完成 / 待复习</option></select><button type="button" onClick={() => void finish()}><Flag size={14} />结束本次做题</button></div>
+        {message && <p className="study-assistant-status" role="status">{message}</p>}
+        <div className="study-assistant-notes"><div className="study-assistant-note-head"><strong>Markdown 笔记</strong><span>自动保存草稿 · 输入 # 补全标签</span></div><div className="study-assistant-note-columns"><div className="study-assistant-note-pane"><span>编辑</span><textarea ref={textarea} aria-label="小助手 Markdown 笔记" value={record?.note || ''} onChange={(event) => { const note = event.target.value; change({ note, tags: tagsIn(note) }); const prefix = note.slice(0, event.target.selectionStart).match(/(?:^|\s)#([^\s#]*)$/u)?.[1]; setSuggestions(prefix == null ? [] : commonTags.filter((tag) => tag.toLowerCase().includes(prefix.toLowerCase())).slice(0, 6)); }} onKeyDown={(event) => { if (suggestions.length && (event.key === 'Tab' || event.key === 'Enter')) { event.preventDefault(); insertTag(suggestions[0]); } }} placeholder="记录思路、样例和待验证的想法。支持 Markdown、$行内公式$ 与 $$独立公式$$。" />{suggestions.length > 0 && <div className="study-assistant-tags">{suggestions.map((tag) => <button type="button" key={tag} onClick={() => insertTag(tag)}>#{tag}</button>)}</div>}</div><div className="study-assistant-note-pane"><span>预览</span><div className="study-assistant-preview"><MarkdownPreview text={record?.note || '暂无笔记'} /></div></div></div></div>
       </div>
-      <div className="study-assistant-notes">
-        <div className="study-assistant-note-head"><strong>Markdown 笔记</strong><span>自动保存在本机</span></div>
-        <div className="study-assistant-note-columns"><div className="study-assistant-note-pane"><span>编辑</span><textarea aria-label="小助手 Markdown 笔记" value={session.note} onChange={(event) => setSession((current) => {
-          const next = { ...current, note: event.target.value };
-          saveState(next);
-          return next;
-        })} placeholder="记录思路、样例和待验证的想法。支持 Markdown、$行内公式$ 与 $$独立公式$$。" /></div><div className="study-assistant-note-pane"><span>预览</span><div className="study-assistant-preview"><MarkdownPreview text={session.note || '暂无笔记'} /></div></div></div>
-      </div>
-    </div> : <button type="button" className="study-assistant-bubble" onPointerDown={beginDrag} onPointerMove={drag} onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } onExpand(true); }} aria-label={`展开做题小助手，已计时 ${formatElapsed(elapsed)}`}><Clock3 size={17} /><time>{formatElapsed(elapsed)}</time><small>{session.status === 'running' ? '计时中' : session.status === 'paused' ? '已暂停' : session.status === 'stopped' ? '已停止' : '小助手'}</small></button>}
+    </div> : <button type="button" className="study-assistant-bubble" onPointerDown={beginDrag} onPointerMove={drag} onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } onExpand(true); }} aria-label={`展开做题小助手，已计时 ${formatElapsed(elapsed)}`}><Clock3 size={17} /><time>{formatElapsed(elapsed)}</time><small>{startedAt != null ? '计时中' : stopped ? '已停止' : elapsed > 0 ? '已暂停' : '小助手'}</small></button>}
   </aside>;
 }

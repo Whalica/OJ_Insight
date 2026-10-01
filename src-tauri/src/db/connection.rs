@@ -22,6 +22,8 @@ pub fn open(path: &Path) -> Result<Connection, String> {
     initialize_schema(&tx)?;
     run_migrations(&tx, had_multi_accounts)?;
     super::training::initialize_training_schema(&tx)?;
+    tx.execute_batch("CREATE TABLE IF NOT EXISTS solve_records (id TEXT PRIMARY KEY, status TEXT NOT NULL, updated_at INTEGER NOT NULL, payload TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_solve_records_updated ON solve_records(updated_at DESC);")
+        .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     for p in PLATFORMS {
         conn.execute("INSERT OR IGNORE INTO sync_state(platform) VALUES(?)", [p])
