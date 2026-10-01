@@ -31,15 +31,37 @@ interface TauriFixtures {
 export async function installTauriMock(page: Page, fixtures: TauriFixtures = {}) {
   await page.addInitScript(({ snapshot, afterSyncSnapshot, accounts, contests, contestReview, watchedPeople, watchedEvents, watchedAvatars }) => {
     let currentSnapshot = snapshot;
+    let companionPort = 10046;
     const invoke = async (command: string, args: Record<string, unknown> = {}) => {
       switch (command) {
         case 'can_install_updates':
           return false;
+        case 'get_companion_status':
+          return { port: companionPort, listening: true, error: '' };
+        case 'set_companion_port':
+          companionPort = Number(args.port);
+          return { port: companionPort, listening: true, error: '' };
+        case 'plugin:event|listen':
+          return 1;
+        case 'plugin:event|unlisten':
+          return undefined;
         case 'check_for_updates':
           return { currentVersion: '0.10.2', latestVersion: '0.10.2', releaseUrl: '', updateAvailable: false };
         case 'list_problem_sets':
         case 'list_training_matches':
           return [];
+        case 'list_solve_records':
+          return JSON.parse(localStorage.getItem('__test_solve_records__') || '[]');
+        case 'save_solve_record': {
+          const rows = JSON.parse(localStorage.getItem('__test_solve_records__') || '[]') as Array<{ id: string }>;
+          localStorage.setItem('__test_solve_records__', JSON.stringify([...rows.filter((row) => row.id !== (args.record as { id: string }).id), args.record]));
+          return undefined;
+        }
+        case 'delete_solve_record': {
+          const rows = JSON.parse(localStorage.getItem('__test_solve_records__') || '[]') as Array<{ id: string }>;
+          localStorage.setItem('__test_solve_records__', JSON.stringify(rows.filter((row) => row.id !== args.id)));
+          return undefined;
+        }
         case 'get_accounts':
           return accounts;
         case 'get_sync_statuses':
@@ -104,7 +126,7 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
           throw new Error(`Unhandled Tauri command in layout test: ${command}`);
       }
     };
-    (window as unknown as { __TAURI_INTERNALS__: { invoke: typeof invoke; metadata: { currentWindow: { label: string } } } }).__TAURI_INTERNALS__ = { invoke, metadata: { currentWindow: { label: 'study-assistant' } } };
+    (window as unknown as { __TAURI_INTERNALS__: { invoke: typeof invoke; transformCallback: (callback: unknown) => number; metadata: { currentWindow: { label: string } } } }).__TAURI_INTERNALS__ = { invoke, transformCallback: () => 1, metadata: { currentWindow: { label: 'study-assistant' } } };
   }, {
     snapshot: fixtures.snapshot || EMPTY_SNAPSHOT,
     afterSyncSnapshot: fixtures.afterSyncSnapshot,

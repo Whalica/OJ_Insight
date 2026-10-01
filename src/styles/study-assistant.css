@@ -44,6 +44,18 @@
   box-shadow: 0 20px 56px rgb(0 0 0 / .4);
   overflow: hidden;
 }
+.study-assistant-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; }
+.study-assistant-problem { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px 8px; }
+.study-assistant-problem input, .study-assistant-problem select, .study-assistant-mistakes input, .study-assistant-mistakes select, .study-assistant-finish select { min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; background: var(--input); color: var(--text); font: inherit; }
+.study-assistant-mistakes, .study-assistant-finish { display: flex; align-items: center; gap: 8px; padding: 0 16px 9px; }
+.study-assistant-mistakes input { width: 110px; }
+.study-assistant-mistakes input[aria-label="失误备注"] { flex: 1; }
+.study-assistant-mistakes button, .study-assistant-finish button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: var(--panel-soft); color: var(--text); cursor: pointer; }
+.study-assistant-mistakes small { color: var(--muted); white-space: nowrap; }
+.study-assistant-finish button { border-color: var(--accent-deep); background: var(--accent-deep); color: #fff; }
+.study-assistant-status { margin: 0 16px 8px; color: var(--accent); font-size: var(--font-meta); }
+.study-assistant-tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px; background: var(--panel-soft); }
+.study-assistant-tags button { border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; background: var(--panel); color: var(--text); cursor: pointer; }
 .study-assistant-panel > header {
   display: flex;
   justify-content: space-between;
@@ -69,6 +81,7 @@
 .study-assistant-controls button:hover:not(:disabled) { border-color: var(--accent); }
 .study-assistant-controls button:disabled { opacity: .45; cursor: default; }
 .study-assistant-notes { min-height: 0; display: flex; flex: 1; flex-direction: column; border-top: 1px solid var(--line); }
+.study-assistant-body .study-assistant-notes { min-height: 230px; }
 .study-assistant-note-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 16px 8px; }
 .study-assistant-note-head strong { font-size: var(--font-small); }
 .study-assistant-note-head span { color: var(--muted); font-size: var(--font-meta); }
@@ -106,4 +119,6 @@ body:has(.study-assistant.detached) #root { min-width: 0; min-height: 0; width: 
 @media (max-width: 620px) {
   .study-assistant { right: 14px; bottom: 14px; }
   .study-assistant-panel { max-height: min(570px, calc(100dvh - 28px)); }
+  .study-assistant-problem { grid-template-columns: 1fr; }
+  .study-assistant-mistakes { flex-wrap: wrap; }
 }

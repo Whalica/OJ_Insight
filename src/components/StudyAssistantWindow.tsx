@@ -15,14 +15,6 @@ export default function StudyAssistantWindow() {
   useEffect(() => {
     const pauseOnClose = () => {
       try {
-        const key = 'oj-insight.study-assistant.v1';
-        const session = JSON.parse(localStorage.getItem(key) || 'null');
-        if (session?.status === 'running' && typeof session.startedAt === 'number') {
-          session.elapsedMs = Math.max(0, Number(session.elapsedMs) || 0) + Math.max(0, Date.now() - session.startedAt);
-          session.startedAt = null;
-          session.status = 'paused';
-          localStorage.setItem(key, JSON.stringify(session));
-        }
         localStorage.setItem('oj-insight.study-assistant.visible', 'false');
       } catch { /* Local storage can be unavailable during shutdown. */ }
     };

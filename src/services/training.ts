@@ -4,13 +4,13 @@ import { openPath } from '@tauri-apps/plugin-opener';
 
 import { api } from './api';
 
-export async function saveTrainingFile(filename: string, data: string | number[], extension: 'json' | 'zip') {
+export async function saveTrainingFile(filename: string, data: string | number[], extension: 'json' | 'zip' | 'csv') {
   const storage = await api.storageInfo();
   const separator = sep();
   const slash = storage.exportDir.endsWith('/') || storage.exportDir.endsWith('\\') ? '' : separator;
   const path = await save({
     defaultPath: `${storage.exportDir}${slash}${filename}`,
-    filters: [{ name: extension === 'zip' ? 'ZIP 压缩包' : 'OJ Insight 题单 JSON', extensions: [extension] }],
+    filters: [{ name: extension === 'zip' ? 'ZIP 压缩包' : extension === 'csv' ? 'CSV 表格' : 'JSON 文件', extensions: [extension] }],
   });
   if (!path) return null;
   const bytes = typeof data === 'string' ? Array.from(new TextEncoder().encode(data)) : data;

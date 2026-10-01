@@ -39,7 +39,15 @@ export interface StorageInfo {
   logDir: string;
 }
 
+export interface CompanionStatus {
+  port: number;
+  listening: boolean;
+  error: string;
+}
+
 export const api = {
+  getCompanionStatus: () => invoke<CompanionStatus>('get_companion_status'),
+  setCompanionPort: (port: number) => invoke<CompanionStatus>('set_companion_port', { port }),
   storageInfo: () => invoke<StorageInfo>('get_storage_info'),
   getAccounts: () => invoke<AccountConfig[]>('get_accounts'),
   saveAccount: (platform: Platform, account: string, secret: string) =>

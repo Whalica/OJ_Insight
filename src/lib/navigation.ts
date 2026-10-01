@@ -11,6 +11,7 @@ export type Page =
   | 'contests'
   | 'vp'
   | 'training'
+  | 'solve-journal'
   | 'relationships'
   | 'export'
   | 'data'
