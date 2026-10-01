@@ -42,26 +42,17 @@ jobs:
 
   rust-quality:
     name: Rust checks
-    runs-on: ubuntu-24.04
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - name: Install Linux test dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev
       - name: Prepare Tauri test frontend
         run: |
-          mkdir -p dist
-          printf '<!doctype html><title>OJ Insight test</title>' > dist/index.html
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Set-Content -Path dist/index.html -Value '<!doctype html><title>OJ Insight test</title>' -Encoding utf8
       - name: Run Rust tests
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 

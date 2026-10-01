@@ -3,6 +3,7 @@
 ## 0.10.3
 
 - Pull Request 只运行前端、Rust 和布局验证，不再重复构建三个平台的安装包；标签发布和手动触发仍会完整构建、打包三端。
+- 布局测试使用与项目 Playwright 版本匹配的官方预装镜像，Rust 单元测试在 Windows runner 上运行，减少 PR 检查时重复安装 Ubuntu 图形与 WebKit 开发依赖。
 
 ## 0.10.2
 
