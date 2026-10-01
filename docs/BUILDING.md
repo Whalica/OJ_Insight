@@ -15,7 +15,7 @@ pnpm build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-`.github/workflows/build.yml` 是唯一的三平台构建入口。Pull Request 只运行前端检查和完整 Rust 单元测试；独立的 `.github/workflows/layout.yml` 并行运行布局测试。两个工作流分开保留，避免更改已有检查项名称，合并文件也不会缩短三平台打包时间。`v*` 标签和手动触发会构建三平台安装包。在 Actions 页面手动运行时，`release_tag` 留空表示普通测试构建；填写与源码一致的版本号（如 `v0.10.3`）会生成签名更新包和 `latest.json`，并创建等待人工确认的 Draft Release。
+`.github/workflows/build.yml` 是唯一的三平台构建入口。Pull Request 只运行前端检查和 Windows 上的完整 Rust 单元测试；独立的 `.github/workflows/layout.yml` 使用与项目 Playwright 版本一致的官方预装镜像，并行运行布局测试。两个工作流分开保留，避免更改已有检查项名称，合并文件也不会缩短三平台打包时间。`v*` 标签和手动触发会构建三平台安装包。在 Actions 页面手动运行时，`release_tag` 留空表示普通测试构建；填写与源码一致的版本号（如 `v0.10.3`）会生成签名更新包和 `latest.json`，并创建等待人工确认的 Draft Release。
 
 三端打包开始前会先执行前端类型与版本检查，及完整 Rust 单元测试。Pull Request 有新提交时，尚未完成的旧检查会自动取消，避免重复占用资源。需要在合并前检查三平台安装包时，可手动触发普通测试构建。
 
