@@ -29,6 +29,7 @@ import type { Page } from './lib/navigation';
 import { PLATFORM_ORDER } from './lib/platforms';
 import { initialMetric, initialScope, recentHalfYearRange, scopeRange, type TimeScope } from './lib/ui';
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
+import { LocaleProvider, resolveLocale } from './lib/i18n';
 import { useAccounts } from './hooks/useAccounts';
 import { useFollowing } from './hooks/useFollowing';
 import { useSnapshot } from './hooks/useSnapshot';
@@ -187,7 +188,7 @@ export default function App() {
       openAssistant();
     } catch (error) { notify(`启动小助手失败：${error}`); }
   };
-  return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+  return <LocaleProvider locale={resolveLocale(preferences.language)}><div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} onAssistant={openAssistant} assistantVisible={assistantVisible} />
     <main className={`main ${page.startsWith('tracker-') ? 'main-tracker' : ''}`}>
       {page === 'training' ? <TrainingPage notify={notify} onOpenProblemSets={() => setPage('problem-sets')} onOpenContests={() => setPage('contests')} /> :
@@ -213,5 +214,5 @@ export default function App() {
     <RelationshipNotice events={watchedNotifications} timeZone={timeZone} onDismiss={(eventId) => { void dismissWatched(eventId); }} />
     {availableUpdate && <aside className="update-notice" aria-live="polite"><button className="update-dismiss" aria-label="稍后提醒" disabled={installingUpdate} onClick={dismissUpdate}><X size={15} /></button><small>UPDATE AVAILABLE</small><strong>OJ Insight v{availableUpdate.latestVersion}</strong><span>{installingUpdate ? `正在下载${updateProgress == null ? '…' : ` · ${updateProgress}%`}` : availableUpdate.installable === false ? '这个版本暂时需要从 Release 页面下载安装。' : syncing ? '当前正在同步数据，完成后即可安装更新。' : '新版本已经准备好，可以直接在应用内完成更新。'}</span>{installingUpdate && <i><b style={{ width: `${updateProgress || 4}%` }} /></i>}<div><button disabled={installingUpdate} onClick={skipUpdate}>跳过此版本</button><button className="primary" disabled={installingUpdate || (availableUpdate.installable !== false && !!syncing)} onClick={() => availableUpdate.installable === false ? openRelease() : installUpdate()}><Download size={14} />{availableUpdate.installable === false ? '手动下载' : installingUpdate ? '更新中' : syncing ? '等待同步' : '立即更新'}</button></div></aside>}
     {toast && <div className="toast">{toast}</div>}
-  </div>;
+  </div></LocaleProvider>;
 }

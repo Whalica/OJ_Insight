@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  use: { baseURL: 'http://127.0.0.1:1430', trace: 'retain-on-failure' },
+  use: { baseURL: 'http://127.0.0.1:1430', locale: 'zh-CN', trace: 'retain-on-failure' },
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
     { name: 'webkit', use: { browserName: 'webkit' } },
