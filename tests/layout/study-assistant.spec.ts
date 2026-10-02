@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { installTauriMock } from './mock-tauri';
 
-test('study assistant opens from training center and keeps its timer and side-by-side Markdown notes', async ({ page }) => {
+test('study assistant opens from Tools and records the timer reading with a mistake', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('oj-insight.preferences', JSON.stringify({
       theme: 'gray', autoSync: false, autoCheckUpdates: false, startupPage: 'last',
@@ -52,6 +52,13 @@ test('study assistant opens from training center and keeps its timer and side-by
   await expect(page.getByText('已暂停')).toBeVisible();
   await page.clock.runFor(3000);
   await expect(page.locator('.study-assistant-timer time')).toHaveText('00:00:02');
+  await expect(page.getByRole('spinbutton', { name: '失误耗时分钟' })).toHaveCount(0);
+  await page.getByRole('button', { name: '+ 记一次失误' }).click();
+  await expect(page.getByText('已记 1 次')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const rows = JSON.parse(localStorage.getItem('oj-insight.solve-journal.v1') || '[]') as Array<{ mistakes: Array<{ elapsedMs?: number }> }>;
+    return rows.flatMap((row) => row.mistakes).at(-1)?.elapsedMs;
+  })).toBeGreaterThanOrEqual(2000);
 
   await page.getByRole('textbox', { name: '小助手 Markdown 笔记' }).fill('## 思路\n**先枚举**');
   await expect(page.locator('.study-assistant-preview h3')).toHaveText('思路');

@@ -1,6 +1,7 @@
 /* ICPC / CCPC Tracker extends the existing UI without changing shared component rules. */
 .xcpc-topbar { margin-bottom: 21px; }
-.xcpc-top-actions { display: flex; gap: 6px; }
+.xcpc-top-actions { display: flex; flex: none; align-self: flex-start; gap: 6px; white-space: nowrap; }
+.xcpc-tag-source { margin-top: 10px; }
 .xcpc-action { min-height: 30px; border: 1px solid #2b343e; background: #12171d; color: #9ba6b0; border-radius: 7px; padding: 6px 9px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--font-meta); font-weight: 650; }
 .xcpc-action:hover { background: #171e25; color: #c7d0d7; }
 .xcpc-action.primary { min-height: 30px; padding: 6px 9px; font-size: var(--font-meta); }

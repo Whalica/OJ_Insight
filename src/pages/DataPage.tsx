@@ -1,3 +1,4 @@
+import PlatformIcon from '../components/PlatformIcon';
 import { AlertTriangle, Check, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import { formatDateTime } from '../lib/date';
@@ -30,11 +31,11 @@ export default function DataPage({ statuses, syncing, timeZone, onSync, onSyncAl
   };
 
   return <>
-    <header className="topbar"><div><small>SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p></div><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>
+    <header className="topbar"><div><small lang="en">SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p></div><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>
     <section className="panel source-list">{PLATFORM_ORDER.map((platform) => {
       const status = by.get(platform);
       const needsAttention = status?.status === 'warning' || status?.status === 'error' || status?.status === 'auth_required';
-      return <article key={platform}><div className="source-id"><span className="platform-monogram" style={{ color: PLATFORM_META[platform].accent }}>{PLATFORM_META[platform].short}</span><div><strong>{PLATFORM_META[platform].name}</strong><small>{status?.account || '未配置账号'} · 缓存 {status?.cached_records || 0} 条</small></div></div><div className={`source-state ${status?.status || 'idle'}`}>{status?.status === 'ok' ? <Check size={15} /> : needsAttention ? <AlertTriangle size={15} /> : null}<div><strong>{syncStatusLabel(status?.status)}</strong><small>{status?.message || '尚未同步'} · 上次成功 {formatDateTime(status?.last_success || null, timeZone)}</small></div></div><div className="source-actions"><button title="只读取上次同步后的新记录" onClick={() => onSync(platform)} disabled={!!syncing}><RefreshCw size={14} />同步最新记录</button><button title="重新读取当前可获取的全部历史，仅在数据异常时使用" onClick={() => onSync(platform, true)} disabled={!!syncing}>重新同步全部</button><button className="danger-ghost" disabled={!!syncing} onClick={() => clearOne(platform)}><Trash2 size={14} />清空</button></div></article>;
+      return <article key={platform}><div className="source-id"><PlatformIcon platform={platform} /><div><strong lang="en">{PLATFORM_META[platform].name}</strong><small>{status?.account || '未配置账号'} · 缓存 {status?.cached_records || 0} 条</small></div></div><div className={`source-state ${status?.status || 'idle'}`}>{status?.status === 'ok' ? <Check size={15} /> : needsAttention ? <AlertTriangle size={15} /> : null}<div><strong>{syncStatusLabel(status?.status)}</strong><small>{status?.message || '尚未同步'} · 上次成功 {formatDateTime(status?.last_success || null, timeZone)}</small></div></div><div className="source-actions"><button title="只读取上次同步后的新记录" onClick={() => onSync(platform)} disabled={!!syncing}><RefreshCw size={14} />同步最新记录</button><button title="重新读取当前可获取的全部历史，仅在数据异常时使用" onClick={() => onSync(platform, true)} disabled={!!syncing}>重新同步全部</button><button className="danger-ghost" disabled={!!syncing} onClick={() => clearOne(platform)}><Trash2 size={14} />清空</button></div></article>;
     })}</section>
     <section className="danger-zone"><div><strong>清空全部同步数据</strong><p>会删除提交、活动砖、难度、Rating 和同步状态；账号设置、题单和训练赛不会被删除。</p></div><button disabled={!!syncing} onClick={clearAll}><Trash2 size={15} />清空全部</button></section>
   </>;

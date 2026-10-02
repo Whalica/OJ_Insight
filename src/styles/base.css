@@ -17,6 +17,7 @@ button, input, select { font: inherit; } button { color: inherit; } a { color: i
 .brand-mark span { background: #28563a; border-radius: 1px; }.brand-mark span:nth-child(2), .brand-mark span:nth-child(3) { background: #61d58a; }
 .sidebar-toggle { flex: 0 0 27px; width: 27px; height: 27px; margin: 6px 0 0 auto; border: 0; border-radius: 6px; background: transparent; color: #66727d; display: grid; place-items: center; cursor: pointer; }
 .sidebar-toggle:hover { background: #151b22; color: #c7d0d7; }
+.sidebar nav .assistant-tool { margin-top: 16px; border-top: 1px solid var(--line-soft); border-radius: 0 0 8px 8px; padding-top: 14px; }
 .sidebar.collapsed { padding-inline: 9px; }
 .sidebar.collapsed .sidebar-head { display: grid; justify-items: center; }
 .sidebar.collapsed .brand { padding: 5px 0 8px; }
