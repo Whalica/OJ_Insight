@@ -1,3 +1,5 @@
+import { currentLocale, translate } from './i18n';
+
 export function toDay(ts: number) {
   return new Date(ts * 1000).toISOString().slice(0, 10);
 }
@@ -31,22 +33,24 @@ export function initialTimeZone() {
 }
 
 export function timeZoneLabel(timeZone: string) {
+  const locale = currentLocale();
   const preset = TIME_ZONE_OPTIONS.find(([value]) => value === timeZone)?.[1];
-  const zone = new Intl.DateTimeFormat('zh-CN', {
+  const zone = new Intl.DateTimeFormat(locale, {
     timeZone, timeZoneName: 'shortOffset', hour: '2-digit', minute: '2-digit', hour12: false,
   }).formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value;
-  return preset ? `${preset}${zone && !preset.includes(zone) ? ` · ${zone}` : ''}` : `${timeZone}${zone ? ` · ${zone}` : ''}`;
+  const label = preset ? translate(locale, preset) : timeZone;
+  return `${label}${zone && !label.includes(zone) ? ` · ${zone}` : ''}`;
 }
 
 export function formatDateTime(ts: number | null, timeZone = DEFAULT_TIME_ZONE) {
-  if (!ts) return '从未';
-  return new Intl.DateTimeFormat('zh-CN', {
+  if (!ts) return translate(currentLocale(), '从未');
+  return new Intl.DateTimeFormat(currentLocale(), {
     timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date(ts * 1000));
 }
 
 export function formatTime(ts: number, timeZone = DEFAULT_TIME_ZONE) {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(currentLocale(), {
     timeZone, hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date(ts * 1000));
 }

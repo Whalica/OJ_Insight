@@ -1,3 +1,5 @@
+import { resolveLocale, type LanguagePreference } from './i18n';
+
 export type ThemeMode = 'system' | 'light' | 'gray' | 'dark';
 export type FontSize = 'standard' | 'large' | 'xlarge';
 export type InterfaceDensity = 'comfortable' | 'compact';
@@ -5,6 +7,7 @@ export type HeatmapPalette = 'green' | 'blue' | 'accessible';
 export type StartupPage = 'overview' | 'last';
 
 export interface Preferences {
+  language: LanguagePreference;
   theme: ThemeMode;
   fontSize: FontSize;
   density: InterfaceDensity;
@@ -18,6 +21,7 @@ export interface Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
+  language: 'system',
   theme: 'system',
   fontSize: 'standard',
   density: 'comfortable',
@@ -38,8 +42,10 @@ function member<T extends string>(value: unknown, choices: readonly T[], fallbac
 
 export function loadPreferences(): Preferences {
   try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Partial<Preferences>;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const value = JSON.parse(saved || '{}') as Partial<Preferences>;
     return {
+      language: member(value.language, ['system', 'zh-CN', 'en-US'], saved ? 'zh-CN' : 'system'),
       theme: member(value.theme, ['system', 'light', 'gray', 'dark'], 'system'),
       fontSize: member(value.fontSize, ['standard', 'large', 'xlarge'], 'standard'),
       density: member(value.density, ['comfortable', 'compact'], 'comfortable'),
@@ -64,6 +70,7 @@ export function savePreferences(value: Preferences) {
 
 export function applyPreferences(value: Preferences, systemDark: boolean) {
   const root = document.documentElement;
+  root.lang = resolveLocale(value.language);
   root.dataset.theme = value.theme === 'system' ? (systemDark ? 'dark' : 'light') : value.theme;
   root.dataset.fontSize = value.fontSize;
   root.dataset.density = value.density;
