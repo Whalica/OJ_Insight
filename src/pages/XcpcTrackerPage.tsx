@@ -128,10 +128,9 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
 
   return <>
     <header className="topbar xcpc-topbar">
-      <div><small>ICPC / CCPC · CONTEST TRACKER</small><h1>ICPC / CCPC Tracker</h1><p>浏览 ICPC、CCPC 与省赛题集，追踪 QOJ 补题进度。</p></div>
+      <div><small lang="en">ICPC / CCPC · CONTEST TRACKER</small><h1 lang="en">ICPC / CCPC Tracker</h1><p>浏览 ICPC、CCPC 与省赛题集，追踪 QOJ 补题进度。</p><button className="xcpc-action xcpc-tag-source" title="题目标签数据整理自 xcpcrating，点击打开 GitHub 仓库" onClick={() => void api.openExternal('https://github.com/Hei-MaoM/xcpcrating')}><Github size={13} />ICPC/CCPC 题目标签来源：xcpcrating</button></div>
       <div className="xcpc-top-actions">
         <button className="xcpc-action credential-help" onClick={onOpenSettings}><KeyRound size={13} />配置 QOJ Cookie</button>
-        <button className="xcpc-action xcpc-tag-source" title="题目标签数据整理自 xcpcrating，点击打开 GitHub 仓库" onClick={() => void api.openExternal('https://github.com/Hei-MaoM/xcpcrating')}><Github size={13} />ICPC/CCPC 题目标签来源：xcpcrating</button>
         <button className="xcpc-action" disabled={catalogLoading} onClick={() => void updateCatalog()}><RefreshCw className={catalogLoading ? 'spin' : ''} size={13} />{catalogLoading ? '更新赛事数据中' : '更新赛事数据'}</button>
         <button className="xcpc-action primary" disabled={syncing} onClick={async () => { await onSync(); await loadCatalog(); }}><RefreshCw className={syncing ? 'spin' : ''} size={13} />{syncing ? '同步中' : '同步 QOJ'}</button>
       </div>

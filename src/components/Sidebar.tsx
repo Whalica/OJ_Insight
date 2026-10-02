@@ -33,7 +33,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
       <div className="sidebar-head">
         <div className="brand" onClick={() => onChange('overview')} title={collapsed ? 'OJ Insight' : undefined}>
           <div className="brand-mark"><span /><span /><span /><span /></div>
-          <div className="brand-copy"><strong>OJ Insight</strong><small>Competitive Programming Analytics</small></div>
+          <div className="brand-copy"><strong lang="en">OJ Insight</strong></div>
         </div>
         <button className="sidebar-toggle" onClick={onToggle} title={collapsed ? t('展开侧栏') : t('收起侧栏')} aria-label={collapsed ? t('展开侧栏') : t('收起侧栏')}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
       </div>
@@ -41,7 +41,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         <button title={collapsed ? t('总览') : undefined} className={page === 'overview' ? 'active' : ''} onClick={() => onChange('overview')}><LayoutDashboard size={17} /><span className="nav-label">{t('总览')}</span></button>
 
         <section className={`nav-group ${openGroup === 'platforms' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? 'Platforms' : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label">Platforms</span><ChevronDown className="nav-group-chevron" size={14} /></button>
+          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? 'Platforms' : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label" lang="en">Platforms</span><ChevronDown className="nav-group-chevron" size={14} /></button>
           <div className="nav-group-items">{PLATFORM_ORDER.map((platform) => (
             <button title={collapsed ? PLATFORM_META[platform].name : undefined} key={platform} className={page === platform ? 'active' : ''} onClick={() => onChange(platform)}>
               <PlatformIcon platform={platform} className="sidebar-platform-icon" /><span className="nav-label">{PLATFORM_META[platform].name}</span>
@@ -50,7 +50,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         </section>
 
         <section className={`nav-group ${openGroup === 'trackers' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
+          <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label" lang="en">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
           <div className="nav-group-items tracker-items">
             <button title={collapsed ? 'ICPC/CCPC' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span className="nav-label">ICPC / CCPC</span></button>
             <button className={page === 'tracker-codeforces' ? 'active' : ''} onClick={() => onChange('tracker-codeforces')}><PlatformIcon platform="codeforces" className="sidebar-platform-icon" /><span className="nav-label">Codeforces</span></button>
@@ -67,7 +67,6 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
             <button title={collapsed ? t('参赛区') : undefined} className={page === 'vp' ? 'active' : ''} onClick={() => onChange('vp')}><Play size={14} /><span className="nav-label">{t('参赛区')}</span></button>
             <button title={collapsed ? t('个性化组题') : undefined} className={page === 'training' ? 'active' : ''} onClick={() => onChange('training')}><Dumbbell size={14} /><span className="nav-label">{t('个性化组题')}</span></button>
             <button title={collapsed ? t('解题手记') : undefined} className={page === 'solve-journal' ? 'active' : ''} onClick={() => onChange('solve-journal')}><BookOpenCheck size={14} /><span className="nav-label">{t('解题手记')}</span></button>
-            <button title={collapsed ? t('做题小助手') : undefined} aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={14} /><span className="nav-label">{t('做题小助手')}</span></button>
             <button title={collapsed ? t('赛后分析') : undefined} className={page === 'contest-review' ? 'active' : ''} onClick={() => onChange('contest-review')}><BookOpenCheck size={14} /><span className="nav-label">{t('赛后分析')}</span></button>
           </div>
         </section>
@@ -76,6 +75,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         <button title={collapsed ? t('关注') : undefined} className={page === 'relationships' ? 'active' : ''} onClick={() => onChange('relationships')}><Users size={17} /><span className="nav-label">{t('关注')}</span></button>
         <button title={collapsed ? t('导出') : undefined} className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} /><span className="nav-label">{t('导出')}</span></button>
         <button title={collapsed ? t('数据源') : undefined} className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} /><span className="nav-label">{t('数据源')}</span></button>
+        <button title={collapsed ? t('做题小助手') : undefined} className="assistant-tool" aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={17} /><span className="nav-label">{t('做题小助手')}</span></button>
         <button title={collapsed ? t('设置') : undefined} className={page === 'settings' ? 'active' : ''} onClick={() => onChange('settings')}><Settings2 size={17} /><span className="nav-label">{t('设置')}</span></button>
         <button title={collapsed ? t('关于') : undefined} className={page === 'about' ? 'active' : ''} onClick={() => onChange('about')}><CircleHelp size={17} /><span className="nav-label">{t('关于')}</span></button>
       </nav>

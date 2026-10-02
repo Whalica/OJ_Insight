@@ -6,6 +6,7 @@ export interface SolveMistake {
   reason: string;
   note: string;
   lostMinutes: number | null;
+  elapsedMs?: number | null;
 }
 
 export interface SolveRecord {
@@ -139,13 +140,13 @@ function csvCell(value: string | number | null): string {
 }
 
 export function exportSolveCsv(records: SolveRecord[]): string {
-  const rows = [['ID', '题目', '平台', '链接', '状态', '完成情况', '开始时间', '结束时间', '用时分钟', '标签', '失误次数', '失误耗时分钟', '笔记']];
-  for (const record of records) rows.push([record.id, record.title, record.platform, record.url, record.status, record.outcome, new Date(record.createdAt).toISOString(), record.endedAt ? new Date(record.endedAt).toISOString() : '', String(Math.round(record.elapsedMs / 60000 * 10) / 10), record.tags.join(' / '), String(record.mistakes.length), String(record.mistakes.reduce((sum, item) => sum + (item.lostMinutes || 0), 0)), record.note]);
+  const rows = [['ID', '题目', '平台', '链接', '状态', '完成情况', '开始时间', '结束时间', '用时分钟', '标签', '失误次数', '笔记']];
+  for (const record of records) rows.push([record.id, record.title, record.platform, record.url, record.status, record.outcome, new Date(record.createdAt).toISOString(), record.endedAt ? new Date(record.endedAt).toISOString() : '', String(Math.round(record.elapsedMs / 60000 * 10) / 10), record.tags.join(' / '), String(record.mistakes.length), record.note]);
   return '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
 
 export function exportMistakesCsv(records: SolveRecord[]): string {
-  const rows = [['记录 ID', '题目', '平台', '失误时间', '失误原因', '备注', '估计耗时分钟']];
-  for (const record of records) for (const mistake of record.mistakes) rows.push([record.id, record.title, record.platform, new Date(mistake.at).toISOString(), mistake.reason, mistake.note, mistake.lostMinutes == null ? '' : String(mistake.lostMinutes)]);
+  const rows = [['记录 ID', '题目', '平台', '失误时间', '失误原因', '备注', '发生时计时秒数']];
+  for (const record of records) for (const mistake of record.mistakes) rows.push([record.id, record.title, record.platform, new Date(mistake.at).toISOString(), mistake.reason, mistake.note, mistake.elapsedMs == null ? '' : String(Math.floor(mistake.elapsedMs / 1000))]);
   return '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
 }

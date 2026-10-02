@@ -39,6 +39,7 @@
 .rating-account select { max-width: 100%; }
 .rating-facts strong { overflow-wrap: anywhere; }
 .platform-monogram { min-width: 31px; width: auto; padding-inline: 4px; }
+.language-status { display: inline-block; margin-left: 6px; padding: 2px 7px; border: 1px solid var(--interactive-border-hover); border-radius: 999px; color: var(--accent); font-size: var(--font-meta); vertical-align: middle; }
 :root[data-font-size="large"] .histogram { height: 210px; }
 :root[data-font-size="xlarge"] .histogram { height: 224px; }
 :root[data-font-size="xlarge"] .today-oj-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }

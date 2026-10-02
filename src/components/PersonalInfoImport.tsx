@@ -51,7 +51,7 @@ export default function PersonalInfoImport({ accounts, onImported, notify }: { a
   };
 
   return <section className="panel personal-export-panel personal-import-panel">
-    <div className="preference-heading"><ShieldCheck size={18} /><div><small>PERSONAL INFORMATION IMPORT</small><h2>导入个人信息</h2><p>额外导入入口；上方手动填写方式保持不变。</p></div></div>
+    <div className="preference-heading"><ShieldCheck size={18} /><div><small lang="en">PERSONAL INFORMATION IMPORT</small><h2>导入个人信息</h2><p>额外导入入口；上方手动填写方式保持不变。</p></div></div>
     <div className="personal-export-body">
       <div className="personal-export-summary"><div><strong>账号与凭据</strong><span>合并导入，不覆盖训练数据</span></div><p>支持 OJ Insight 导出的个人信息 JSON。同名账号更新，未包含的现有账号会保留。</p></div>
       <div className="personal-export-actions"><input ref={input} type="file" accept="application/json,.json" hidden onChange={(event) => void read(event.target.files?.[0])} /><button className="primary" disabled={busy} onClick={() => input.current?.click()}><FileUp size={15} />{busy ? '导入中…' : '选择备份并导入'}</button></div>

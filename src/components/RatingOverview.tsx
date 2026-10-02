@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type FocusEvent, type
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { api } from '../services/api';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
+import PlatformIcon from './PlatformIcon';
 import type { Platform, RatingHistoryPoint, RatingSummary } from '../types';
 
 type Period = '30' | '90' | 'all';
@@ -131,11 +132,11 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
   return <>
     <div className="section-title rating-title"><small>RATING OVERVIEW · 独立于训练时间范围</small><h2>竞赛 Rating 总览</h2></div>
     <section className="panel rating-panel" style={{ '--rating-color': color } as CSSProperties}>
-      <div className="rating-tabs">
-        {(selectedPlatform ? [selectedPlatform] : RATING_PLATFORMS).map((item) => <button className={item === platform ? 'active' : ''} onClick={() => setPlatform(item)} key={item}>
-          <span className="oj-dot" style={{ background: PLATFORM_META[item].accent }} />{PLATFORM_META[item].short}<small>{PLATFORM_META[item].name}</small>{available.has(item) && <i />}
+      {!selectedPlatform && <div className="rating-tabs">
+        {RATING_PLATFORMS.map((item) => <button className={item === platform ? 'active' : ''} onClick={() => setPlatform(item)} key={item}>
+          <PlatformIcon platform={item} /><strong lang="en">{PLATFORM_META[item].name}</strong>{available.has(item) && <i />}
         </button>)}
-      </div>
+      </div>}
       {!summary ? <div className="rating-empty"><strong>{PLATFORM_META[platform].name} 暂无 Rating 记录</strong><span>请配置 ID 后同步；未参加 Rated 比赛或接口暂不可用时不会显示为 0。LeetCode 当前仅接入国际站，QOJ 读取登录后个人页。</span></div> : <div className="rating-layout">
         <div className="rating-summary">
           <div className="rating-account">{accounts.length > 1 ? <div className="select-wrap"><select aria-label={`${PLATFORM_META[platform].name} Rating 账号`} style={{ color }} value={summary.account} onChange={(event) => { const value = event.target.value; setAccount(value); localStorage.setItem(`oj-insight.rating-account.${platform}`, value); }}>{accounts.map((item) => <option key={item.account} value={item.account}>{item.display_name || item.account}{item.display_name && item.display_name !== item.account ? ` · ${item.account}` : ''}</option>)}</select><ChevronDown size={14} /></div> : <div className="rating-account-name"><strong style={{ color }}>{summary.display_name || summary.account}</strong>{summary.display_name && summary.display_name !== summary.account && <small>{summary.account}</small>}</div>}</div>

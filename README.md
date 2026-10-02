@@ -12,7 +12,7 @@ OJ Insight 是一个面向算法竞赛选手的跨平台训练数据面板。目
 
 OJ Insight is a local-first desktop app for competitive programming practice on Windows, macOS, and Linux. It brings together activity, solved problems, difficulty, and rating history from Codeforces, AtCoder, Luogu, NowCoder, QOJ, and LeetCode. It also includes problem sets, virtual contests, a study assistant, and a solve journal. Data stays on your device, and the app distinguishes individual submissions from platform aggregates when a judge does not expose full history.
 
-English interface support is being rolled out, starting with navigation, core settings, Personalized Training, the Study Assistant, and the Solve Journal. On a new installation the language follows your system; you can change it under Settings → Preferences → Interface language. Problem titles, judge tags, and your own notes remain in their original language. Other screens, some account-management tools, and generated reports are still being translated.
+English interface support is in development, starting with navigation, core settings, Personalized Training, the Study Assistant, and the Solve Journal. On a new installation the language follows your system; you can change it under Settings → Preferences → Interface language. Problem titles, judge tags, and your own notes remain in their original language. Other screens, some account-management tools, and generated reports are still being translated.
 
 [Download the latest release](https://github.com/Whalica/OJ_Insight/releases/latest) · [Build from source](docs/BUILDING.md) · [Report an issue](https://github.com/Whalica/OJ_Insight/issues)
 

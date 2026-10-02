@@ -192,7 +192,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
 
   return <>
     <header className="topbar relationships-head">
-      <div><small>PEOPLE TO WATCH</small><h1>关注</h1><p>关注账号，及时获取新 AC 提醒。</p></div>
+      <div><small lang="en">PEOPLE TO WATCH</small><h1>关注</h1><p>关注账号，及时获取新 AC 提醒。</p></div>
       <div className="relationships-actions">
         <label className="relationship-auto"><span>自动检查</span><button type="button" role="switch" aria-checked={autoCheck} aria-label="自动检查关注账号" className={`switch ${autoCheck ? 'active' : ''}`} onClick={() => onAutoCheck(!autoCheck)}><i /></button></label>
         <button className="relationship-add-trigger" onClick={openAdd}><Plus size={16} />添加关注</button>
@@ -204,7 +204,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
 
     <div className="relationships-layout">
       <section className="panel relationship-people-card">
-        <div className="panel-head"><div><small>WATCH LIST</small><h2>关注列表</h2><p>{people.length ? `共 ${peopleGroups.length} 人 · ${people.length} 个平台账号。` : '还没有添加关注账号。'}</p></div></div>
+        <div className="panel-head"><div><small lang="en">WATCH LIST</small><h2>关注列表</h2><p>{people.length ? `共 ${peopleGroups.length} 人 · ${people.length} 个平台账号。` : '还没有添加关注账号。'}</p></div></div>
         <div className="relationship-list">
           {peopleGroups.map((group) => {
             const expanded = expandedPeople.has(group.key);
@@ -284,7 +284,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
     </div>}
 
     <section className="panel relationship-events-card">
-      <div className="panel-head"><div><small>TODAY AC</small><h2>今日 AC</h2></div><span className="relationship-event-count">{events.length} 条</span></div>
+      <div className="panel-head"><div><small lang="en">TODAY AC</small><h2>今日 AC</h2></div><span className="relationship-event-count">{events.length} 条</span></div>
       <div className="relationship-event-list">
         {events.map((event) => <article className={`relationship-event-row ${event.dismissed ? 'dismissed' : ''}`} key={event.id}>
           {groupByPersonId.has(event.personId)

@@ -35,6 +35,9 @@ struct SolveMistake {
     at: i64,
     reason: String,
     note: String,
+    #[serde(default)]
+    elapsed_ms: Option<i64>,
+    #[serde(default)]
     lost_minutes: Option<i64>,
 }
 
@@ -50,6 +53,9 @@ fn validate(record: &SolveRecord) -> Result<(), String> {
     }
     if record.mistakes.iter().any(|m| m.lost_minutes.is_some_and(|value| value < 0 || value > 100_000)) {
         return Err("失误耗时无效".into());
+    }
+    if record.mistakes.iter().any(|m| m.elapsed_ms.is_some_and(|value| value < 0 || value > record.elapsed_ms)) {
+        return Err("失误计时读数无效".into());
     }
     Ok(())
 }

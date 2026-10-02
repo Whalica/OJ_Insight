@@ -48,8 +48,7 @@
 .study-assistant-problem { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px 8px; }
 .study-assistant-problem input, .study-assistant-problem select, .study-assistant-mistakes input, .study-assistant-mistakes select, .study-assistant-finish select { min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; background: var(--input); color: var(--text); font: inherit; }
 .study-assistant-mistakes, .study-assistant-finish { display: flex; align-items: center; gap: 8px; padding: 0 16px 9px; }
-.study-assistant-mistakes input { width: 110px; }
-.study-assistant-mistakes input[aria-label="失误备注"] { flex: 1; }
+.study-assistant-mistakes input { flex: 1; width: auto; }
 .study-assistant-mistakes button, .study-assistant-finish button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: var(--panel-soft); color: var(--text); cursor: pointer; }
 .study-assistant-mistakes small { color: var(--muted); white-space: nowrap; }
 .study-assistant-finish button { border-color: var(--accent-deep); background: var(--accent-deep); color: #fff; }

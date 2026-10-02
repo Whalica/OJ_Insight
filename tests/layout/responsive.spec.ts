@@ -195,7 +195,7 @@ test('production UI has no animation test button and Luogu shows Rating without 
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Platforms', exact: true }).click();
-  await page.getByRole('button', { name: 'Luogu', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Luogu', exact: true }).click();
   await expect(page.locator('.rating-panel')).toBeVisible();
   await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');
   await expect(page.locator('.recent-panel')).toHaveCount(0);
@@ -238,7 +238,7 @@ test('multiple NowCoder rating users keep separate histories and show public nam
   });
   await installTauriMock(page, { snapshot: { stats, career: stats, daily: [], platforms: [], difficulty: [], difficulty_daily: [], knowledge: [], ratings: [rating('10001', '小牛一号', 1450), rating('10002', '小牛二号', 1670)], recent: [], metric_available: true, warnings: [] } });
   await page.goto('/');
-  await page.locator('.rating-tabs button').filter({ hasText: 'NC' }).click();
+  await page.locator('.rating-tabs button').filter({ hasText: 'NowCoder' }).click();
   const accounts = page.getByRole('combobox', { name: 'NowCoder Rating 账号' });
   await expect(accounts.locator('option')).toHaveText(['小牛一号 · 10001', '小牛二号 · 10002']);
   await accounts.selectOption('10002');

@@ -26,3 +26,17 @@
 :root[data-theme] .nav-title {
   color: var(--accent);
 }
+
+:root :is(h1, h2, h3, strong, small, b)[lang="en"],
+:root[lang="en-US"] :is(h1, h2, h3, strong, b) {
+  color: var(--accent);
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-synthesis: weight;
+}
+
+:root .nav-group-trigger .nav-label[lang="en"],
+:root .difficulty-tabs [lang="en"] {
+  color: var(--accent);
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-synthesis: weight;
+}

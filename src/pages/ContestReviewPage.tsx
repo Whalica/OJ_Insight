@@ -58,10 +58,10 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
   };
 
   return <>
-    {!embedded && <header className="topbar"><div><small>CONTEST REVIEW PACKAGE</small><h1>比赛复盘</h1><p>把比赛、提交与代码整理成统一的四文档压缩包，交给大模型后即可直接开始复盘。</p></div></header>}
+    {!embedded && <header className="topbar"><div><small lang="en">CONTEST REVIEW PACKAGE</small><h1>比赛复盘</h1><p>把比赛、提交与代码整理成统一的四文档压缩包，交给大模型后即可直接开始复盘。</p></div></header>}
     <section className="review-builder">
       <div className="panel review-form">
-        <header><div><small>STEP 1</small><h2>选择比赛</h2></div><span><ShieldCheck size={14} />凭据不会写入复盘包</span></header>
+        <header><div><small lang="en">STEP 1</small><h2>选择比赛</h2></div><span><ShieldCheck size={14} />凭据不会写入复盘包</span></header>
         <label><span>OJ</span><div className="review-platforms">{SUPPORTED.map((item) => <button key={item} type="button" className={platform === item ? 'active' : ''} onClick={() => setPlatform(item)}><i style={{ background: PLATFORM_META[item].accent }} />{PLATFORM_META[item].name}</button>)}</div></label>
         <p className={`review-capability ${supported ? '' : 'unsupported'}`}>{supported ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}{capability}</p>
         <div className="review-fields">
@@ -75,7 +75,7 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
 
       <div className={`panel review-preview ${preview ? 'ready' : ''}`}>
         {!preview ? <div className="review-empty"><Archive size={30} /><strong>等待检查比赛</strong><span>确认能取得的题目、提交和代码后，再选择保存位置。</span></div> : <>
-          <header><div><small>STEP 2</small><h2>{preview.contestName}</h2><p>{PLATFORM_META[preview.platform].name} · {preview.account} · {preview.contestId}</p></div><div className="review-preview-actions"><button type="button" onClick={() => void api.openExternal(preview.contestUrl)}>打开比赛<ExternalLink size={13} /></button><span className={preview.completeness === 'complete' ? 'complete' : 'partial'}>{preview.completeness === 'complete' ? '数据可用' : '部分可用'}</span></div></header>
+          <header><div><small lang="en">STEP 2</small><h2>{preview.contestName}</h2><p>{PLATFORM_META[preview.platform].name} · {preview.account} · {preview.contestId}</p></div><div className="review-preview-actions"><button type="button" onClick={() => void api.openExternal(preview.contestUrl)}>打开比赛<ExternalLink size={13} /></button><span className={preview.completeness === 'complete' ? 'complete' : 'partial'}>{preview.completeness === 'complete' ? '数据可用' : '部分可用'}</span></div></header>
           <div className="review-stats"><div><small>题目</small><strong>{preview.problemCount}</strong></div><div><small>提交</small><strong>{preview.submissionCount}</strong></div><div><small>代码</small><strong>{preview.codeAvailable ? '生成时获取' : '不可用'}</strong></div></div>
           {preview.notes.length > 0 && <div className="review-notes">{preview.notes.map((note) => <p key={note}><AlertTriangle size={13} />{note}</p>)}</div>}
           <div className="review-package"><strong>固定四文档</strong><span>00-START-HERE · 01-CONTEST · 02-PROBLEMS · 03-SUBMISSIONS</span><small>上传后无需解释；若聊天平台要求输入文字，只需说“开始复盘”。</small></div>

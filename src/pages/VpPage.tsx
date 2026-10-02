@@ -50,5 +50,5 @@ export default function VpPage({ notify }: { notify: (message: string) => void }
   const reload = async () => setMatches(await api.listTrainingMatches());
   useEffect(() => { void reload().catch((error) => notify(String(error))); }, [notify]);
   const active = matches.filter((item) => item.status !== 'finished');
-  return <><header className="topbar"><div><small>VIRTUAL PARTICIPATION</small><h1>参赛区</h1><p>准备、倒计时、比赛计时、暂停与赛中笔记都在这里。提交仍在原 OJ 完成。</p></div></header><div className="training-match-list">{active.length ? active.map((item) => <VpCard key={item.id} item={item} notify={notify} reload={reload} />) : <div className="panel training-empty">暂无等待或进行中的 VP。先从“模拟赛”加入一场比赛。</div>}</div></>;
+  return <><header className="topbar"><div><small lang="en">VIRTUAL PARTICIPATION</small><h1>参赛区</h1><p>准备、倒计时、比赛计时、暂停与赛中笔记都在这里。提交仍在原 OJ 完成。</p></div></header><div className="training-match-list">{active.length ? active.map((item) => <VpCard key={item.id} item={item} notify={notify} reload={reload} />) : <div className="panel training-empty">暂无等待或进行中的 VP。先从“模拟赛”加入一场比赛。</div>}</div></>;
 }

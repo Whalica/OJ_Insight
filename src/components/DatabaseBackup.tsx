@@ -27,7 +27,7 @@ export default function DatabaseBackup({ notify }: { notify: (message: string) =
     finally { setBusy(false); }
   };
   return <section className="panel personal-export-panel database-backup-panel">
-    <div className="preference-heading"><ShieldCheck size={18} /><div><small>LOCAL DATA BACKUP</small><h2>备份本机数据库</h2><p>保存一份一致的数据库快照，包含账号、提交、题单、比赛和训练记录。</p></div></div>
+    <div className="preference-heading"><ShieldCheck size={18} /><div><small lang="en">LOCAL DATA BACKUP</small><h2>备份本机数据库</h2><p>保存一份一致的数据库快照，包含账号、提交、题单、比赛和训练记录。</p></div></div>
     <div className="personal-export-body">
       <p>备份文件包含 Cookie 等敏感凭据，请勿公开上传。它不包含界面偏好及已导出的文件；完整迁移仍需先退出应用，再复制整个 OJ Insight 目录。恢复时请先退出应用，把原 <code>data</code> 文件夹移到安全位置，再从 ZIP 解出新的 <code>data/oj-insight.sqlite3</code>。</p>
       <div className="personal-export-actions"><button className="primary" disabled={busy} onClick={() => void backup()}><Download size={15} />{busy ? '备份中…' : '创建数据库备份'}</button>{directory && <button onClick={() => void openPath(directory).catch((error) => notify(String(error)))}><FolderOpen size={15} />打开备份位置</button>}</div>
