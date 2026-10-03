@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { installTauriMock } from './mock-tauri';
+import type { Snapshot } from '../../src/types';
 
 // Deterministic local data; these tests never sync accounts or contact a tracker.
-async function openPage(page: Page, startup: string, compact = false) {
+async function openPage(page: Page, startup: string, compact = false, difficulty: Snapshot['difficulty'] = []) {
   await page.addInitScript(({ startup, compact }) => {
     localStorage.setItem('oj-insight.preferences', JSON.stringify({
       theme: 'gray', autoSync: false, autoCheckUpdates: false, startupPage: 'last',
@@ -17,7 +18,7 @@ async function openPage(page: Page, startup: string, compact = false) {
       career: { solved: 0, accepted_submissions: 0, active_days: 0, longest_streak: 0, current_streak: 0, peak_day: null, peak_count: 0 },
       daily: [{ day: '2024-06-03', count: 4 }],
       platforms: [],
-      difficulty: [],
+      difficulty,
       difficulty_daily: [{ platform: 'codeforces', day: '2024-06-03', label: '1600', order: 1600 }],
       knowledge: ['基础与模拟','数据结构','图论与树','动态规划','数学','字符串','搜索与构造','贪心与思维'].flatMap((axis, index) => [
         { platform: 'codeforces', axis, count: 18 + index * 7, score: 54 + index * 5 },
@@ -199,6 +200,42 @@ test('production UI has no animation test button and Luogu shows Rating without 
   await expect(page.locator('.rating-panel')).toBeVisible();
   await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');
   await expect(page.locator('.recent-panel')).toHaveCount(0);
+});
+
+test('white headings stay white while green kicker labels use the bundled Inter font', async ({ page }) => {
+  await openPage(page, 'overview');
+  const appearance = await page.locator('.dashboard-head').evaluate(async (header) => {
+    await document.fonts.load('700 16px Inter');
+    const title = getComputedStyle(header.querySelector('h1')!);
+    const kicker = getComputedStyle(header.querySelector('small')!);
+    const accent = document.createElement('span');
+    accent.style.color = 'var(--accent)';
+    header.append(accent);
+    return {
+      titleColor: title.color,
+      textColor: getComputedStyle(header).color,
+      kickerColor: kicker.color,
+      accentColor: getComputedStyle(accent).color,
+      interLoaded: document.fonts.check('700 16px Inter'),
+    };
+  });
+  expect(appearance.titleColor).toBe(appearance.textColor);
+  expect(appearance.kickerColor).toBe(appearance.accentColor);
+  expect(appearance.interLoaded).toBe(true);
+});
+
+test('platform difficulty has no platform tabs and LeetCode hides unavailable sections', async ({ page }) => {
+  const difficulty: Snapshot['difficulty'] = [
+    { platform: 'leetcode', label: 'Easy', count: 4, order: 1 },
+    { platform: 'codeforces', label: '1200', count: 3, order: 1200 },
+  ];
+  await openPage(page, 'leetcode', false, difficulty);
+  await expect(page.locator('.career-title')).toBeVisible();
+  await expect(page.locator('.leetcode-strip')).toBeVisible();
+  await expect(page.locator('.difficulty-panel .histogram-leetcode')).toBeVisible();
+  await expect(page.locator('.difficulty-tabs')).toHaveCount(0);
+  await expect(page.locator('.rating-panel, .knowledge-panel, .toolbar, .heat-panel, .recent-panel')).toHaveCount(0);
+  await expect(page.getByText('近一年状态')).toHaveCount(0);
 });
 
 test('sync growth appears beside the changed solved total and fades away', async ({ page }) => {
