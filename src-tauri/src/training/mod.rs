@@ -5,6 +5,7 @@ mod model;
 mod luogu_set;
 mod pack;
 mod problem_set;
+pub(crate) mod nowcoder_identity;
 mod template;
 
 pub(crate) use candidate::{build_candidate_pool, filter_candidates, filter_problem_entries, finalize_candidate_pool};
