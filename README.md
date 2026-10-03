@@ -1,206 +1,205 @@
 # OJ Insight
 
-**把分散在多个 Online Judge 的训练记录，整理成一份可信、清晰、可长期追踪的个人档案。**
+[![Read in Chinese](docs/assets/read-in-chinese.svg)](README.zh-CN.md)
 
-OJ Insight 是一个面向算法竞赛选手的跨平台训练数据面板。目前支持 Codeforces、AtCoder、洛谷、牛客、QOJ 和 LeetCode，并提供独立的 ICPC / CCPC Tracker。所有数据保存在本地，应用会明确区分逐题记录、公开汇总和缺失数据，不用不可比的口径拼出“看起来完整”的统计。
+**Turn practice records scattered across Online Judges into a clear, trustworthy history of your progress.**
 
-[下载最新版本](https://github.com/Whalica/OJ_Insight/releases/latest) · [查看更新记录](docs/UPDATEINFO.md) · [反馈问题](https://github.com/Whalica/OJ_Insight/issues) · [源码构建](docs/BUILDING.md) · [用户手册](docs/manual/user-manual.pdf)
+OJ Insight is a local-first desktop dashboard for competitive programmers. It supports Codeforces, AtCoder, Luogu, NowCoder, QOJ, and LeetCode, and includes a separate ICPC / CCPC Tracker. It keeps your data on your device and distinguishes verified submissions, public aggregates, and unavailable data instead of presenting incompatible sources as one complete record.
 
-当前版本：**v0.10.3**，支持 Windows、MacOS 和 Linux。
+[Download the latest release](https://github.com/Whalica/OJ_Insight/releases/latest) · [Release notes (Chinese)](docs/UPDATEINFO.md) · [Report an issue](https://github.com/Whalica/OJ_Insight/issues) · [Build from source (Chinese)](docs/BUILDING.md) · [User manual (Chinese)](docs/manual/user-manual.pdf)
 
-## English overview
+Current version: **v0.10.3**. Available for Windows, macOS, and Linux.
 
-OJ Insight is a local-first desktop app for competitive programming practice on Windows, macOS, and Linux. It brings together activity, solved problems, difficulty, and rating history from Codeforces, AtCoder, Luogu, NowCoder, QOJ, and LeetCode. It also includes problem sets, virtual contests, a study assistant, and a solve journal. Data stays on your device, and the app distinguishes individual submissions from platform aggregates when a judge does not expose full history.
+The English interface is still in development. Navigation and several training tools have initial translations, while other screens remain in Chinese. The language selector is temporarily hidden. Problem titles, judge tags, and your notes stay in their original language.
 
-English interface support is in development, starting with navigation, core settings, Personalized Training, the Study Assistant, and the Solve Journal. On a new installation the language follows your system; you can change it under Settings → Preferences → Interface language. Problem titles, judge tags, and your own notes remain in their original language. Other screens, some account-management tools, and generated reports are still being translated.
+## Why use OJ Insight?
 
-[Download the latest release](https://github.com/Whalica/OJ_Insight/releases/latest) · [Build from source](docs/BUILDING.md) · [Report an issue](https://github.com/Whalica/OJ_Insight/issues)
+### One dashboard for six judges
 
-## 为什么使用 OJ Insight
+See your accounts, activity, solved counts, difficulty distribution, and rating history together. You can configure multiple accounts on the same platform.
 
-### 一个面板查看六个 OJ
+### Broad coverage without inventing data
 
-不再分别打开多个个人主页。OJ Insight 将不同平台的账号、训练活动、解题数、难度分布和 Rating 变化集中展示，并支持同一平台配置多个账号。
+Judges expose different kinds of information. OJ Insight distinguishes:
 
-### 统计全面，但不牺牲准确性
+- verifiable, problem-level accepted submissions;
+- daily activity or solved-count aggregates supplied by a platform;
+- information that cannot currently be retrieved.
 
-不同 OJ 开放的数据并不相同。OJ Insight 会区分：
+The app does not fabricate submissions when only aggregates are available, or convert ratings and difficulty scales into a misleading cross-platform score. A failed sync updates the error status while leaving previously cached data available.
 
-- 可验证的逐题 AC 记录；
-- 平台只提供的日期活动或题量汇总；
-- 暂时不可获取的数据。
+### ICPC / CCPC upsolving
 
-缺少逐题历史时不会伪造提交，Rating 和难度也不会跨平台强行换算。同步失败只更新错误状态，已经缓存的数据仍可继续查看。
+The ICPC / CCPC Tracker collects ICPC, CCPC, and provincial contest problem sets. Filter by year, stage, site, series, completion progress, and problem tier; gold, silver, bronze, and iron tiers can be selected together. Completion comes from local QOJ records. When public standings are available, the tracker also shows the corresponding problem tiers.
 
-### 从日常训练延伸到 ICPC / CCPC 补题
+### Problem sets, mock contests, virtual contests, and review
 
-ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段、赛站、系列、完成进度和题目颜色筛选，金、银、铜、铁可同时多选。题目完成状态来自本地 QOJ 记录，公开榜单可用时还会显示对应难度层级。
+**Problem Sets** organize and share problems across judges. Paste a problem URL to identify its platform and problem ID offline, then fetch or enter a title and tags as needed. **Mock Contests** store independent configurations and past sessions. Create one from a problem set, build it manually, or import an AI-generated result. Contest descriptions support Markdown and LaTeX.
 
-### 从题单到模拟赛、VP 与复盘
+In the virtual contest area, you can save a pre-contest countdown. The countdown starts only when you select **Start VP**; the contest begins when it reaches zero. During a VP, you can pause, resume, or finish the session and record notes for individual problems or the whole contest. Submit solutions on the original judge. OJ Insight updates progress from local AC syncs and available Codeforces / AtCoder verdicts; it does not infer a wrong answer when failed submissions are unavailable.
 
-「题单」用于整理和分享跨 OJ 题目；粘贴链接即可离线识别平台与题目标识并保存，真实标题和标签可按需获取或手动填写。「模拟赛」保存独立的比赛配置与历史场次，可由题单生成、手动创建或导入 AI 结果；比赛说明支持 Markdown 和 LaTeX。加入「参赛区」后可预设赛前倒计时秒数，点击「开始 VP」才启动倒计时，到零后开始比赛。赛中可暂停、继续或结束 VP，并记录单题思路和整场笔记。用户仍在原 OJ 提交，OJ Insight 根据本地 AC 同步与可获取的 Codeforces / AtCoder 提交记录更新状态和 verdict。无法获取的错误提交不会被推断为 WA。
+The floating **Study Assistant** times a practice session, keeps Markdown notes, and records mistakes. Ending a session saves it to the **Solve Journal**; closing the assistant keeps a draft. The journal supports search, filters, and JSON / CSV exports. With the desktop app running, Competitive Companion can create a draft for the current problem; you start the timer when you are ready.
 
-「个性化组题」不会把已有题单当作初始候选。OJ Insight 从可靠的 Codeforces、AtCoder 和 QOJ 目录筛选候选题，排除本地已做题，导出包含画像、约束、候选池和完整指令的 ZIP。直接上传 ZIP 即可让大模型生成比赛 JSON；额外要求可选。生成结果可导入为题单或比赛。
+**Personalized Training** builds a candidate pool from reliable Codeforces, AtCoder, and QOJ catalogs rather than treating existing problem sets as its initial candidates. It excludes locally solved problems and exports a self-contained ZIP with your profile, constraints, candidates, and complete instructions. Upload the ZIP to a language model to generate contest JSON; extra requirements are optional. Import the result as a problem set or contest.
 
-「推荐题单」会从 [OJ Insight Community](https://github.com/Whalica/OJ_Insight-Community) 的审核目录浏览社区题单，按本地记录显示通过状态，预览后保存为本地副本。本地题单可制作社区投稿 JSON，再通过仓库 PR 投稿；个人提交记录、笔记和代码不会自动上传。洛谷题单也可通过链接读取并预览后保存；页面如要求登录，可在导入时临时填写洛谷 Cookie，不会保存到账号设置。可可靠识别的 Codeforces、AtCoder 远程题会使用原站身份和链接。
+**Community Sets** browse reviewed lists from [OJ Insight Community](https://github.com/Whalica/OJ_Insight-Community). Preview a set, compare it with local completion records, and save a local copy. You can prepare a community submission JSON from a local set and submit it through a repository PR. Personal submissions, notes, and code are never uploaded automatically. Luogu lists can also be imported by URL; if login is required, you may supply a temporary Luogu Cookie for that import. Recognized Codeforces and AtCoder problems retain their original identities and links.
 
-### 把一场比赛直接交给大模型复盘
+### Contest review packages for a language model
 
-「赛后分析」汇总已结束的 VP 与 AtCoder 正式比赛。VP 可补充 Markdown 笔记、按题绑定本地代码，并导出含比赛数据、可获取提交和代码的复盘 ZIP。正式比赛复盘可按账号和 AtCoder 比赛 ID 收集题目、提交时间线、判题结果与可获取代码。两个包都包含给大模型的入口说明。
+**Contest Review** covers finished VPs and official AtCoder contests. Add Markdown notes to a VP, attach local code to individual problems, and export a ZIP with contest data, available submissions, and code. For an official AtCoder contest, choose an account and contest ID to collect problems, the submission timeline, verdicts, and any retrievable code. Both packages include a starting document for a language model.
 
-### 本地保存，方便迁移
+### Local storage and easy migration
 
-账号设置、同步结果、训练记录和导出文件都保存在应用自己的数据目录中。无需注册 OJ Insight 账号，复制数据目录即可备份或迁移。
+Account settings, sync results, training records, and exports live in the app's data directory. No OJ Insight account is required. Back up or migrate by copying that directory after closing the app.
 
-## 你可以看到什么
+## What you can see
 
-- **生涯与区间统计**：Solved、AC Submissions、Active Days、最长连续训练、当前连续训练和单日峰值。
-- **关注提醒**：添加队友、学弟等公开账号，检查并显示今天的 AC；同一提交只提醒一次。
-- **活动砖**：按自然年或最近 365 天查看 First AC、Unique AC、AC Submissions 和平台原始 Activity。
-- **难度足迹**：保留各 OJ 自己的难度体系，点击柱形或日期可查看对应题目。
-- **Rating 总览**：查看当前 Rating、历史最高、最近变化和比赛曲线，并可直接打开对应比赛。
-- **近期记录**：集中浏览最近 AC，点击即可跳转题面。
-- **ICPC / CCPC Tracker**：按比赛追踪补题进度，并结合公开榜单观察题目层级。
-- **图片导出**：按年份、统计口径和平台导出 PNG 或 SVG 活动图。
-- **比赛复盘包**：正式比赛与 VP 分开整理；VP 可导出笔记、可获取的提交及用户绑定的本地代码。
-- **跨 OJ 题单**：本地创建、查看、排序、导入和导出固定题单，并转换为模拟赛。
-- **模拟赛与 VP**：独立比赛配置、赛前倒计时、暂停计时、Markdown 笔记及可获取的 AC / WA 等判题结果。
-- **AI 组题包**：从可靠目录筛选候选题，导出自包含 ZIP；生成结果可导入为题单或比赛。
+- **Career and selected-range statistics:** solved problems, accepted submissions, active days, longest and current streaks, and the busiest day.
+- **Following notifications:** watch public accounts of teammates or friends and see today's ACs, with one notification per submission.
+- **Activity heatmaps:** view a calendar year or the last 365 days using First AC, Unique AC, AC Submissions, or the platform's original Activity count.
+- **Difficulty footprint:** retain each judge's own difficulty scale and open the matching problems from a bar or date.
+- **Rating overview:** inspect current and peak ratings, recent changes, contest curves, and links to contests where supported.
+- **Recent records:** browse recent accepted problems and open their statements.
+- **ICPC / CCPC Tracker:** follow contest upsolving and examine problem tiers from public standings.
+- **Image export:** export PNG or SVG activity charts by year, metric, and platform.
+- **Contest review ZIPs:** package official contests or VPs separately; VP packages may include notes, available submissions, and code you attached.
+- **Cross-judge problem sets:** create, sort, import, export, and turn fixed sets into mock contests.
+- **Study Assistant and Solve Journal:** time practice, keep notes and mistakes, revisit saved sessions, and export your records.
+- **Mock and virtual contests:** independent configurations, pre-contest countdowns, pause controls, Markdown notes, and available AC / WA verdicts.
+- **AI training packages:** export a self-contained candidate ZIP and import generated JSON as a set or contest.
 
-## 平台支持
+## Supported platforms
 
-| 平台 | 账号填写 | 主要可用数据 | 额外说明 |
+| Platform | Account ID | Main available data | Notes |
 |---|---|---|---|
-| Codeforces | Handle | 逐题 AC、难度、Rating | 无需 Cookie |
-| AtCoder | 用户名 | 逐题 AC、难度、Algorithm Rating | 公共题目元数据会在本地缓存 |
-| 洛谷 | 用户名或数字 UID | 提交或公开活动、题量、官方难度 | 接口受限时安全降级为汇总数据 |
-| 牛客 | 数字 User ID | 普通题 AC、Tracker 完成记录 | Tracker 数据可选填 Cookie |
-| QOJ | 用户名 | 逐题 AC、ICPC / CCPC 补题进度 | 完整提交列表需要 `UOJSESSID` |
-| LeetCode | 用户名或 `cn:用户名` | 活动、题量、难度；国际站 Rating | 中国站部分接口可选填 Cookie |
+| Codeforces | Handle | Problem-level ACs, difficulty, Rating | No Cookie required |
+| AtCoder | Username | Problem-level ACs, difficulty, Algorithm Rating | Public problem metadata is cached locally |
+| Luogu | Username or numeric UID | Submissions or public activity, solved counts, official difficulty | Falls back to aggregates when an endpoint is restricted |
+| NowCoder | Numeric user ID | Regular problem ACs, Tracker completion | Tracker data may use an optional Cookie |
+| QOJ | Username | Problem-level ACs and ICPC / CCPC upsolving | The full submission list requires `UOJSESSID` |
+| LeetCode | Username or `cn:username` | Solved counts and difficulty; international-site contest Rating where available | Some China-site endpoints may use an optional Cookie |
 
-上游网站可能调整接口或限制访问，因此同一平台在不同时间可取得的数据粒度可能不同。应用会在数据源状态和统计页面明确显示当前边界。
+Upstream sites may change their endpoints or limit access. The amount of data available for a platform can therefore change over time. OJ Insight shows the current limitations on its source-status and statistics pages.
 
-## 快速开始
+## Quick start
 
-1. 从 [Releases](https://github.com/Whalica/OJ_Insight/releases/latest) 下载对应平台的安装包。
-2. 打开「设置」，填写需要同步的 OJ 账号并保存。
-3. 打开「数据源」，对新账号执行一次「重新同步全部」。
-4. 此后使用「同步最新记录」或「同步全部」更新数据。
+1. Download the installer for your operating system from [Releases](https://github.com/Whalica/OJ_Insight/releases/latest).
+2. Open **Settings**, enter the judge accounts you want to sync, and save them.
+3. Open **Data Sources** and run a full sync for new accounts.
+4. Use the incremental or full sync controls to update your records later.
 
-应用启动时会先显示本地缓存，再在后台同步已配置的平台并检查更新。这两项行为都可以在设置中关闭。
+At startup, the app shows cached data first, then syncs configured platforms and checks for updates in the background. Both startup behaviors can be disabled in Settings.
 
-### 生成比赛复盘包
+### Generate a contest review package
 
-1. 先在「设置」中保存 AtCoder 账号。
-2. 打开「赛后分析」中的「正式比赛复盘」，选择账号，输入比赛 ID 或完整链接。
-3. 检查比赛后选择是否包含赛后补题，再生成 ZIP。
+1. Save an AtCoder account in Settings.
+2. Open **Contest Review → Official Contest Review**, select the account, and enter a contest ID or full URL.
+3. Check the contest, choose whether to include post-contest practice, and generate the ZIP.
 
-复盘包固定包含 `00-START-HERE.md`、`01-CONTEST.md`、`02-PROBLEMS.md` 和 `03-SUBMISSIONS.md`。Cookie、Session、本机用户名和本地路径不会写入包中；代码或题面无法读取时，包内会明确说明缺失项。
+The package always includes `00-START-HERE.md`, `01-CONTEST.md`, `02-PROBLEMS.md`, and `03-SUBMISSIONS.md`. It does not include Cookies, Sessions, local usernames, or local paths. If code or a statement cannot be retrieved, the package names the missing item.
 
-### 创建训练赛
+### Create a training contest
 
-1. 打开「题单」，粘贴题目链接并按需设置角色和备注；平台与题目标识可离线识别，标题和标签可选填或主动查询。题单与模拟赛说明支持 Markdown 和 LaTeX。
-2. 在「模拟赛」把题单转换为独立比赛，或直接创建比赛。
-3. 在「参赛区」可先保存赛前倒计时秒数；点击「开始 VP」后才开始倒计时，到零后进入比赛。赛中可暂停计时并记录思路。
-4. 个性化组题时，先生成候选池并导出 ZIP；把 ZIP 上传给大模型，得到 JSON 后导入为题单或比赛。
-5. 在原 OJ 提交；赛后到「赛后分析」绑定可用的本地代码并导出复盘包。
+1. In **Problem Sets**, paste problem URLs and optionally add roles and notes. Platform and problem ID can be identified offline; title and tags can be entered or fetched on request. Set and contest descriptions support Markdown and LaTeX.
+2. Convert a set into an independent contest in **Mock Contests**, or create one directly.
+3. In the virtual contest area, save an optional pre-contest countdown. Select **Start VP** to begin it. Pause the clock or record your ideas during the session.
+4. For Personalized Training, export a candidate ZIP, upload it to a language model, and import the resulting JSON as a set or contest.
+5. Submit on the original judge. Afterwards, attach available local code in **Contest Review** and export a review package.
 
-个性化候选池严格排除本地已做题，并跳过 interactive、output-only 和明确标记为不适合日常训练的题目。手动题单和比赛可由用户自行编排。默认在 AC 后显示标签，减少知识点剧透。
+Personalized candidates exclude locally solved problems and skip interactive, output-only, or explicitly unsuitable daily-practice problems. Manually assembled sets and contests remain under your control. Tags are hidden until AC by default to avoid revealing a problem's intended technique.
 
-候选池还会按已有逐题难度记录估计每个平台的训练区间，并轮流从各平台取题。洛谷练习页若提供逐题通过标识，题单会显示通过状态，筛题时也会排除这些题目；这份清单不计入提交次数或今日进度。
+The candidate pool estimates a training range per judge from known problem-level difficulty records and rotates among platforms. If a Luogu practice page exposes problem-level completion, sets display it and candidate selection can exclude those problems. That completion list does not add to submission counts or today's progress.
 
-### 下载哪个文件
+### Which download should I choose?
 
-- **Windows**：下载名称包含 `Windows` 的 EXE 安装包。
-- **MacOS**：下载名称包含 `universal-MacOS` 的 DMG，同时支持 Intel 与 Apple Silicon。
-- **Linux**：下载名称包含 `Linux` 的 AppImage。
+- **Windows:** the EXE installer with `Windows` in its filename.
+- **macOS:** the `universal-MacOS` DMG, supporting Intel and Apple Silicon.
+- **Linux:** the AppImage with `Linux` in its filename.
 
-## 账号与凭据
+## Accounts and credentials
 
 ### QOJ
 
-QOJ 需要登录后才能查看完整提交列表：
+QOJ requires a login to expose the full submission list:
 
-1. 在浏览器登录 [QOJ](https://qoj.ac)。
-2. 在开发者工具的 Cookies 中找到 `UOJSESSID`。
-3. 在 OJ Insight 的 QOJ Secret 中填入完整 Cookie 或仅填写 value。
+1. Log in to [QOJ](https://qoj.ac) in your browser.
+2. Find `UOJSESSID` under Cookies in the browser developer tools.
+3. Enter either the full Cookie or just its value in OJ Insight's QOJ Secret field.
 
 ```text
 UOJSESSID=xxxxxxxx
 ```
 
-Cookie 过期会显示需要重新登录；已登录但确实没有 AC 会正常记录为 0；网页结构变化或网络错误则会保留具体错误信息和旧缓存。
+An expired Cookie is reported as a login problem. A logged-in account with no ACs correctly shows zero. A page-layout or network failure retains the specific error and the previous cache.
 
-### LeetCode 中国站
+### LeetCode China
 
-中国站用户名需要使用 `cn:` 前缀：
+Prefix China-site usernames with `cn:`:
 
 ```text
-cn:用户名
+cn:username
 ```
 
-公开接口不可用时，可以填写对应站点 Cookie 后重试。国际站直接填写 `/u/` 后的用户名。
+If a public endpoint is unavailable, you can enter a Cookie for that site and retry. For the international site, enter the username after `/u/`.
 
-### 凭据安全
+### Credential safety
 
-Cookie 和 Session 等价于登录凭据，请勿把数据库、完整日志或含凭据的个人信息导出交给不信任的人。
+Cookies and Sessions are login credentials. Do not share a database, full log, or personal-data export containing credentials with someone you do not trust.
 
-个人信息 JSON 默认不包含 Cookie / Session；只有主动选择完整导出并确认警告后才会包含。运行日志会对用户填写的 Secret 和 `UOJSESSID` 脱敏。
+The standard personal-information JSON export omits Cookies and Sessions. They are included only when you explicitly choose a full export and confirm the warning. Runtime logs redact user-provided Secrets and `UOJSESSID`.
 
-## 统计口径
+## How statistics are counted
 
-### Career 与当前范围
+### Career and selected range
 
-Career 始终基于本地已知的全部历史，不随年份或「至今」切换。当前范围只统计选中的自然年或截至今天最近 365 天。
+Career uses all locally known history and does not change when you select a year or “To date.” The selected range covers one calendar year or the most recent 365 days through today.
 
-- **Solved**：各平台内至少 AC 一次的不同题数之和，不跨 OJ 去重。
-- **AC Submissions**：数据源能够取得的 Accepted submission 数量。
-- **Active Days**：Activity 大于 0 的不同日期数。
-- **Longest Streak**：历史最长连续活跃天数。
-- **Current Streak**：截至今天的连续活跃天数。
-- **Peak Day**：所选口径下记录最多的一天。
+- **Solved:** the sum of distinct problems accepted at least once within each platform; no deduplication across judges.
+- **AC Submissions:** the number of accepted submissions available from the source.
+- **Active Days:** distinct dates with Activity above zero.
+- **Longest Streak:** the longest historical run of active days.
+- **Current Streak:** the active-day run ending today.
+- **Peak Day:** the day with the highest count under the selected metric.
 
-### Activity 四种口径
+### Four Activity metrics
 
-- **First AC**：一道题在生涯中第一次 AC 的日期计 1。
-- **Unique AC**：同一道题同一天无论 AC 几次只计 1。
-- **AC Submissions**：每条 Accepted submission 都计数。
-- **Platform Activity**：平台公开的原始日期活动量，主要用于只能获得日历汇总的数据源。
+- **First AC:** count one on the first date a problem was accepted in the account's history.
+- **Unique AC:** count a problem at most once per day, even if accepted repeatedly.
+- **AC Submissions:** count every accepted submission.
+- **Platform Activity:** use the judge's published daily activity, chiefly for sources that expose only calendar aggregates.
 
-带准确时间的记录会按所选时区重新计算日期。上游只提供 `YYYY-MM-DD` 的记录会保留来源日期，不会假造提交时刻。
+Records with exact timestamps are assigned dates in the selected time zone. When an upstream source provides only `YYYY-MM-DD`, the source date is retained; no submission time is invented.
 
-### 难度
+### Difficulty
 
-难度是有序变量，因此使用直方图展示，并保留平台自身体系：
+Difficulty is ordered, so the app shows histograms while preserving each platform's scale:
 
-- Codeforces：官方 Rating 分段；
-- AtCoder：AtCoder Difficulty；
-- 洛谷：官方难度；
-- LeetCode：Easy、Medium、Hard；
-- 牛客和 QOJ：仅在存在可靠难度来源时展示。
+- Codeforces: official Rating bands;
+- AtCoder: AtCoder Difficulty;
+- Luogu: official difficulty levels;
+- LeetCode: Easy, Medium, and Hard;
+- NowCoder and QOJ: shown only with a reliable difficulty source.
 
-总览通过平台标签切换难度分布，不把不同 OJ 的体系换算成一个虚假的统一分数。已识别但没有可靠难度的题目会明确归入「未评级」。
+The overview switches between platforms instead of converting their scales into a fictitious common score. Recognized problems without reliable difficulty are explicitly marked **Unrated**.
 
-## 同步与数据管理
+## Sync and data management
 
-- **同步最新记录**：从上次成功的位置继续读取新记录并自动去重，适合日常使用。
-- **重新同步全部**：重新获取该平台当前能够取得的完整数据并替换对应缓存，适合数据缺失或升级后显示异常时使用。
-- **清空单站**：删除该 OJ 的同步数据，保留账号设置。
-- **清空所有**：清空六个 OJ 的同步数据，仍保留账号设置。
+- **Incremental sync:** continue from the last successful point and deduplicate new records; intended for daily use.
+- **Full sync:** fetch all data currently available from a platform and replace its cache; useful after missing data or an upgrade.
+- **Clear one platform:** remove that judge's synced data while keeping its account settings.
+- **Clear all:** remove synced data for all six judges while keeping account settings.
 
-同步全部会逐站执行。一个平台失败不会中断其他平台，也不会删除该平台上次成功的数据。
+A full sync runs platform by platform. One failure does not stop the others or delete that platform's last successful data. Deleting or renaming an account clears only that account's local records. Re-add a deleted account and sync it again to restore its data.
 
-删除或改名账号时，应用会清理对应账号的本地记录，不影响同一平台的其他账号。重新添加已经删除的账号后需要重新同步。
+## Data location and backup
 
-## 数据位置与备份
-
-| 系统 | 默认位置 |
+| System | Default location |
 |---|---|
-| Windows | `OJ Insight.exe` 所在目录 |
-| MacOS | `~/Library/Application Support/com.ojinsight.app/` |
-| Linux | 通常为 `~/.local/share/com.ojinsight.app/` |
+| Windows | The directory containing `OJ Insight.exe` |
+| macOS | `~/Library/Application Support/com.ojinsight.app/` |
+| Linux | Usually `~/.local/share/com.ojinsight.app/` |
 
-实际路径可以在应用「关于」页面查看。目录结构如下：
+The actual path is shown on the app's **About** page. A typical directory looks like:
 
 ```text
 OJ Insight/
@@ -210,21 +209,21 @@ OJ Insight/
 └─ webview/
 ```
 
-迁移前请先退出应用，再复制整个目录。Windows 版需要放在普通用户可写的位置，不建议放进 `Program Files`。
+Exit the app before copying the whole directory for migration. On Windows, use a location that ordinary users can write to rather than `Program Files`.
 
-设置页可以在应用运行时创建经过 SQLite 完整性检查的数据库 ZIP 快照，包含账号、同步数据、题单、比赛和训练记录。ZIP 包含账号凭据，请妥善保管；它不包含界面偏好、已导出文件或 WebView 数据。要恢复数据库，请先退出应用，把原 `data/` 文件夹移到安全位置，再从 ZIP 解出 `data/oj-insight.sqlite3` 到应用目录。需要完整迁移时，仍应退出应用后复制整个目录。
+Settings can create a database ZIP snapshot while the app is running, after a SQLite integrity check. It includes accounts, sync data, problem sets, contests, and training records. **The ZIP contains account credentials.** It does not include interface preferences, exported files, or WebView data. To restore, exit the app, move the original `data/` folder to a safe place, and extract `data/oj-insight.sqlite3` from the ZIP into the app directory. For a complete migration, exit the app and copy the whole directory.
 
-## 更新与故障排查
+## Updates and troubleshooting
 
-应用可以自动检查并安装带签名的新版本，也可以从 [Releases](https://github.com/Whalica/OJ_Insight/releases/latest) 手动下载。
+The app can check for and install signed updates, or you can download a release manually from [Releases](https://github.com/Whalica/OJ_Insight/releases/latest).
 
-同步出现问题时，请先查看「数据源」页面显示的错误和 `logs/oj-insight.log`。反馈 Issue 时可以附上已经确认脱敏的相关日志行，但不要上传 Cookie、Session 或完整数据库。
+For sync problems, check the error on **Data Sources** and `logs/oj-insight.log`. You may attach relevant, verified-redacted log lines to an Issue, but do not upload Cookies, Sessions, or a complete database.
 
-MacOS 社区构建如果出现 Gatekeeper 提示，以及 Linux Wayland / niri 环境下的启动问题，请参阅[构建与故障排查说明](docs/BUILDING.md)。
+For Gatekeeper prompts with community macOS builds or startup issues under Linux Wayland / niri, see the [build and troubleshooting guide (Chinese)](docs/BUILDING.md).
 
-## 开发与贡献
+## Development and contributions
 
-OJ Insight 使用 Tauri 2、React、TypeScript、Rust 和 SQLite。源码开发需要 Node.js 22+、pnpm 11+ 与 Rust stable。
+OJ Insight uses Tauri 2, React, TypeScript, Rust, and SQLite. Source development requires Node.js 22+, pnpm 11+, and stable Rust.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -233,4 +232,4 @@ pnpm build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-项目的模块职责和依赖方向见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，完整的系统依赖、三平台构建、发布流程和回归检查见 [docs/BUILDING.md](docs/BUILDING.md)。欢迎通过 [Issue](https://github.com/Whalica/OJ_Insight/issues) 报告数据源变化、统计问题或体验建议。
+See [architecture notes (Chinese)](docs/ARCHITECTURE.md) for module responsibilities and dependency direction. The [build guide (Chinese)](docs/BUILDING.md) covers system packages, three-platform builds, releases, and regression checks. Please [open an Issue](https://github.com/Whalica/OJ_Insight/issues) for upstream-source changes, incorrect statistics, or usability suggestions.
