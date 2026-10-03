@@ -160,4 +160,5 @@
 :root[data-density="compact"] .compact-problems .xcpc-problem { height: 35px; }
 :root[data-density="compact"] .xcpc-problem>button { height: 50px; }
 :root[data-density="compact"] .compact-problems .xcpc-problem>button { height: 100%; }
+:root .xcpc-panel.hide-difficulty .xcpc-problem { --tier-color: var(--muted); }
 @media (max-width: 1200px) { .xcpc-toolbar { align-items: flex-start; flex-direction: column; }.xcpc-view-options { width: 100%; justify-content: space-between; }.xcpc-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }.xcpc-summary>div:nth-child(2) { border-right: 0; }.xcpc-summary>div:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); } }

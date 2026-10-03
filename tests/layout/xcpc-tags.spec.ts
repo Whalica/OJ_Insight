@@ -12,7 +12,7 @@ const cases: Array<Pick<XcpcContest, 'name' | 'shortName' | 'series' | 'stage' |
 const contests: XcpcContest[] = cases.map((item, index) => ({
   ...item, id: String(index), url: `https://qoj.ac/contest/${index}`, date: '2026-09-06', year: '2026', ratingsStale: false,
   problems: [{ index: 'A', name: 'Recall', problemId: String(index), url: `https://qoj.ac/problem/${index}`,
-    tier: 'bronze', acceptedTeams: 1019, totalTeams: 2535, tagAxes: ['图论与树'], tags: ['最短路'], solved: true }],
+    tier: (['gold', 'silver', 'iron', 'bronze', 'bronze'] as const)[index], acceptedTeams: 1019, totalTeams: 2535, tagAxes: ['图论与树'], tags: ['最短路'], solved: true }],
 }));
 
 async function openTracker(page: Page) {
@@ -103,4 +103,23 @@ test('name preferences, AC progress, rating colors, counts and links are preserv
   await expect(page.locator('.xcpc-panel')).toHaveClass(/hide-difficulty/);
   await page.getByRole('switch', { name: '难度颜色', exact: true }).click();
   await expect(page.locator('.xcpc-panel')).not.toHaveClass(/hide-difficulty/);
+});
+
+test('difficulty color switch changes rendered problem colors in every theme', async ({ page }) => {
+  await openTracker(page);
+  const problemColors = () => page.locator('tbody .xcpc-problem > button strong').evaluateAll((items) =>
+    items.map((item) => getComputedStyle(item).color));
+  const toggle = page.getByRole('switch', { name: '难度颜色', exact: true });
+  for (const theme of ['dark', 'light', 'gray']) {
+    await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+    const enabled = await problemColors();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    const disabled = await problemColors();
+    expect(new Set(disabled).size).toBe(1);
+    expect(disabled[0]).not.toBe(enabled[0]);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(await problemColors()).toEqual(enabled);
+  }
 });

@@ -13,7 +13,7 @@ test.describe('new installation', () => {
   });
 });
 
-test('existing settings keep Chinese and language switch persists across windows', async ({ page }) => {
+test('language controls are hidden while saved language preferences still work', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('oj-insight.preferences')) {
       localStorage.setItem('oj-insight.preferences', JSON.stringify({
@@ -26,8 +26,15 @@ test('existing settings keep Chinese and language switch persists across windows
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button', { name: '个性化', exact: true }).click();
-  await page.getByRole('button', { name: 'English', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /界面语言.*开发中/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'English', exact: true })).toHaveCount(0);
+  await page.evaluate(() => {
+    const current = JSON.parse(localStorage.getItem('oj-insight.preferences') || '{}');
+    localStorage.setItem('oj-insight.preferences', JSON.stringify({ ...current, language: 'en-US' }));
+  });
+  await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Training Center' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('oj-insight.preferences') || '{}').language)).toBe('en-US');

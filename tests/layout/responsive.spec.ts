@@ -213,14 +213,22 @@ test('white headings stay white while green kicker labels use the bundled Inter 
     header.append(accent);
     return {
       titleColor: title.color,
+      titleFont: title.fontFamily,
       textColor: getComputedStyle(header).color,
+      bodyFont: getComputedStyle(document.documentElement).fontFamily,
       kickerColor: kicker.color,
+      kickerFont: kicker.fontFamily,
       accentColor: getComputedStyle(accent).color,
+      strongFont: getComputedStyle(document.querySelector('.stat-card strong')!).fontFamily,
       interLoaded: document.fonts.check('700 16px Inter'),
     };
   });
   expect(appearance.titleColor).toBe(appearance.textColor);
   expect(appearance.kickerColor).toBe(appearance.accentColor);
+  expect(appearance.bodyFont).not.toMatch(/^Inter/);
+  expect(appearance.titleFont).toMatch(/^Inter/);
+  expect(appearance.kickerFont).toMatch(/^Inter/);
+  expect(appearance.strongFont).toMatch(/^Inter/);
   expect(appearance.interLoaded).toBe(true);
 });
 
