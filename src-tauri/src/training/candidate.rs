@@ -59,7 +59,7 @@ fn filter_candidates_with_count(conn: &Connection, candidates: Vec<CanonicalProb
     let mut excluded_solved = 0;
     let mut seen = HashSet::new();
     let mut solved = HashSet::new();
-    let mut statement = conn.prepare("SELECT platform,problem_key FROM submissions UNION SELECT platform,problem_key FROM solved_inventory").map_err(|error| error.to_string())?;
+    let mut statement = conn.prepare("SELECT platform,problem_key FROM solved_problem_keys").map_err(|error| error.to_string())?;
     for row in statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(|error| error.to_string())? {
         solved.insert(row.map_err(|error| error.to_string())?);
     }
@@ -317,6 +317,20 @@ async fn fetch_qoj(client: &Client, cache_path: &Path, cookie: &str) -> Result<V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nowcoder_aliases_are_excluded_from_candidates_without_name_matching() {
+        let conn = crate::db::open(std::path::Path::new(":memory:")).unwrap();
+        conn.execute("INSERT INTO submissions(platform,submission_id,problem_key,epoch_second) VALUES('nowcoder','1','269161',100)", []).unwrap();
+        crate::db::save_nowcoder_problem_aliases(&conn, "269161", &["78807/D".into()]).unwrap();
+        let candidates = [("nowcoder", "78807/D"), ("nowcoder", "78807/E"), ("qoj", "269161")]
+            .into_iter().map(|(platform, key)| serde_json::from_value(serde_json::json!({
+                "platform": platform, "problemKey": key, "name": "Bingbong的奇偶世界"
+            })).unwrap()).collect();
+        let (remaining, excluded) = filter_candidates_with_count(&conn, candidates).unwrap();
+        assert_eq!(excluded, 1);
+        assert_eq!(remaining.iter().map(|problem| problem.canonical_id.as_str()).collect::<Vec<_>>(), vec!["nowcoder:78807/E", "qoj:269161"]);
+    }
 
     fn bucket(axis: &str, count: i64, score: i64) -> KnowledgeBucket {
         KnowledgeBucket { platform: "codeforces".into(), axis: axis.into(), count, score }

@@ -12,5 +12,6 @@ pub(crate) mod storage;
 pub(crate) mod sync;
 pub(crate) mod tracker;
 pub(crate) mod training;
+mod problem_aliases;
 pub(crate) mod update;
 pub(crate) mod xcpc;

@@ -138,6 +138,7 @@ pub(crate) async fn get_community_problem_set(state: State<'_, AppState>, id: St
         entry.cached = true;
     }
     let input = training::import_problem_set(&entry.content.to_string())?;
+    super::problem_aliases::ensure_problem_aliases(&state, &input.problems).await?;
     {
         let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
         for row in &input.problems {
@@ -150,11 +151,12 @@ pub(crate) async fn get_community_problem_set(state: State<'_, AppState>, id: St
 }
 
 #[tauri::command]
-pub(crate) fn save_community_problem_set(state: State<'_, AppState>, entry: CommunityEntry) -> Result<ProblemSet, String> {
+pub(crate) async fn save_community_problem_set(state: State<'_, AppState>, entry: CommunityEntry) -> Result<ProblemSet, String> {
     if entry.schema != "com.ojinsight.community-entry" || entry.schema_version != 1 || entry.content_type != "problem-set" || !valid_id(&entry.id) {
         return Err("社区题单格式不受支持".into());
     }
     let mut input = training::import_problem_set(&entry.content.to_string())?;
+    super::problem_aliases::ensure_problem_aliases(&state, &input.problems).await?;
     input.source_set_id = None;
     input.source_url = Some(format!("https://github.com/Whalica/OJ_Insight-Community/blob/main/content/problem-sets/{}.json", entry.id));
     let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;

@@ -5,14 +5,20 @@ use crate::{db, training};
 use training::{CandidatePool, CanonicalProblem, Contest, ContestInput, ProblemSet, ProblemSetInput, TrainingMatch, VpSubmission};
 
 #[tauri::command]
-pub(crate) fn list_problem_sets(state: State<'_, AppState>) -> Result<Vec<ProblemSet>, String> {
+pub(crate) async fn list_problem_sets(state: State<'_, AppState>) -> Result<Vec<ProblemSet>, String> {
+    let problems = {
+        let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
+        db::list_problem_sets(&conn)?.into_iter().flat_map(|set| set.problems).collect::<Vec<_>>()
+    };
+    super::problem_aliases::ensure_problem_aliases(&state, &problems).await?;
     let conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::list_problem_sets(&conn)
 }
 
 #[tauri::command]
-pub(crate) fn save_problem_set(state: State<'_, AppState>, input: ProblemSetInput) -> Result<ProblemSet, String> {
+pub(crate) async fn save_problem_set(state: State<'_, AppState>, input: ProblemSetInput) -> Result<ProblemSet, String> {
     let input = training::normalize_problem_set(input)?;
+    super::problem_aliases::ensure_problem_aliases(&state, &input.problems).await?;
     let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::save_problem_set(&mut conn, &input)
 }
@@ -30,8 +36,9 @@ pub(crate) fn export_problem_set(state: State<'_, AppState>, id: i64) -> Result<
 }
 
 #[tauri::command]
-pub(crate) fn import_problem_set(state: State<'_, AppState>, data: String) -> Result<ProblemSet, String> {
+pub(crate) async fn import_problem_set(state: State<'_, AppState>, data: String) -> Result<ProblemSet, String> {
     let input = training::import_problem_set(&data)?;
+    super::problem_aliases::ensure_problem_aliases(&state, &input.problems).await?;
     let mut conn = state.db.lock().map_err(|_| "数据库锁异常".to_string())?;
     db::save_problem_set(&mut conn, &input)
 }

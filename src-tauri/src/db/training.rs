@@ -4,6 +4,32 @@ use crate::models::KnowledgeBucket;
 use crate::training::{CanonicalProblem, Contest, ContestInput, ProblemSet, ProblemSetInput, ProblemSetProblem, TrainingMatch, TrainingMatchProblem, VpSubmission};
 
 const TRAINING_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS nowcoder_alias_attempts (
+  problem_key TEXT PRIMARY KEY,
+  attempted_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS nowcoder_problem_aliases (
+  alias_key TEXT PRIMARY KEY,
+  problem_id TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_nowcoder_problem_aliases_id ON nowcoder_problem_aliases(problem_id);
+CREATE VIEW IF NOT EXISTS solved_problem_keys AS
+  SELECT platform,problem_key FROM submissions
+  UNION SELECT platform,problem_key FROM solved_inventory
+  UNION SELECT 'nowcoder',target.alias_key
+    FROM nowcoder_problem_aliases source
+    JOIN nowcoder_problem_aliases target ON target.problem_id=source.problem_id
+    JOIN submissions s ON s.platform='nowcoder' AND s.problem_key=source.alias_key
+  UNION SELECT 'nowcoder',target.alias_key
+    FROM nowcoder_problem_aliases source
+    JOIN nowcoder_problem_aliases target ON target.problem_id=source.problem_id
+    JOIN solved_inventory i ON i.platform='nowcoder' AND i.problem_key=source.alias_key;
+CREATE VIEW IF NOT EXISTS training_solved_submissions AS
+  SELECT platform,problem_key,epoch_second FROM submissions
+  UNION ALL SELECT 'nowcoder',target.alias_key,s.epoch_second
+    FROM nowcoder_problem_aliases source
+    JOIN nowcoder_problem_aliases target ON target.problem_id=source.problem_id AND target.alias_key<>source.alias_key
+    JOIN submissions s ON s.platform='nowcoder' AND s.problem_key=source.alias_key;
 CREATE TABLE IF NOT EXISTS canonical_problems (
   platform TEXT NOT NULL,
   problem_key TEXT NOT NULL,
@@ -124,6 +150,48 @@ pub(super) fn initialize_training_schema(tx: &Transaction<'_>) -> Result<(), Str
 
 fn tags(value: &str) -> Vec<String> { serde_json::from_str(value).unwrap_or_default() }
 
+fn valid_nowcoder_numeric_id(value: &str) -> bool {
+    !value.is_empty() && !value.starts_with('0') && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn valid_nowcoder_alias(value: &str, problem_id: &str) -> bool {
+    if value == problem_id { return true; }
+    if let Some((contest, index)) = value.split_once('/') {
+        return valid_nowcoder_numeric_id(contest) && !index.is_empty()
+            && index.bytes().all(|byte| byte.is_ascii_alphanumeric());
+    }
+    // Practice UUIDs have a different shape from the numeric questionId field.
+    value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// Store identities verified against the public NowCoder problem page. An alias
+/// must never be silently moved to another problem, even in a partly valid batch.
+pub fn save_nowcoder_problem_aliases(conn: &Connection, problem_id: &str, aliases: &[String]) -> Result<(), String> {
+    if !valid_nowcoder_numeric_id(problem_id) || aliases.iter().any(|alias| !valid_nowcoder_alias(alias, problem_id)) {
+        return Err("牛客题目别名格式无效".into());
+    }
+    let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
+    let keys = std::iter::once(problem_id).chain(aliases.iter().map(String::as_str));
+    for key in keys.clone() {
+        let existing: Option<String> = tx.query_row(
+            "SELECT problem_id FROM nowcoder_problem_aliases WHERE alias_key=?", [key], |row| row.get(0),
+        ).optional().map_err(|error| error.to_string())?;
+        if existing.as_deref().is_some_and(|existing| existing != problem_id) {
+            return Err(format!("牛客题目别名存在冲突：{key}"));
+        }
+    }
+    for key in keys {
+        tx.execute("INSERT OR IGNORE INTO nowcoder_problem_aliases(alias_key,problem_id) VALUES(?,?)", params![key,problem_id])
+            .map_err(|error| error.to_string())?;
+    }
+    tx.commit().map_err(|error| error.to_string())
+}
+
+pub fn has_nowcoder_problem_alias(conn: &Connection, key: &str) -> Result<bool, String> {
+    conn.query_row("SELECT EXISTS(SELECT 1 FROM nowcoder_problem_aliases WHERE alias_key=?)", [key], |row| row.get(0))
+        .map_err(|error| error.to_string())
+}
+
 fn row_problem(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<CanonicalProblem> {
     let platform: String = row.get(offset)?;
     let problem_key: String = row.get(offset + 1)?;
@@ -173,7 +241,7 @@ pub fn get_problem_set(conn: &Connection, id: i64) -> Result<ProblemSet, String>
     let mut set = conn.query_row("SELECT id,title,description,set_type,tag_visibility,source_set_id,source_url,created_at,updated_at FROM problem_sets WHERE id=?", [id], |row| Ok(ProblemSet { id:row.get(0)?,title:row.get(1)?,description:row.get(2)?,set_type:row.get(3)?,tag_visibility:row.get(4)?,source_set_id:row.get(5)?,source_url:row.get(6)?,created_at:row.get(7)?,updated_at:row.get(8)?,problems:Vec::new(),solved_keys:Vec::new() })).optional().map_err(|e| e.to_string())?.ok_or_else(|| "题单不存在".to_string())?;
     let mut stmt = conn.prepare("SELECT p.position,p.role,p.note,c.platform,c.problem_key,c.problem_id,c.name,c.url,c.difficulty,c.tags,c.training_suitability,c.observation_dependency,c.implementation_load,c.knowledge_dependency,c.interactive,c.output_only FROM problem_set_problems p JOIN canonical_problems c ON c.platform=p.platform AND c.problem_key=p.problem_key WHERE p.set_id=? ORDER BY p.position").map_err(|e| e.to_string())?;
     set.problems = stmt.query_map([id], |row| Ok(ProblemSetProblem { position:row.get(0)?,role:row.get(1)?,note:row.get(2)?,problem:row_problem(row,3)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e| e.to_string())?;
-    let mut solved_stmt = conn.prepare("SELECT DISTINCT p.platform,p.problem_key FROM problem_set_problems p WHERE p.set_id=? AND (EXISTS(SELECT 1 FROM submissions s WHERE s.platform=p.platform AND s.problem_key=p.problem_key) OR EXISTS(SELECT 1 FROM solved_inventory i WHERE i.platform=p.platform AND i.problem_key=p.problem_key))").map_err(|e| e.to_string())?;
+    let mut solved_stmt = conn.prepare("SELECT DISTINCT p.platform,p.problem_key FROM problem_set_problems p JOIN solved_problem_keys s ON s.platform=p.platform AND s.problem_key=p.problem_key WHERE p.set_id=?").map_err(|e| e.to_string())?;
     set.solved_keys = solved_stmt.query_map([id], |row| Ok(format!("{}:{}", row.get::<_,String>(0)?, row.get::<_,String>(1)?))).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e| e.to_string())?;
     Ok(set)
 }
@@ -184,7 +252,7 @@ pub fn delete_problem_set(conn: &Connection, id: i64) -> Result<(), String> {
 }
 
 pub fn is_problem_solved(conn: &Connection, platform: &str, problem_key: &str) -> Result<bool, String> {
-    conn.query_row("SELECT EXISTS(SELECT 1 FROM submissions WHERE platform=? AND problem_key=? UNION SELECT 1 FROM solved_inventory WHERE platform=? AND problem_key=?)", params![platform,problem_key,platform,problem_key], |row| row.get(0)).map_err(|e| e.to_string())
+    conn.query_row("SELECT EXISTS(SELECT 1 FROM solved_problem_keys WHERE platform=? AND problem_key=?)", params![platform,problem_key], |row| row.get(0)).map_err(|e| e.to_string())
 }
 
 pub fn create_training_match(conn: &mut Connection, set_id: Option<i64>, title: &str, mode: &str, tag_visibility: &str, min: f64, max: f64, duration: i64, problems: &[ProblemSetProblem]) -> Result<TrainingMatch, String> {
@@ -201,7 +269,7 @@ pub fn create_training_match(conn: &mut Connection, set_id: Option<i64>, title: 
 }
 
 pub fn refresh_training_match(conn: &Connection, id: i64) -> Result<TrainingMatch, String> {
-    conn.execute("UPDATE training_match_problems SET solved=(EXISTS(SELECT 1 FROM submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at AND (m.ended_at IS NULL OR s.epoch_second<=m.ended_at)) OR EXISTS(SELECT 1 FROM vp_submissions v WHERE v.match_id=training_match_problems.match_id AND v.platform=training_match_problems.platform AND v.problem_key=training_match_problems.problem_key AND v.verdict IN ('OK','AC'))), solved_at=(SELECT MIN(epoch_second) FROM (SELECT s.epoch_second AS epoch_second FROM submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at AND (m.ended_at IS NULL OR s.epoch_second<=m.ended_at) UNION ALL SELECT v.submitted_at FROM vp_submissions v WHERE v.match_id=training_match_problems.match_id AND v.platform=training_match_problems.platform AND v.problem_key=training_match_problems.problem_key AND v.verdict IN ('OK','AC'))) WHERE match_id=? AND (SELECT status FROM training_matches WHERE id=?) IN ('running','paused','finished')", [id,id]).map_err(|e| e.to_string())?;
+    conn.execute("UPDATE training_match_problems SET solved=(EXISTS(SELECT 1 FROM training_solved_submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at AND (m.ended_at IS NULL OR s.epoch_second<=m.ended_at)) OR EXISTS(SELECT 1 FROM vp_submissions v WHERE v.match_id=training_match_problems.match_id AND v.platform=training_match_problems.platform AND v.problem_key=training_match_problems.problem_key AND v.verdict IN ('OK','AC'))), solved_at=(SELECT MIN(epoch_second) FROM (SELECT s.epoch_second AS epoch_second FROM training_solved_submissions s JOIN training_matches m ON m.id=training_match_problems.match_id WHERE s.platform=training_match_problems.platform AND s.problem_key=training_match_problems.problem_key AND s.epoch_second>=m.started_at AND (m.ended_at IS NULL OR s.epoch_second<=m.ended_at) UNION ALL SELECT v.submitted_at FROM vp_submissions v WHERE v.match_id=training_match_problems.match_id AND v.platform=training_match_problems.platform AND v.problem_key=training_match_problems.problem_key AND v.verdict IN ('OK','AC'))) WHERE match_id=? AND (SELECT status FROM training_matches WHERE id=?) IN ('running','paused','finished')", [id,id]).map_err(|e| e.to_string())?;
     get_training_match(conn, id)
 }
 
@@ -397,4 +465,104 @@ pub fn list_vp_code_names(conn:&Connection,id:i64)->Result<Vec<(i64,String)>,Str
     let mut stmt=conn.prepare("SELECT position,name FROM vp_code_files WHERE match_id=? ORDER BY position,id").map_err(|e|e.to_string())?;
     let files=stmt.query_map([id],|row|Ok((row.get(0)?,row.get(1)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
     Ok(files)
+}
+
+#[cfg(test)]
+mod nowcoder_identity_tests {
+    use super::*;
+
+    fn connection() -> Connection {
+        crate::db::open(std::path::Path::new(":memory:")).unwrap()
+    }
+
+    fn problem(platform: &str, key: &str, position: i64) -> ProblemSetProblem {
+        serde_json::from_value(serde_json::json!({
+            "position": position,
+            "problem": { "platform": platform, "problemKey": key, "name": "Bingbong的奇偶世界" }
+        })).unwrap()
+    }
+
+    fn submission(conn: &Connection, platform: &str, key: &str, epoch: i64) {
+        conn.execute(
+            "INSERT INTO submissions(platform,submission_id,problem_key,problem_name,epoch_second) VALUES(?,?,?,?,?)",
+            params![platform,format!("{platform}-{key}-{epoch}"),key,"Bingbong的奇偶世界",epoch],
+        ).unwrap();
+    }
+
+    fn aliases(conn: &Connection) {
+        save_nowcoder_problem_aliases(conn, "269161", &[
+            "78807/D".into(), "99999/A".into(), "6c9ea8c67e2d4feb931dd28727cc80a7".into(),
+        ]).unwrap();
+    }
+
+    #[test]
+    fn existing_set_gains_completion_from_verified_alias_without_reimport() {
+        let mut conn = connection();
+        submission(&conn, "nowcoder", "269161", 100);
+        let input = ProblemSetInput {
+            id: None, title: "专题".into(), description: String::new(), set_type: "static".into(),
+            tag_visibility: "after_ac".into(), source_set_id: None, source_url: None,
+            problems: vec![problem("nowcoder", "78807/D", 0), problem("nowcoder", "78807/E", 1), problem("qoj", "78807/D", 2)],
+        };
+        let set = save_problem_set(&mut conn, &input).unwrap();
+        assert!(set.solved_keys.is_empty());
+        aliases(&conn);
+        let updated = get_problem_set(&conn, set.id).unwrap();
+        assert_eq!(updated.solved_keys, vec!["nowcoder:78807/D"]);
+        assert_eq!(updated.problems[0].problem.problem_key, "78807/D");
+        assert!(!is_problem_solved(&conn, "nowcoder", "78807/E").unwrap());
+        assert!(!is_problem_solved(&conn, "qoj", "269161").unwrap());
+    }
+
+    #[test]
+    fn aliases_match_both_directions_and_inventory_without_crossing_platforms() {
+        let conn = connection();
+        aliases(&conn);
+        submission(&conn, "nowcoder", "78807/D", 100);
+        submission(&conn, "qoj", "42", 100);
+        assert!(is_problem_solved(&conn, "nowcoder", "269161").unwrap());
+        assert!(is_problem_solved(&conn, "nowcoder", "99999/A").unwrap());
+        assert!(is_problem_solved(&conn, "nowcoder", "6c9ea8c67e2d4feb931dd28727cc80a7").unwrap());
+        assert!(is_problem_solved(&conn, "qoj", "42").unwrap());
+        assert!(!is_problem_solved(&conn, "qoj", "99999/A").unwrap());
+        conn.execute("DELETE FROM submissions WHERE platform='nowcoder'", []).unwrap();
+        assert!(!is_problem_solved(&conn, "nowcoder", "269161").unwrap());
+        conn.execute("INSERT INTO solved_inventory(platform,account,problem_key,updated_at) VALUES('nowcoder','user','99999/A',100)", []).unwrap();
+        assert!(is_problem_solved(&conn, "nowcoder", "78807/D").unwrap());
+        assert!(is_problem_solved(&conn, "nowcoder", "269161").unwrap());
+        assert!(!is_problem_solved(&conn, "nowcoder", "42").unwrap());
+    }
+
+    #[test]
+    fn conflicting_or_invalid_alias_batches_leave_no_partial_mapping() {
+        let conn = connection();
+        aliases(&conn);
+        aliases(&conn); // Repeated resolutions are idempotent.
+        assert!(save_nowcoder_problem_aliases(&conn, "123", &["12345/A".into(), "78807/D".into()]).is_err());
+        assert!(!has_nowcoder_problem_alias(&conn, "12345/A").unwrap());
+        assert!(!has_nowcoder_problem_alias(&conn, "123").unwrap());
+        assert!(save_nowcoder_problem_aliases(&conn, "269161", &["12345/B".into(), "10862087".into()]).is_err());
+        assert!(!has_nowcoder_problem_alias(&conn, "12345/B").unwrap());
+        assert!(has_nowcoder_problem_alias(&conn, "78807/D").unwrap());
+        submission(&conn, "nowcoder", "123", 100);
+        assert!(!is_problem_solved(&conn, "nowcoder", "78807/D").unwrap());
+    }
+
+    #[test]
+    fn aliased_training_submissions_keep_original_time_bounds_and_first_ac() {
+        let mut conn = connection();
+        aliases(&conn);
+        let training = create_training_match(&mut conn, None, "VP", "balanced", "after_ac", 0.5, 0.7, 120,
+            &[problem("nowcoder", "78807/D", 0)]).unwrap();
+        conn.execute("UPDATE training_matches SET started_at=100,ended_at=200,status='finished' WHERE id=?", [training.id]).unwrap();
+        submission(&conn, "nowcoder", "269161", 99);
+        submission(&conn, "nowcoder", "99999/A", 201);
+        assert!(!refresh_training_match(&conn, training.id).unwrap().problems[0].solved);
+        submission(&conn, "nowcoder", "269161", 200);
+        assert_eq!(refresh_training_match(&conn, training.id).unwrap().problems[0].solved_at, Some(200));
+        submission(&conn, "nowcoder", "99999/A", 100);
+        let updated = refresh_training_match(&conn, training.id).unwrap();
+        assert!(updated.problems[0].solved);
+        assert_eq!(updated.problems[0].solved_at, Some(100));
+    }
 }

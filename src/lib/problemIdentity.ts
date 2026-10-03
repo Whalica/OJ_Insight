@@ -26,8 +26,13 @@ export function parseProblemUrl(value: string): ParsedIdentity | null {
   match = path.match(/^\/problems\/([^/]+)$/i);
   if ((host === 'leetcode.com' || host === 'leetcode.cn') && match) return identity('leetcode', match[1], match[1], input);
 
-  match = path.match(/\/(?:questionTerminal|practice)\/([^/?#]+)/i);
-  if (host.endsWith('nowcoder.com') && match) return identity('nowcoder', match[1], match[1], input);
+  if (host === 'nowcoder.com' || host.endsWith('.nowcoder.com')) {
+    match = path.match(/^\/acm\/contest\/(\d+)\/([A-Z0-9]+)$/i);
+    if (match) return identity('nowcoder', `${match[1]}/${match[2]}`, `${match[1]}/${match[2]}`, input);
+
+    match = path.match(/^\/acm\/problem\/(\d+)$/i) || path.match(/\/(?:questionTerminal|practice)\/([^/?#]+)/i);
+    if (match) return identity('nowcoder', match[1], match[1], input);
+  }
   url.hash = '';
   const canonicalUrl = url.toString();
   return { platform: 'other', problemKey: canonicalUrl, problemId: path.split('/').filter(Boolean).at(-1) || host, name: host, url: canonicalUrl };
