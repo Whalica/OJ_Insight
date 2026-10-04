@@ -8,7 +8,7 @@ OJ Insight 是一个面向算法竞赛选手的跨平台训练数据面板。目
 
 [下载最新版本](https://github.com/Whalica/OJ_Insight/releases/latest) · [查看更新记录](docs/UPDATEINFO.md) · [反馈问题](https://github.com/Whalica/OJ_Insight/issues) · [源码构建](docs/BUILDING.md) · [用户手册](docs/manual/user-manual.pdf)
 
-当前版本：**v0.10.4**，支持 Windows、MacOS 和 Linux。
+当前版本：**v0.10.5**，支持 Windows、MacOS 和 Linux。
 
 ## 为什么使用 OJ Insight
 
@@ -120,9 +120,13 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 
 QOJ 需要登录后才能查看完整提交列表：
 
+在「设置 → 账号设置」中打开应用内 QOJ 登录页，登录后把 Cookie 导入对应账号并保存。应用直接读取实际的 Cookie 名称和值，包括 HttpOnly Cookie；此方式不依赖内置的会话名称。
+
+也可手动填写 Cookie：
+
 1. 在浏览器登录 [QOJ](https://qoj.ac)。
-2. 在开发者工具的 Cookies 中复制登录 Cookie 的值，粘贴到 OJ Insight；应用会尝试从 QOJ 响应中识别当前的会话 Cookie 名称。
-3. 也可粘贴完整的 `名称=值`，多项 Cookie 用分号分隔。如果 QOJ 未向应用提供会话名称，则需要填写完整 Cookie。
+2. 在开发者工具的 Cookies 中复制登录 Cookie 的值，粘贴到 OJ Insight；应用会尝试从 QOJ 响应中识别会话 Cookie 名称，无法识别时使用已知的当前名称补齐。
+3. 也可粘贴完整的 `名称=值`，多项 Cookie 用分号分隔。
 
 ```text
 session_name=xxxxxxxx; another_name=yyyyyyyy

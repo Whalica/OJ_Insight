@@ -41,7 +41,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         <button title={collapsed ? t('总览') : undefined} className={page === 'overview' ? 'active' : ''} onClick={() => onChange('overview')}><LayoutDashboard size={17} /><span className="nav-label">{t('总览')}</span></button>
 
         <section className={`nav-group ${openGroup === 'platforms' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? 'Platforms' : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label" lang="en">Platforms</span><ChevronDown className="nav-group-chevron" size={14} /></button>
+          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? t('平台') : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label">{t('平台')}</span><ChevronDown className="nav-group-chevron" size={14} /></button>
           <div className="nav-group-items">{PLATFORM_ORDER.map((platform) => (
             <button title={collapsed ? PLATFORM_META[platform].name : undefined} key={platform} className={page === platform ? 'active' : ''} onClick={() => onChange(platform)}>
               <PlatformIcon platform={platform} className="sidebar-platform-icon" /><span className="nav-label">{PLATFORM_META[platform].name}</span>

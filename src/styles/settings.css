@@ -36,6 +36,11 @@
 .topbar p, .panel-head p, .today-copy p, .stat-card small { overflow-wrap: anywhere; }
 .sidebar nav button>svg, .primary>svg, .source-actions button>svg, .problem-button>svg, .drawer-problem-button>svg, .about-links button>svg { flex: 0 0 auto; }
 .account-entry input, .rating-account strong, .rating-account .select-wrap { min-width: 0; }
+.qoj-cookie-import { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; margin-bottom: 12px; }
+.qoj-cookie-import>div { flex: 1 1 280px; min-width: 0; }
+.qoj-cookie-import p { margin: 3px 0 0; color: var(--muted); font-size: var(--font-meta); }
+.qoj-cookie-import button { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 7px; padding: 7px 10px; cursor: pointer; }
+.qoj-cookie-import button:disabled { opacity: .55; cursor: wait; }
 .rating-account select { max-width: 100%; }
 .rating-facts strong { overflow-wrap: anywhere; }
 .platform-monogram { min-width: 31px; width: auto; padding-inline: 4px; }

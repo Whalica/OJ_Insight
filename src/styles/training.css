@@ -20,14 +20,15 @@
 .set-detail header p, .training-section-title p { margin: 4px 0 0; color: var(--muted); font-size: var(--font-small); }
 .set-overview { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-bottom: 15px; }.set-overview>div { border: 1px solid var(--line-soft); border-radius: 8px; background: var(--panel-soft); padding: 11px; }
 .set-overview span { display: block; color: var(--muted); font-size: var(--font-meta); margin-bottom: 4px; }.set-overview strong { font-size: var(--font-small); line-height: 1.45; }
-.set-problem-list, .match-problems { display: grid; gap: 6px; }.set-problem-list>a, .match-problems>a { display: grid; grid-template-columns: 24px 28px minmax(0,1fr) auto; align-items: center; gap: 10px; border: 1px solid var(--line-soft); border-radius: 8px; padding: 10px; color: var(--text); text-decoration: none; }
-.set-problem-list>a:hover, .match-problems>a:hover { border-color: var(--interactive-border-hover); background: var(--interactive-hover); }.problem-number { color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
-.set-problem-list div, .match-problems div { min-width: 0; display: grid; gap: 2px; }.set-problem-list strong, .match-problems strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.set-assistant-launch { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
-.set-assistant-launch > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 6px; }
-.set-assistant-launch button { display: flex; align-items: flex-start; gap: 7px; min-width: 0; min-height: 38px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 9px; background: var(--panel-soft); color: var(--text); text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
-.set-assistant-launch button svg { flex: none; margin-top: 2px; }
-.set-assistant-launch button:hover { border-color: var(--accent); }
+.set-problem-list, .match-problems { display: grid; gap: 6px; }.set-problem-list>a, .set-problem-row>a, .match-problems>a { display: grid; grid-template-columns: 24px 28px minmax(0,1fr) auto; align-items: center; gap: 10px; border: 1px solid var(--line-soft); border-radius: 8px; padding: 10px; color: var(--text); text-decoration: none; }
+.set-problem-list>a:hover, .set-problem-row>a:hover, .match-problems>a:hover { border-color: var(--interactive-border-hover); background: var(--interactive-hover); }.problem-number { color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.set-problem-list>a>div, .set-problem-row>a>div, .match-problems>a>div { min-width: 0; display: grid; gap: 2px; }.set-problem-list strong, .match-problems strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-problem-list .set-problem-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.set-problem-row>a { min-width: 0; }
+.set-problem-start { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 104px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel-soft); color: var(--text); cursor: pointer; }
+.set-problem-start:hover { border-color: var(--interactive-border-hover); background: var(--interactive-hover); }
+.set-problem-start svg { flex: 0 0 auto; }
+@media (max-width: 760px) { .set-problem-row>a { grid-template-columns: 22px minmax(0, 1fr) auto; }.set-problem-row .problem-number { display: none; }.set-problem-start { min-width: 42px; }.set-problem-start span { display: none; } }
 .set-problem-list small, .set-problem-list em, .match-problems small, .match-problems em { color: var(--muted); font-size: var(--font-meta); font-style: normal; }
 .set-detail>footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; }.set-detail>footer>span { color: var(--muted); font-size: var(--font-meta); }.set-detail>footer button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border-radius: 7px; cursor: pointer; }
 .set-fields { display: grid; grid-template-columns: 1fr 220px; gap: 10px; }.set-fields .wide { grid-column: 1/-1; }.set-fields label, .training-start label, .candidate-controls label, .advanced-problem-fields label { display: grid; gap: 6px; }
