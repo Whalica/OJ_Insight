@@ -8,7 +8,7 @@ OJ Insight is a local-first desktop dashboard for competitive programmers. It su
 
 [Download the latest release](https://github.com/Whalica/OJ_Insight/releases/latest) · [Release notes (Chinese)](docs/UPDATEINFO.md) · [Report an issue](https://github.com/Whalica/OJ_Insight/issues) · [Build from source (Chinese)](docs/BUILDING.md) · [User manual (Chinese)](docs/manual/user-manual.pdf)
 
-Current version: **v0.10.3**. Available for Windows, macOS, and Linux.
+Current version: **v0.10.4**. Available for Windows, macOS, and Linux.
 
 The English interface is still in development. Navigation and several training tools have initial translations, while other screens remain in Chinese. The language selector is temporarily hidden. Problem titles, judge tags, and your notes stay in their original language.
 
