@@ -17,6 +17,8 @@ mod qoj;
 pub(crate) mod service;
 pub(crate) mod relationships;
 
+const QOJ_SESSION_COOKIE_FALLBACK: &str = "__Host-UOJSESSID";
+
 pub async fn fetch_platform(
     client: &Client,
     account: &AccountConfig,
@@ -101,7 +103,6 @@ fn qoj_session_name(headers: &HeaderMap) -> Option<String> {
         lower.contains("sess") || lower.ends_with("sid")
     }).collect();
     if session.len() == 1 { return Some((*session[0]).clone()); }
-    if session.is_empty() && names.len() == 1 { return names.into_iter().next(); }
     None
 }
 
@@ -123,8 +124,7 @@ pub async fn resolve_qoj_cookie(client: &Client, cookie: &str) -> Result<String,
             if name.is_some() { break; }
         }
     }
-    let name = name.ok_or_else(||
-        "QOJ 未向应用提供可识别的会话 Cookie 名称；请从浏览器复制完整 Cookie（名称=值）".to_string())?;
+    let name = name.unwrap_or_else(|| QOJ_SESSION_COOKIE_FALLBACK.to_string());
     let resolved = format!("{name}={value}");
     normalize_qoj_cookie(&resolved)?;
     Ok(resolved)
@@ -132,7 +132,7 @@ pub async fn resolve_qoj_cookie(client: &Client, cookie: &str) -> Result<String,
 
 #[cfg(test)]
 mod qoj_cookie_tests {
-    use super::{browser_headers, normalize_qoj_cookie, qoj_cookie_is_header, qoj_cookie_value_only, qoj_session_name, with_cookie, COOKIE, SET_COOKIE};
+    use super::{browser_headers, normalize_qoj_cookie, qoj_cookie_is_header, qoj_cookie_value_only, qoj_session_name, with_cookie, COOKIE, SET_COOKIE, QOJ_SESSION_COOKIE_FALLBACK};
     use reqwest::header::{HeaderMap, HeaderValue};
 
     #[test]
@@ -162,6 +162,13 @@ mod qoj_cookie_tests {
         let mut challenge_only = HeaderMap::new();
         challenge_only.append(SET_COOKIE, HeaderValue::from_static("cf_clearance=challenge; Path=/"));
         assert!(qoj_session_name(&challenge_only).is_none());
+        let cookie = format!("{QOJ_SESSION_COOKIE_FALLBACK}={}", qoj_cookie_value_only("abc123").unwrap());
+        assert_eq!(normalize_qoj_cookie(&cookie).unwrap(), cookie);
+        let headers = with_cookie(browser_headers(), &cookie);
+        assert_eq!(headers.get(COOKIE).unwrap().to_str().unwrap(), cookie);
+        let mut preference_only = HeaderMap::new();
+        preference_only.append(SET_COOKIE, HeaderValue::from_static("theme=dark; Path=/"));
+        assert!(qoj_session_name(&preference_only).is_none());
     }
 }
 

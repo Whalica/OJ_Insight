@@ -125,8 +125,8 @@ The candidate pool estimates a training range per judge from known problem-level
 QOJ requires a login to expose the full submission list:
 
 1. Log in to [QOJ](https://qoj.ac) in your browser.
-2. Copy the login Cookie value from the browser developer tools and paste it into OJ Insight. OJ Insight tries to discover the current session Cookie name from QOJ.
-3. You may also paste the full `name=value` pair or multiple pairs separated by semicolons. Use the full Cookie when QOJ does not expose its session name to OJ Insight.
+2. Copy the login Cookie value from the browser developer tools and paste it into OJ Insight. OJ Insight tries to discover the session Cookie name from QOJ and falls back to its known current name if QOJ does not expose one.
+3. You may also paste the full `name=value` pair or multiple pairs separated by semicolons.
 
 ```text
 name=xxxxxxxx; another_name=yyyyyyyy

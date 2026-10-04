@@ -121,8 +121,8 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 QOJ 需要登录后才能查看完整提交列表：
 
 1. 在浏览器登录 [QOJ](https://qoj.ac)。
-2. 在开发者工具的 Cookies 中复制登录 Cookie 的值，粘贴到 OJ Insight；应用会尝试从 QOJ 响应中识别当前的会话 Cookie 名称。
-3. 也可粘贴完整的 `名称=值`，多项 Cookie 用分号分隔。如果 QOJ 未向应用提供会话名称，则需要填写完整 Cookie。
+2. 在开发者工具的 Cookies 中复制登录 Cookie 的值，粘贴到 OJ Insight；应用会尝试从 QOJ 响应中识别会话 Cookie 名称，无法识别时使用已知的当前名称补齐。
+3. 也可粘贴完整的 `名称=值`，多项 Cookie 用分号分隔。
 
 ```text
 session_name=xxxxxxxx; another_name=yyyyyyyy
