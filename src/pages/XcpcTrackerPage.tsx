@@ -178,7 +178,7 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
         {ratingError && <div className="empty" role="status">难度评级更新失败，已保留题目列表：{ratingError} <button disabled={catalogLoading} onClick={() => void loadCatalog()}>重试评级</button></div>}
         {!catalogLoading && !ratingError && contests.some((contest) => contest.ratingsStale) && <div className="empty" role="status">部分比赛暂无可靠的榜单统计，可稍后点击“更新赛事数据”重试。</div>}
         {!catalogLoading && !ratingError && !contests.some((contest) => contest.ratingsStale) && contests.some((contest) => contest.problems.length > 0) && !contests.some((contest) => contest.problems.some((problem) => problem.tier)) && <div className="empty" role="status">暂未匹配到公开榜单，题目显示为未评级；可稍后点击“更新赛事数据”重试。</div>}
-        {!catalogLoading && contests.length > 0 && !contests.some((contest) => contest.problems.length > 0) && <div className="empty">QOJ 当前只返回了比赛索引，没有返回题目链接。请在设置中填写完整 QOJ Cookie 后重新更新目录。</div>}
+        {!catalogLoading && contests.length > 0 && !contests.some((contest) => contest.problems.length > 0) && <div className="empty">QOJ 当前只返回了比赛索引，没有返回题目链接。请在设置中填写 QOJ Cookie 值或完整 Cookie 后重新更新目录。</div>}
         <table className="xcpc-table">
           <thead><tr><th className="xcpc-contest-column">比赛</th><th className="xcpc-date-column">日期</th><th className="xcpc-progress-column">进度</th><th className="xcpc-problems-column">题目</th></tr></thead>
           <tbody>{visible.map((contest) => {

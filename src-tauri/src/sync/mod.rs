@@ -1,5 +1,5 @@
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, REFERER, USER_AGENT},
+    header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, REFERER, SET_COOKIE, USER_AGENT},
     Client,
 };
 use serde_json::Value;
@@ -76,9 +76,64 @@ pub fn normalize_qoj_cookie(cookie: &str) -> Result<&str, String> {
     Ok(cookie)
 }
 
+fn qoj_cookie_value_only(cookie: &str) -> Result<&str, String> {
+    let value = cookie.trim();
+    if value.is_empty() || value.len() > 4096 || value.bytes().any(|byte| byte <= b' ' || byte == b';')
+        || HeaderValue::from_str(value).is_err()
+    {
+        return Err("QOJ Cookie 值无效；请重新复制浏览器中的 Cookie 值".into());
+    }
+    Ok(value)
+}
+
+fn qoj_session_name(headers: &HeaderMap) -> Option<String> {
+    let names: Vec<String> = headers.get_all(SET_COOKIE).iter()
+        .filter_map(|header| header.to_str().ok()?.split(';').next()?.split_once('=').map(|(name, _)| name.trim().to_string()))
+        .filter(|name| {
+            let lower = name.to_ascii_lowercase();
+            !name.is_empty() && !lower.starts_with("cf_") && !lower.starts_with("__cf")
+                && !lower.starts_with("_ga")
+                && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte))
+        })
+        .collect();
+    let session: Vec<_> = names.iter().filter(|name| {
+        let lower = name.to_ascii_lowercase();
+        lower.contains("sess") || lower.ends_with("sid")
+    }).collect();
+    if session.len() == 1 { return Some((*session[0]).clone()); }
+    if session.is_empty() && names.len() == 1 { return names.into_iter().next(); }
+    None
+}
+
+fn qoj_cookie_is_header(input: &str) -> bool {
+    input.contains(';') || input.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("Cookie:"))
+        || input.split_once('=').is_some_and(|(name, value)| !name.is_empty() && !value.is_empty() && value != "=")
+}
+
+pub async fn resolve_qoj_cookie(client: &Client, cookie: &str) -> Result<String, String> {
+    let input = cookie.trim();
+    if qoj_cookie_is_header(input) {
+        return normalize_qoj_cookie(input).map(str::to_string);
+    }
+    let value = qoj_cookie_value_only(input)?;
+    let mut name = None;
+    for url in ["https://qoj.ac/login", "https://qoj.ac/"] {
+        if let Ok(response) = client.get(url).headers(browser_headers()).send().await {
+            name = qoj_session_name(response.headers());
+            if name.is_some() { break; }
+        }
+    }
+    let name = name.ok_or_else(||
+        "QOJ 未向应用提供可识别的会话 Cookie 名称；请从浏览器复制完整 Cookie（名称=值）".to_string())?;
+    let resolved = format!("{name}={value}");
+    normalize_qoj_cookie(&resolved)?;
+    Ok(resolved)
+}
+
 #[cfg(test)]
 mod qoj_cookie_tests {
-    use super::{browser_headers, normalize_qoj_cookie, with_cookie, COOKIE};
+    use super::{browser_headers, normalize_qoj_cookie, qoj_cookie_is_header, qoj_cookie_value_only, qoj_session_name, with_cookie, COOKIE, SET_COOKIE};
+    use reqwest::header::{HeaderMap, HeaderValue};
 
     #[test]
     fn sends_current_cookie_name_without_rewriting_it() {
@@ -93,6 +148,20 @@ mod qoj_cookie_tests {
         assert!(normalize_qoj_cookie("abc123").is_err());
         assert!(normalize_qoj_cookie("session=abc123; missing_pair").is_err());
         assert!(normalize_qoj_cookie("session=abc123\r\nInjected: yes").is_err());
+    }
+
+    #[test]
+    fn discovers_session_name_without_using_a_fixed_cookie_name() {
+        let mut headers = HeaderMap::new();
+        headers.append(SET_COOKIE, HeaderValue::from_static("cf_clearance=challenge; Path=/"));
+        headers.append(SET_COOKIE, HeaderValue::from_static("QOJ_SESSION=guest; Path=/; HttpOnly"));
+        assert_eq!(qoj_session_name(&headers).as_deref(), Some("QOJ_SESSION"));
+        assert_eq!(qoj_cookie_value_only("abc123").unwrap(), "abc123");
+        assert!(!qoj_cookie_is_header("abc123=="));
+        assert!(qoj_cookie_is_header("QOJ_SESSION=abc123=="));
+        let mut challenge_only = HeaderMap::new();
+        challenge_only.append(SET_COOKIE, HeaderValue::from_static("cf_clearance=challenge; Path=/"));
+        assert!(qoj_session_name(&challenge_only).is_none());
     }
 }
 

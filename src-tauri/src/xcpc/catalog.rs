@@ -33,17 +33,17 @@ pub async fn load_catalog(
     if !force_refresh {
         if let Some(items) = cached.as_ref() {
             let mut items = items.clone();
-            if crate::sync::normalize_qoj_cookie(cookie).is_ok() && items.iter().any(contest_needs_problem_details) {
-                enrich_contest_problems(client, cookie, &mut items).await;
-                save_catalog(cache_path, &items)?;
+            if !cookie.trim().is_empty() && items.iter().any(contest_needs_problem_details) {
+                if let Ok(resolved) = crate::sync::resolve_qoj_cookie(client, cookie).await {
+                    enrich_contest_problems(client, &resolved, &mut items).await;
+                    save_catalog(cache_path, &items)?;
+                }
             }
             return Ok(items);
         }
     }
-    if !cookie.trim().is_empty() {
-        crate::sync::normalize_qoj_cookie(cookie)?;
-    }
-    let mut items = fetch_catalog(client, cookie).await?;
+    let resolved_cookie = if cookie.trim().is_empty() { String::new() } else { crate::sync::resolve_qoj_cookie(client, cookie).await? };
+    let mut items = fetch_catalog(client, &resolved_cookie).await?;
     if let Some(cached) = cached {
         let cached_by_id: HashMap<_, _> = cached
             .into_iter()
@@ -62,8 +62,8 @@ pub async fn load_catalog(
             }
         }
     }
-    if !cookie.trim().is_empty() {
-        enrich_contest_problems(client, cookie, &mut items).await;
+    if !resolved_cookie.is_empty() {
+        enrich_contest_problems(client, &resolved_cookie, &mut items).await;
     }
     let json = serde_json::to_string(&CatalogCache {
         version: CATALOG_CACHE_VERSION,
