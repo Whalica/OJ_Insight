@@ -11,9 +11,9 @@ button, input, select { font: inherit; } button { color: inherit; } a { color: i
 .sidebar-head { display: flex; align-items: flex-start; }
 .brand { min-width: 0; flex: 1; display: flex; gap: 11px; align-items: center; padding: 5px 7px 19px; cursor: pointer; }
 .brand-copy { min-width: 0; overflow: hidden; }
-.brand strong { display: block; font-size: 15px; letter-spacing: .2px; }
+.brand strong { display: block; font-size: 18px; letter-spacing: .2px; }
 .brand small { display: block; color: #68737f; margin-top: 2px; font-size: var(--font-meta); letter-spacing: .35px; }
-.brand-mark { width: 30px; height: 30px; aspect-ratio: 1; flex: 0 0 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 4px; border: 1px solid #2a323c; border-radius: 8px; overflow: hidden; }
+.brand-mark { width: 36px; height: 36px; aspect-ratio: 1; flex: 0 0 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 5px; border: 1px solid #2a323c; border-radius: 9px; overflow: hidden; }
 .brand-mark span { background: #28563a; border-radius: 1px; }.brand-mark span:nth-child(2), .brand-mark span:nth-child(3) { background: #61d58a; }
 .sidebar-toggle { flex: 0 0 27px; width: 27px; height: 27px; margin: 6px 0 0 auto; border: 0; border-radius: 6px; background: transparent; color: #66727d; display: grid; place-items: center; cursor: pointer; }
 .sidebar-toggle:hover { background: #151b22; color: #c7d0d7; }

@@ -1,7 +1,7 @@
 {
   "name": "oj-insight",
   "private": true,
-  "version": "0.10.4",
+  "version": "0.10.5",
   "type": "module",
   "scripts": {
     "test:layout": "playwright test --config config/playwright.config.ts",

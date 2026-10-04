@@ -8,7 +8,7 @@ OJ Insight is a local-first desktop dashboard for competitive programmers. It su
 
 [Download the latest release](https://github.com/Whalica/OJ_Insight/releases/latest) · [Release notes (Chinese)](docs/UPDATEINFO.md) · [Report an issue](https://github.com/Whalica/OJ_Insight/issues) · [Build from source (Chinese)](docs/BUILDING.md) · [User manual (Chinese)](docs/manual/user-manual.pdf)
 
-Current version: **v0.10.4**. Available for Windows, macOS, and Linux.
+Current version: **v0.10.5**. Available for Windows, macOS, and Linux.
 
 The English interface is still in development. Navigation and several training tools have initial translations, while other screens remain in Chinese. The language selector is temporarily hidden. Problem titles, judge tags, and your notes stay in their original language.
 
@@ -123,6 +123,10 @@ The candidate pool estimates a training range per judge from known problem-level
 ### QOJ
 
 QOJ requires a login to expose the full submission list:
+
+In **Settings → Accounts**, open the QOJ login page inside OJ Insight, sign in, import the cookies into the corresponding account, and save. The app reads the actual cookie names, including HTTP-only cookies, so this path does not depend on a bundled session name.
+
+You can also supply a Cookie manually:
 
 1. Log in to [QOJ](https://qoj.ac) in your browser.
 2. Copy the login Cookie value from the browser developer tools and paste it into OJ Insight. OJ Insight tries to discover the session Cookie name from QOJ and falls back to its known current name if QOJ does not expose one.
