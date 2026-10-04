@@ -46,8 +46,9 @@ pub(super) fn initialize_favorites_schema(tx: &Transaction<'_>) -> Result<(), St
 
 pub fn list_favorite_categories(conn: &Connection) -> Result<Vec<FavoriteCategory>, String> {
     let mut stmt = conn.prepare("SELECT id,name FROM favorite_categories ORDER BY name COLLATE NOCASE").map_err(|e| e.to_string())?;
-    stmt.query_map([], |row| Ok(FavoriteCategory { id: row.get(0)?, name: row.get(1)? }))
-        .map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    let rows = stmt.query_map([], |row| Ok(FavoriteCategory { id: row.get(0)?, name: row.get(1)? }))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
 pub fn save_favorite_category(conn: &Connection, id: Option<i64>, name: &str) -> Result<FavoriteCategory, String> {
@@ -74,7 +75,8 @@ fn row_item(row: &rusqlite::Row<'_>) -> rusqlite::Result<FavoriteItem> {
 
 pub fn list_favorite_items(conn: &Connection) -> Result<Vec<FavoriteItem>, String> {
     let mut stmt = conn.prepare("SELECT id,kind,title,url,summary,note,category_id,pinned,created_at,updated_at FROM favorite_items ORDER BY pinned DESC,updated_at DESC,id DESC").map_err(|e| e.to_string())?;
-    stmt.query_map([], row_item).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    let rows = stmt.query_map([], row_item).map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
 pub fn get_favorite_item(conn: &Connection, id: i64) -> Result<FavoriteItem, String> {

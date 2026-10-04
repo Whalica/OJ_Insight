@@ -1,3 +1,6 @@
+use std::future::Future;
+use std::time::Duration;
+
 use tauri::{ipc::Channel, AppHandle, State};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -10,6 +13,17 @@ pub(crate) enum UpdateDownloadEvent {
     Progress { #[serde(rename = "chunkLength")] chunk_length: usize },
     Finished,
     Installing,
+}
+
+async fn until_cancelled<F: Future>(future: F, cancelled: &mut tokio::sync::oneshot::Receiver<()>) -> Result<F::Output, String> {
+    let mut future = Box::pin(future);
+    loop {
+        match tokio::time::timeout(Duration::from_millis(100), &mut future).await {
+            Ok(result) => return Ok(result),
+            Err(_) if cancelled.try_recv().is_ok() => return Err("更新下载已取消".into()),
+            Err(_) => {}
+        }
+    }
 }
 
 #[tauri::command]
@@ -28,15 +42,13 @@ pub(crate) async fn install_app_update(
 
     let result = async {
         let updater = app.updater().map_err(|error| error.to_string())?;
-        let update = tokio::select! {
-            result = updater.check() => result.map_err(|error| error.to_string())?,
-            _ = &mut cancelled => return Err("更新下载已取消".into()),
-        }.ok_or_else(|| "当前没有可安装的新版本".to_string())?;
+        let update = until_cancelled(updater.check(), &mut cancelled).await?
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "当前没有可安装的新版本".to_string())?;
         if update.version != expected_version { return Err("可用版本已变化，请重新检查更新".into()); }
 
         let mut started = false;
-        let bytes = tokio::select! {
-            result = update.download(
+        let bytes = until_cancelled(update.download(
                 |chunk_length, content_length| {
                     if !started {
                         let _ = on_event.send(UpdateDownloadEvent::Started { content_length });
@@ -45,9 +57,7 @@ pub(crate) async fn install_app_update(
                     let _ = on_event.send(UpdateDownloadEvent::Progress { chunk_length });
                 },
                 || { let _ = on_event.send(UpdateDownloadEvent::Finished); },
-            ) => result.map_err(|error| error.to_string())?,
-            _ = &mut cancelled => return Err("更新下载已取消".into()),
-        };
+            ), &mut cancelled).await?.map_err(|error| error.to_string())?;
 
         // Installation is synchronous and cannot be cancelled. Remove the cancel
         // sender before crossing that boundary, then check any signal already sent.
