@@ -2,7 +2,7 @@ use regex::Regex;
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
 
-use super::{browser_headers, get_text, normalize_qoj_cookie, now_epoch, polite_sleep, with_cookie};
+use super::{browser_headers, get_text, now_epoch, polite_sleep, resolve_qoj_cookie, with_cookie};
 use crate::models::{AccountConfig, RatingPoint, RemoteData, Submission, SyncError};
 
 pub async fn fetch(
@@ -17,11 +17,11 @@ pub async fn fetch(
     }
     if account.secret.trim().is_empty() {
         return Err(SyncError::auth(
-            "QOJ 当前要求登录后才能查看完整提交列表；请在设置中填写完整 Cookie（名称=值）",
+            "QOJ 当前要求登录后才能查看完整提交列表；请在设置中填写 Cookie 值或完整 Cookie",
         ));
     }
-    normalize_qoj_cookie(&account.secret).map_err(SyncError::auth)?;
-    let ratings = fetch_current_rating(client, user, &account.secret)
+    let cookie = resolve_qoj_cookie(client, &account.secret).await.map_err(SyncError::auth)?;
+    let ratings = fetch_current_rating(client, user, &cookie)
         .await
         .ok();
     let mut out = Vec::new();
@@ -39,12 +39,12 @@ pub async fn fetch(
         let html = get_text(
             client,
             &url,
-            with_cookie(browser_headers(), &account.secret),
+            with_cookie(browser_headers(), &cookie),
         )
         .await?;
         if looks_like_login(&html) {
             return Err(SyncError::auth(
-                "QOJ 未登录或 Cookie 已过期；请重新登录并复制浏览器中的完整 Cookie（名称=值）",
+                "QOJ 未登录或 Cookie 已过期；请重新登录并复制新的 Cookie 值或完整 Cookie",
             ));
         }
         let rows = parse_rows(&html, user);
