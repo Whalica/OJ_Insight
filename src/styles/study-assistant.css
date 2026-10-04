@@ -115,6 +115,7 @@ body:has(.study-assistant.detached) #root { min-width: 0; min-height: 0; width: 
 .study-assistant.detached .study-assistant-panel > header { cursor: grab; user-select: none; }
 .study-assistant.detached .study-assistant-panel > header:active { cursor: grabbing; }
 .app-shell:has(.update-notice) .study-assistant { bottom: 210px; }
+.app-shell:has(.update-notice.minimized) .study-assistant { bottom: 90px; }
 @media (max-width: 620px) {
   .study-assistant { right: 14px; bottom: 14px; }
   .study-assistant-panel { max-height: min(570px, calc(100dvh - 28px)); }

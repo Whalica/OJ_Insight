@@ -1,6 +1,82 @@
-use tauri::State;
+use std::future::Future;
+use std::time::Duration;
+
+use tauri::{ipc::Channel, AppHandle, State};
+use tauri_plugin_updater::UpdaterExt;
 
 use crate::app::state::AppState;
+
+#[derive(Clone, serde::Serialize)]
+#[serde(tag = "event", content = "data")]
+pub(crate) enum UpdateDownloadEvent {
+    Started { #[serde(rename = "contentLength")] content_length: Option<u64> },
+    Progress { #[serde(rename = "chunkLength")] chunk_length: usize },
+    Finished,
+    Installing,
+}
+
+async fn until_cancelled<F: Future>(future: F, cancelled: &mut tokio::sync::oneshot::Receiver<()>) -> Result<F::Output, String> {
+    let mut future = Box::pin(future);
+    loop {
+        match tokio::time::timeout(Duration::from_millis(100), &mut future).await {
+            Ok(result) => return Ok(result),
+            Err(_) if cancelled.try_recv().is_ok() => return Err("更新下载已取消".into()),
+            Err(_) => {}
+        }
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn install_app_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    on_event: Channel<UpdateDownloadEvent>,
+    expected_version: String,
+) -> Result<(), String> {
+    let (sender, mut cancelled) = tokio::sync::oneshot::channel();
+    {
+        let mut pending = state.update_cancel.lock().map_err(|_| "更新状态锁异常".to_string())?;
+        if pending.is_some() { return Err("已有更新正在下载".into()); }
+        *pending = Some(sender);
+    }
+
+    let result = async {
+        let updater = app.updater().map_err(|error| error.to_string())?;
+        let update = until_cancelled(updater.check(), &mut cancelled).await?
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "当前没有可安装的新版本".to_string())?;
+        if update.version != expected_version { return Err("可用版本已变化，请重新检查更新".into()); }
+
+        let mut started = false;
+        let bytes = until_cancelled(update.download(
+                |chunk_length, content_length| {
+                    if !started {
+                        let _ = on_event.send(UpdateDownloadEvent::Started { content_length });
+                        started = true;
+                    }
+                    let _ = on_event.send(UpdateDownloadEvent::Progress { chunk_length });
+                },
+                || { let _ = on_event.send(UpdateDownloadEvent::Finished); },
+            ), &mut cancelled).await?.map_err(|error| error.to_string())?;
+
+        // Installation is synchronous and cannot be cancelled. Remove the cancel
+        // sender before crossing that boundary, then check any signal already sent.
+        state.update_cancel.lock().map_err(|_| "更新状态锁异常".to_string())?.take();
+        if cancelled.try_recv().is_ok() { return Err("更新下载已取消".into()); }
+        let _ = on_event.send(UpdateDownloadEvent::Installing);
+        update.install(&bytes).map_err(|error| error.to_string())?;
+        Ok(())
+    }.await;
+
+    state.update_cancel.lock().map_err(|_| "更新状态锁异常".to_string())?.take();
+    result
+}
+
+#[tauri::command]
+pub(crate) fn cancel_app_update(state: State<'_, AppState>) -> Result<bool, String> {
+    let pending = state.update_cancel.lock().map_err(|_| "更新状态锁异常".to_string())?.take();
+    Ok(pending.is_some_and(|sender| sender.send(()).is_ok()))
+}
 
 #[tauri::command]
 pub(crate) fn can_install_updates() -> bool {

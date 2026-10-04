@@ -6,6 +6,7 @@ pub(crate) mod community;
 pub(crate) mod analytics;
 pub(crate) mod contest_review;
 pub(crate) mod export;
+pub(crate) mod favorites;
 pub(crate) mod external;
 pub(crate) mod relationships;
 pub(crate) mod storage;

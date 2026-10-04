@@ -120,6 +120,15 @@
 .training-confirm-actions button.danger { border-color: color-mix(in srgb,var(--danger) 50%,var(--line)); color: var(--danger); }
 .training-confirm-actions button.danger:hover { background: color-mix(in srgb,var(--danger) 15%,var(--panel-soft)); }
 .community-gallery .set-card-main small { display: block; color: var(--muted); font-size: var(--font-meta); }
+.community-folder { border-top: 1px solid var(--line-soft); }
+.community-folder>summary { display: flex; align-items: center; gap: 8px; padding: 11px 10px; cursor: pointer; color: var(--text); list-style: none; }
+.community-folder>summary::-webkit-details-marker { display: none; }
+.community-folder>summary::before { content: '▸'; color: var(--muted); font-size: 12px; transition: transform .15s ease; }
+.community-folder[open]>summary::before { transform: rotate(90deg); }
+.community-folder>summary span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 650; }
+.community-folder>summary small { color: var(--muted); white-space: nowrap; }
+.community-folder-items { margin-left: 14px; border-left: 1px solid var(--line-soft); padding-left: 6px; }
+.community-folder-items .set-card-main { padding-left: 10px; }
 .community-search { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 0 9px; background: var(--input); color: var(--muted); }
 .community-search input { min-width: 0; width: 100%; border: 0; background: transparent; color: var(--text); padding: 9px 0; }
 .community-search input:focus { outline: 0; }

@@ -34,6 +34,8 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 
 「题单」用于整理和分享跨 OJ 题目；粘贴链接即可离线识别平台与题目标识并保存，真实标题和标签可按需获取或手动填写。「模拟赛」保存独立的比赛配置与历史场次，可由题单生成、手动创建或导入 AI 结果；比赛说明支持 Markdown 和 LaTeX。加入「参赛区」后可预设赛前倒计时秒数，点击「开始 VP」才启动倒计时，到零后开始比赛。赛中可暂停、继续或结束 VP，并记录单题思路和整场笔记。用户仍在原 OJ 提交，OJ Insight 根据本地 AC 同步与可获取的 Codeforces / AtCoder 提交记录更新状态和 verdict。无法获取的错误提交不会被推断为 WA。
 
+「收藏夹」用于整理题目、题单、博客和其他网页链接。每条收藏可编辑显示名称、简介和 Markdown 备注，并支持分类、搜索、置顶和紧凑显示；它只保留原网页入口，不复制内容。删除分类后，其中的链接会移到「未分类」。
+
 悬浮「做题小助手」可以为一次练习计时、记录 Markdown 笔记和失误。结束后自动保存到「解题手记」，关闭小助手则保留草稿；手记支持搜索、筛选和 JSON / CSV 导出。桌面应用运行时，Competitive Companion 可以为当前题目创建草稿，计时仍由你手动开始。
 
 「个性化组题」不会把已有题单当作初始候选。OJ Insight 从可靠的 Codeforces、AtCoder 和 QOJ 目录筛选候选题，排除本地已做题，导出包含画像、约束、候选池和完整指令的 ZIP。直接上传 ZIP 即可让大模型生成比赛 JSON；额外要求可选。生成结果可导入为题单或比赛。
@@ -72,7 +74,7 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 | AtCoder | 用户名 | 逐题 AC、难度、Algorithm Rating | 公共题目元数据会在本地缓存 |
 | 洛谷 | 用户名或数字 UID | 提交或公开活动、题量、官方难度 | 接口受限时安全降级为汇总数据 |
 | 牛客 | 数字 User ID | 普通题 AC、Tracker 完成记录 | Tracker 数据可选填 Cookie |
-| QOJ | 用户名 | 逐题 AC、ICPC / CCPC 补题进度 | 完整提交列表需要 `UOJSESSID` |
+| QOJ | 用户名 | 逐题 AC、ICPC / CCPC 补题进度 | 完整提交列表需要登录 Cookie |
 | LeetCode | 用户名或 `cn:用户名` | 活动、题量、难度；国际站 Rating | 中国站部分接口可选填 Cookie |
 
 上游网站可能调整接口或限制访问，因此同一平台在不同时间可取得的数据粒度可能不同。应用会在数据源状态和统计页面明确显示当前边界。
@@ -119,11 +121,11 @@ ICPC / CCPC Tracker 汇总 ICPC、CCPC 和省赛题集，可按年份、阶段�
 QOJ 需要登录后才能查看完整提交列表：
 
 1. 在浏览器登录 [QOJ](https://qoj.ac)。
-2. 在开发者工具的 Cookies 中找到 `UOJSESSID`。
-3. 在 OJ Insight 的 QOJ Secret 中填入完整 Cookie 或仅填写 value。
+2. 在开发者工具的 Cookies 中复制登录 Cookie 的名称和值。名称可能变化，不能只复制值。
+3. 在 OJ Insight 的 QOJ Cookie 输入框填写完整的 `名称=值`；多项 Cookie 可用分号分隔。
 
 ```text
-UOJSESSID=xxxxxxxx
+session_name=xxxxxxxx; another_name=yyyyyyyy
 ```
 
 Cookie 过期会显示需要重新登录；已登录但确实没有 AC 会正常记录为 0；网页结构变化或网络错误则会保留具体错误信息和旧缓存。
@@ -142,7 +144,7 @@ cn:用户名
 
 Cookie 和 Session 等价于登录凭据，请勿把数据库、完整日志或含凭据的个人信息导出交给不信任的人。
 
-个人信息 JSON 默认不包含 Cookie / Session；只有主动选择完整导出并确认警告后才会包含。运行日志会对用户填写的 Secret 和 `UOJSESSID` 脱敏。
+个人信息 JSON 默认不包含 Cookie / Session；只有主动选择完整导出并确认警告后才会包含。运行日志会对用户填写的 Secret 脱敏。
 
 ## 统计口径
 

@@ -36,6 +36,8 @@ The ICPC / CCPC Tracker collects ICPC, CCPC, and provincial contest problem sets
 
 **Problem Sets** organize and share problems across judges. Paste a problem URL to identify its platform and problem ID offline, then fetch or enter a title and tags as needed. **Mock Contests** store independent configurations and past sessions. Create one from a problem set, build it manually, or import an AI-generated result. Contest descriptions support Markdown and LaTeX.
 
+**Favorites** is a local link organizer for problems, problem sets, articles, and other resources. Add a web link, edit its displayed title, summary, and Markdown note, and organize it with categories, search, and pinning. It keeps a link to the original page rather than a copy of its content. Deleting a category moves its links to Uncategorized.
+
 In the virtual contest area, you can save a pre-contest countdown. The countdown starts only when you select **Start VP**; the contest begins when it reaches zero. During a VP, you can pause, resume, or finish the session and record notes for individual problems or the whole contest. Submit solutions on the original judge. OJ Insight updates progress from local AC syncs and available Codeforces / AtCoder verdicts; it does not infer a wrong answer when failed submissions are unavailable.
 
 The floating **Study Assistant** times a practice session, keeps Markdown notes, and records mistakes. Ending a session saves it to the **Solve Journal**; closing the assistant keeps a draft. The journal supports search, filters, and JSON / CSV exports. With the desktop app running, Competitive Companion can create a draft for the current problem; you start the timer when you are ready.
@@ -76,7 +78,7 @@ Account settings, sync results, training records, and exports live in the app's 
 | AtCoder | Username | Problem-level ACs, difficulty, Algorithm Rating | Public problem metadata is cached locally |
 | Luogu | Username or numeric UID | Submissions or public activity, solved counts, official difficulty | Falls back to aggregates when an endpoint is restricted |
 | NowCoder | Numeric user ID | Regular problem ACs, Tracker completion | Tracker data may use an optional Cookie |
-| QOJ | Username | Problem-level ACs and ICPC / CCPC upsolving | The full submission list requires `UOJSESSID` |
+| QOJ | Username | Problem-level ACs and ICPC / CCPC upsolving | The full submission list requires a login Cookie |
 | LeetCode | Username or `cn:username` | Solved counts and difficulty; international-site contest Rating where available | Some China-site endpoints may use an optional Cookie |
 
 Upstream sites may change their endpoints or limit access. The amount of data available for a platform can therefore change over time. OJ Insight shows the current limitations on its source-status and statistics pages.
@@ -123,11 +125,11 @@ The candidate pool estimates a training range per judge from known problem-level
 QOJ requires a login to expose the full submission list:
 
 1. Log in to [QOJ](https://qoj.ac) in your browser.
-2. Find `UOJSESSID` under Cookies in the browser developer tools.
-3. Enter either the full Cookie or just its value in OJ Insight's QOJ Secret field.
+2. Copy the login Cookie name and value from the browser developer tools. Cookie names may change; do not copy only the value.
+3. Enter the full `name=value` pair in OJ Insight's QOJ Cookie field. You can paste multiple pairs separated by semicolons.
 
 ```text
-UOJSESSID=xxxxxxxx
+name=xxxxxxxx; another_name=yyyyyyyy
 ```
 
 An expired Cookie is reported as a login problem. A logged-in account with no ACs correctly shows zero. A page-layout or network failure retains the specific error and the previous cache.
@@ -146,7 +148,7 @@ If a public endpoint is unavailable, you can enter a Cookie for that site and re
 
 Cookies and Sessions are login credentials. Do not share a database, full log, or personal-data export containing credentials with someone you do not trust.
 
-The standard personal-information JSON export omits Cookies and Sessions. They are included only when you explicitly choose a full export and confirm the warning. Runtime logs redact user-provided Secrets and `UOJSESSID`.
+The standard personal-information JSON export omits Cookies and Sessions. They are included only when you explicitly choose a full export and confirm the warning. Runtime logs redact the configured Secret.
 
 ## How statistics are counted
 

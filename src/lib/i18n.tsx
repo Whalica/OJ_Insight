@@ -152,7 +152,7 @@ const english: Record<string, string> = {
   '国际站用户名；中国站写 cn:用户名': 'Global username; use cn:username for China',
   '可选：Codeforces API Key / Secret': 'Optional: Codeforces API Key / Secret',
   '可选：牛客网页 Cookie（用于同步每日一题打卡记录）': 'Optional: NowCoder cookie for daily challenge history',
-  '可选：UOJSESSID=...（QOJ 当前需登录查看完整提交）': 'Optional: UOJSESSID=... for full QOJ submissions',
+  '完整 Cookie（名称=值，可粘贴多项）': 'Full cookie (name=value; multiple entries supported)',
   '可选：对应站点 Cookie（中国站活动与最近 AC 兜底）': 'Optional: site cookie for China activity and recent AC fallback',
   'API Key（可选）': 'API Key (optional)', 'API Secret（可选）': 'API Secret (optional)',
   '从未': 'Never',

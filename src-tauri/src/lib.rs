@@ -22,6 +22,7 @@ use commands::community::{get_community_catalog, get_community_problem_set, save
 use commands::analytics::{get_day_detail, get_difficulty_detail, get_snapshot};
 use commands::contest_review::{generate_contest_review, inspect_contest_review};
 use commands::export::{create_database_backup, write_export_file};
+use commands::favorites::{delete_favorite_category, delete_favorite_item, list_favorite_categories, list_favorite_items, open_favorite_link, save_favorite_category, save_favorite_item};
 use commands::external::open_external;
 use commands::relationships::{
     delete_watched_person, dismiss_watched_event, get_pending_watched_notifications,
@@ -45,7 +46,7 @@ use commands::training::{
       list_vp_code_files,
       lookup_problem_metadata,
 };
-use commands::update::{can_install_updates, check_for_updates};
+use commands::update::{can_install_updates, check_for_updates, install_app_update, cancel_app_update};
 use commands::xcpc::get_xcpc_contests;
 use infrastructure::paths::portable_root_dir;
 
@@ -115,8 +116,17 @@ pub fn run() {
             dismiss_watched_event,
             write_export_file,
             create_database_backup,
+            list_favorite_categories,
+            save_favorite_category,
+            delete_favorite_category,
+            list_favorite_items,
+            save_favorite_item,
+            delete_favorite_item,
+            open_favorite_link,
             check_for_updates,
             can_install_updates,
+            install_app_update,
+            cancel_app_update,
             open_external,
             list_problem_sets,
             get_community_catalog,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpenCheck, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
+import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
 import PlatformIcon from './PlatformIcon';
 import icpcIcon from '../assets/platforms/icpc.ico';
 import type { Page } from '../lib/navigation';
@@ -11,7 +11,7 @@ type NavGroup = 'platforms' | 'trackers' | 'training';
 
 export default function Sidebar({ page, onChange, collapsed, onToggle, onAssistant, assistantVisible }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void; onAssistant: () => void; assistantVisible: boolean }) {
   const { t } = useI18n();
-  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'solve-journal' || page === 'problem-sets' || page === 'community' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
+  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'solve-journal' || page === 'problem-sets' || page === 'community' || page === 'favorites' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
   const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
   const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' || savedGroup === 'platforms' || savedGroup === 'training' ? savedGroup : null));
 
@@ -63,6 +63,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
           <div className="nav-group-items tracker-items">
             <button title={collapsed ? t('题单') : undefined} className={page === 'problem-sets' ? 'active' : ''} onClick={() => onChange('problem-sets')}><ListChecks size={14} /><span className="nav-label">{t('题单')}</span></button>
             <button title={collapsed ? t('推荐题单') : undefined} className={page === 'community' ? 'active' : ''} onClick={() => onChange('community')}><LibraryBig size={14} /><span className="nav-label">{t('推荐题单')}</span></button>
+            <button title={collapsed ? '收藏夹' : undefined} className={page === 'favorites' ? 'active' : ''} onClick={() => onChange('favorites')}><Bookmark size={14} /><span className="nav-label">收藏夹</span></button>
             <button title={collapsed ? t('模拟赛') : undefined} className={page === 'contests' ? 'active' : ''} onClick={() => onChange('contests')}><TableProperties size={14} /><span className="nav-label">{t('模拟赛')}</span></button>
             <button title={collapsed ? t('参赛区') : undefined} className={page === 'vp' ? 'active' : ''} onClick={() => onChange('vp')}><Play size={14} /><span className="nav-label">{t('参赛区')}</span></button>
             <button title={collapsed ? t('个性化组题') : undefined} className={page === 'training' ? 'active' : ''} onClick={() => onChange('training')}><Dumbbell size={14} /><span className="nav-label">{t('个性化组题')}</span></button>
