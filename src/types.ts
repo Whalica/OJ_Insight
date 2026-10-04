@@ -372,3 +372,19 @@ export interface CandidatePool {
   candidates: CanonicalProblem[];
   sources: CandidateSourceStatus[];
 }
+
+export type FavoriteKind = 'problem' | 'problem_set' | 'article' | 'resource';
+export interface FavoriteCategory { id: number; name: string }
+export interface FavoriteItem {
+  id: number;
+  kind: FavoriteKind;
+  title: string;
+  url: string;
+  summary: string;
+  note: string;
+  categoryId: number | null;
+  pinned: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+export type FavoriteInput = Omit<FavoriteItem, 'id' | 'createdAt' | 'updatedAt'> & { id: number | null };

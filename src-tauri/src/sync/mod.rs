@@ -50,16 +50,50 @@ pub fn browser_headers() -> HeaderMap {
 pub fn with_cookie(mut h: HeaderMap, cookie: &str) -> HeaderMap {
     let cookie = cookie.trim();
     if !cookie.is_empty() {
-        let normalized = if cookie.contains('=') {
-            cookie.to_string()
-        } else {
-            format!("UOJSESSID={cookie}")
-        };
-        if let Ok(v) = HeaderValue::from_str(&normalized) {
+        if let Ok(v) = normalize_qoj_cookie(cookie).and_then(|value| HeaderValue::from_str(value).map_err(|_| "QOJ Cookie 格式无效".to_string())) {
             h.insert(COOKIE, v);
         }
     }
     h
+}
+
+pub fn normalize_qoj_cookie(cookie: &str) -> Result<&str, String> {
+    let cookie = cookie.trim();
+    let cookie = if cookie.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("Cookie:")) {
+        cookie[7..].trim()
+    } else { cookie };
+    if cookie.is_empty() {
+        return Err("请填写从浏览器复制的完整 QOJ Cookie（名称=值）".into());
+    }
+    if HeaderValue::from_str(cookie).is_err()
+        || cookie.split(';').any(|part| {
+            let Some((name, _)) = part.trim().split_once('=') else { return true; };
+            name.is_empty() || name.bytes().any(|byte| byte <= b' ' || byte == b';' || byte == b'=')
+        })
+    {
+        return Err("QOJ Cookie 格式无效；请复制完整的名称=值，多个 Cookie 用分号分隔".into());
+    }
+    Ok(cookie)
+}
+
+#[cfg(test)]
+mod qoj_cookie_tests {
+    use super::{browser_headers, normalize_qoj_cookie, with_cookie, COOKIE};
+
+    #[test]
+    fn sends_current_cookie_name_without_rewriting_it() {
+        let cookie = "Cookie: new_session=abc123; preference=dark";
+        assert_eq!(normalize_qoj_cookie(cookie).unwrap(), "new_session=abc123; preference=dark");
+        let headers = with_cookie(browser_headers(), cookie);
+        assert_eq!(headers.get(COOKIE).unwrap().to_str().unwrap(), "new_session=abc123; preference=dark");
+    }
+
+    #[test]
+    fn rejects_bare_value_and_malformed_pairs() {
+        assert!(normalize_qoj_cookie("abc123").is_err());
+        assert!(normalize_qoj_cookie("session=abc123; missing_pair").is_err());
+        assert!(normalize_qoj_cookie("session=abc123\r\nInjected: yes").is_err());
+    }
 }
 
 pub fn with_raw_cookie(mut h: HeaderMap, cookie: &str) -> HeaderMap {

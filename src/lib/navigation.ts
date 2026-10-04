@@ -8,6 +8,7 @@ export type Page =
   | 'contest-review'
   | 'problem-sets'
   | 'community'
+  | 'favorites'
   | 'contests'
   | 'vp'
   | 'training'

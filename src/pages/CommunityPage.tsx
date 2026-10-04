@@ -1,14 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, LibraryBig, RefreshCw, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Download, ExternalLink, Folder, LibraryBig, RefreshCw, Search } from 'lucide-react';
 
 import PlatformIcon from '../components/PlatformIcon';
 import { MarkdownPreview } from '../components/MarkdownNote';
 import { PLATFORM_META } from '../lib/platforms';
 import { api } from '../services/api';
-import type { CommunityCatalog, CommunityEntry } from '../types';
+import type { CommunityCatalog, CommunityEntry, CommunityListing } from '../types';
 
 const REPOSITORY = 'https://github.com/Whalica/OJ_Insight-Community';
 const LICENSE_LABELS: Record<string, string> = { 'CC-BY-4.0': '转载或改编时需署名', 'CC-BY-SA-4.0': '需署名，改编后沿用相同许可', 'CC0-1.0': '作者尽可能放弃权利限制' };
+const CONTENT_ROOT = 'content/problem-sets/';
+interface CommunityFolder { name: string; path: string; count: number; folders: Map<string, CommunityFolder>; entries: CommunityListing[] }
+
+function folderTree(entries: CommunityListing[]): CommunityFolder {
+  const root: CommunityFolder = { name: '', path: '', count: 0, folders: new Map(), entries: [] };
+  for (const entry of entries) {
+    const segments = entry.path.slice(CONTENT_ROOT.length).split('/').slice(0, -1);
+    let current = root;
+    current.count += 1;
+    for (const name of segments) {
+      if (!current.folders.has(name)) current.folders.set(name, { name, path: `${current.path}${name}/`, count: 0, folders: new Map(), entries: [] });
+      current = current.folders.get(name)!;
+      current.count += 1;
+    }
+    current.entries.push(entry);
+  }
+  return root;
+}
 
 export default function CommunityPage({ notify, onOpenLocalSets }: { notify: (message: string) => void; onOpenLocalSets: () => void }) {
   const [catalog, setCatalog] = useState<CommunityCatalog | null>(null);
@@ -19,39 +38,45 @@ export default function CommunityPage({ notify, onOpenLocalSets }: { notify: (me
   const [entryLoading, setEntryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [openFolders, setOpenFolders] = useState<Set<string>>(() => new Set());
+  const entryRequest = useRef(0);
 
-  const refresh = async () => {
+  const refresh = async (fresh = false) => {
     setLoading(true); setError('');
-    try { setCatalog(await api.getCommunityCatalog()); }
+    try { setCatalog(await api.getCommunityCatalog(fresh)); }
     catch (reason) { setError(String(reason)); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void refresh(); }, []);
-  const visible = useMemo(() => (catalog?.entries || []).filter((item) => item.type === 'problem-set' && `${item.title} ${item.summary} ${item.author.name} ${item.categories.join(' ')}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [catalog, query]);
+  useEffect(() => { void refresh(true); }, []);
+  const visible = useMemo(() => (catalog?.entries || []).filter((item) => item.type === 'problem-set' && `${item.title} ${item.summary} ${item.author.name} ${item.categories.join(' ')} ${item.path.slice(CONTENT_ROOT.length).split('/').slice(0, -1).join(' ')}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [catalog, query]);
+  const folders = useMemo(() => folderTree(visible), [visible]);
   const selected = catalog?.entries.find((item) => item.id === selectedId) || null;
 
-  const open = async (id: string) => {
-    setSelectedId(id); setEntry(null); setEntryLoading(true);
-    try { setEntry(await api.getCommunityProblemSet(id)); }
-    catch (reason) { notify(`读取推荐题单失败：${String(reason)}`); }
-    finally { setEntryLoading(false); }
+  const open = async (item: CommunityListing) => {
+    const request = ++entryRequest.current;
+    setSelectedId(item.id); setEntry(null); setEntryLoading(true);
+    try { const result = await api.getCommunityProblemSet(item.id, item.path); if (request === entryRequest.current) setEntry(result); }
+    catch (reason) { if (request === entryRequest.current) notify(`读取推荐题单失败：${String(reason)}`); }
+    finally { if (request === entryRequest.current) setEntryLoading(false); }
   };
   const save = async () => {
-    if (!entry || saving) return;
+    if (!entry || !selected || entry.id !== selected.id || saving) return;
     setSaving(true);
-    try { const saved = await api.saveCommunityProblemSet(entry); notify(`“${saved.title}”已保存到本地题单`); onOpenLocalSets(); }
+    try { const saved = await api.saveCommunityProblemSet(entry, selected.path); notify(`“${saved.title}”已保存到本地题单`); onOpenLocalSets(); }
     catch (reason) { notify(`保存题单失败：${String(reason)}`); }
     finally { setSaving(false); }
   };
+  const renderEntry = (item: CommunityListing) => <article key={item.id} className={selectedId === item.id ? 'active' : ''}><button className="set-card-main" onClick={() => void open(item)}><strong>{item.title}</strong><span>{item.problemCount} 道题 · {item.author.name}</span><small>{item.categories.join(' · ') || '未分类'}</small></button></article>;
+  const renderFolder = (folder: CommunityFolder): ReactNode => <details key={folder.path} className="community-folder" open={!!query || openFolders.has(folder.path)}><summary onClick={(event) => { event.preventDefault(); setOpenFolders((current) => { const next = new Set(current); if (next.has(folder.path)) next.delete(folder.path); else next.add(folder.path); return next; }); }}><Folder size={15} /><span>{folder.name}</span><small>{folder.count} 份</small></summary><div className="community-folder-items">{folder.entries.map(renderEntry)}{[...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name)).map(renderFolder)}</div></details>;
 
   return <>
-    <header className="topbar"><div><small lang="en">TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p></div><div className="compact-actions"><button onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>
-    {error && <section className="panel community-notice" role="alert">社区目录暂不可用：{error}<button onClick={() => void refresh()}>重试</button></section>}
-    {catalog?.cached && <section className="panel community-notice" role="status">当前显示上次保存的社区目录，可能不是最新内容。<button onClick={() => void refresh()}>重试</button></section>}
+    <header className="topbar"><div><small lang="en">TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p></div><div className="compact-actions"><button onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>
+    {error && <section className="panel community-notice" role="alert">社区目录暂不可用：{error}<button onClick={() => void refresh(true)}>重试</button></section>}
+    {catalog?.cached && <section className="panel community-notice" role="status">当前显示上次保存的社区目录，可能不是最新内容。<button onClick={() => void refresh(true)}>重试</button></section>}
     {entry?.cached && <section className="panel community-notice" role="status">当前题单来自本地缓存，保存前请留意内容可能已更新。</section>}
     <div className="problem-sets-layout community-layout">
       <aside className="panel set-gallery community-gallery"><header><div><strong>社区题单</strong><small>{loading ? '读取中…' : `${visible.length} 份`}</small></div></header><label className="community-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索题单、作者或分类" /></label>
-        {visible.map((item) => <article key={item.id} className={selectedId === item.id ? 'active' : ''}><button className="set-card-main" onClick={() => void open(item.id)}><strong>{item.title}</strong><span>{item.problemCount} 道题 · {item.author.name}</span><small>{item.categories.join(' · ') || '未分类'}</small></button></article>)}
+        {folders.entries.map(renderEntry)}{[...folders.folders.values()].sort((a, b) => a.name.localeCompare(b.name)).map(renderFolder)}
         {!loading && !visible.length && <div className="set-empty"><strong>{catalog?.entries.length ? '没有匹配的题单' : '社区题单征集中'}</strong><span>{catalog?.entries.length ? '换个关键词试试。' : '审核通过的题单会在这里出现。'}</span></div>}
       </aside>
       <section className="panel set-detail community-detail">

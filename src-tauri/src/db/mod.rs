@@ -18,8 +18,10 @@ include!("analytics.rs");
 include!("ratings.rs");
 
 mod training;
+mod favorites;
 
 pub use training::*;
+pub use favorites::*;
 
 #[cfg(test)]
 mod tests {

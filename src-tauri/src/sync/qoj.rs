@@ -2,7 +2,7 @@ use regex::Regex;
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
 
-use super::{browser_headers, get_text, now_epoch, polite_sleep, with_cookie};
+use super::{browser_headers, get_text, normalize_qoj_cookie, now_epoch, polite_sleep, with_cookie};
 use crate::models::{AccountConfig, RatingPoint, RemoteData, Submission, SyncError};
 
 pub async fn fetch(
@@ -17,9 +17,10 @@ pub async fn fetch(
     }
     if account.secret.trim().is_empty() {
         return Err(SyncError::auth(
-            "QOJ 当前要求登录后才能查看完整提交列表；请在设置中填写 UOJSESSID Cookie",
+            "QOJ 当前要求登录后才能查看完整提交列表；请在设置中填写完整 Cookie（名称=值）",
         ));
     }
+    normalize_qoj_cookie(&account.secret).map_err(SyncError::auth)?;
     let ratings = fetch_current_rating(client, user, &account.secret)
         .await
         .ok();
@@ -43,7 +44,7 @@ pub async fn fetch(
         .await?;
         if looks_like_login(&html) {
             return Err(SyncError::auth(
-                "QOJ 未登录或 UOJSESSID 已过期；可填写完整 UOJSESSID=value，也可只填写 value",
+                "QOJ 未登录或 Cookie 已过期；请重新登录并复制浏览器中的完整 Cookie（名称=值）",
             ));
         }
         let rows = parse_rows(&html, user);
@@ -100,7 +101,7 @@ pub async fn fetch(
         solved_inventory: None,
         ratings,
         activity_only: false,
-        notes: vec!["QOJ 完整提交列表当前需要登录；本地通过 UOJSESSID 读取".into()],
+        notes: vec!["QOJ 完整提交列表当前需要登录；本地通过 Cookie 读取".into()],
         cursor_epoch: max_seen.max(now_epoch().saturating_sub(48 * 3600)),
         replace_submissions: full,
         replace_aggregates: full,

@@ -1,11 +1,13 @@
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater';
+import { Channel, invoke } from '@tauri-apps/api/core';
 
 import type { UpdateInfo } from '../types';
 import { api } from './api';
 
 let pendingUpdate: Update | null = null;
 let checking: Promise<UpdateInfo> | null = null;
+export type AppUpdateEvent = DownloadEvent | { event: 'Installing' };
 
 function info(update: Update | null): UpdateInfo {
   if (!update) {
@@ -57,13 +59,19 @@ export function checkForAppUpdate() {
   return checking;
 }
 
-export async function installAppUpdate(onEvent?: (event: DownloadEvent) => void) {
+export async function installAppUpdate(onEvent?: (event: AppUpdateEvent) => void) {
   if (!pendingUpdate) await checkForAppUpdate();
   if (!pendingUpdate) throw new Error('当前没有可安装的新版本');
-  await pendingUpdate.downloadAndInstall(onEvent, { timeout: 10 * 60_000 });
+  const channel = new Channel<AppUpdateEvent>();
+  if (onEvent) channel.onmessage = onEvent;
+  await invoke<void>('install_app_update', { onEvent: channel, expectedVersion: pendingUpdate.version });
   // On Windows the updater launches NSIS and exits this process itself.
   // Relaunching here races installation and can reopen the old executable.
   if (!/Windows/i.test(navigator.userAgent)) await relaunch();
+}
+
+export async function cancelAppUpdate() {
+  return invoke<boolean>('cancel_app_update');
 }
 
 export async function discardAppUpdate() {

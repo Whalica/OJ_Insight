@@ -2,15 +2,11 @@ use std::io::Write;
 use std::path::Path;
 
 fn redact(input: &str, secret: &str) -> String {
-    let mut value = if secret.trim().is_empty() {
+    if secret.trim().is_empty() {
         input.to_string()
     } else {
         input.replace(secret, "[REDACTED]")
-    };
-    if let Ok(re) = regex::Regex::new(r"(?i)UOJSESSID=[^;\s]+") {
-        value = re.replace_all(&value, "UOJSESSID=[REDACTED]").into_owned();
     }
-    value
 }
 
 pub(crate) fn log_event(log_dir: &Path, platform: &str, message: &str, secret: &str) {
@@ -36,13 +32,11 @@ mod tests {
     use super::redact;
 
     #[test]
-    fn redact_masks_explicit_secret_and_qoj_cookie() {
-        let message = "token=private UOJSESSID=session-value; Path=/";
-        let safe = redact(message, "private");
-
-        assert!(!safe.contains("private"));
+    fn redact_masks_cookie_without_assuming_its_name() {
+        let secret = "new_session=session-value; preference=private";
+        let safe = redact(&format!("upstream request used Cookie: {secret}"), secret);
         assert!(!safe.contains("session-value"));
-        assert!(safe.contains("token=[REDACTED]"));
-        assert!(safe.contains("UOJSESSID=[REDACTED]"));
+        assert!(!safe.contains("private"));
+        assert!(safe.contains("Cookie: [REDACTED]"));
     }
 }

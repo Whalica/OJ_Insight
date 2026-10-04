@@ -9,6 +9,7 @@ use crate::operation;
 pub(crate) struct AppState {
     pub(crate) db: Mutex<rusqlite::Connection>,
     pub(crate) client: Client,
+    pub(crate) update_cancel: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     pub(crate) operations: operation::OperationGate,
     pub(crate) root_dir: PathBuf,
     pub(crate) data_dir: PathBuf,
@@ -38,6 +39,7 @@ impl AppState {
         Ok(Self {
             db: Mutex::new(conn),
             client,
+            update_cancel: Mutex::new(None),
             operations: operation::OperationGate::default(),
             root_dir,
             data_dir,
