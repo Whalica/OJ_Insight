@@ -3,6 +3,7 @@ import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Dumbbell, Dow
 import icpcIcon from '../assets/platforms/icpc.ico';
 import ojiLogo from '../assets/branding/oji-logo.png';
 import PlatformIcon from './PlatformIcon';
+import type { Page } from '../lib/navigation';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 import { useI18n } from '../lib/i18n';
