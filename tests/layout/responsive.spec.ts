@@ -224,6 +224,31 @@ test('sidebar flyouts are neither clipped by the sidebar nor covered by the main
   }
 });
 
+test('each settings tab renders only its own panel', async ({ page }) => {
+  const visitSettings = async () => {
+    await openPage(page, 'overview');
+    await page.locator('aside.sidebar').getByRole('button', { name: '设置', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '设置', exact: true })).toBeVisible();
+  };
+  // The accounts/personalization ternary had no arm for the data tab, so that tab
+  // rendered the personalization panel with the data panel pushed below it.
+  await visitSettings();
+  await page.getByRole('button', { name: '数据源', exact: true }).click();
+  await expect(page.locator('.source-list')).toBeVisible();
+  await expect(page.locator('.data-tab-head')).toBeVisible();
+  await expect(page.locator('.preferences-panel')).toHaveCount(0);
+
+  await visitSettings();
+  await page.getByRole('button', { name: '个性化', exact: true }).click();
+  await expect(page.locator('.preferences-panel')).toBeVisible();
+  await expect(page.locator('.source-list')).toHaveCount(0);
+
+  await visitSettings();
+  await page.getByRole('button', { name: '账号设置', exact: true }).click();
+  await expect(page.locator('.account-panel')).toBeVisible();
+  await expect(page.locator('.preferences-panel, .source-list')).toHaveCount(0);
+});
+
 test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
