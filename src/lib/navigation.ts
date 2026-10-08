@@ -1,5 +1,3 @@
-import type { Platform } from '../types';
-
 export type Page =
   | 'overview'
   | 'xcpc'
@@ -15,7 +13,5 @@ export type Page =
   | 'solve-journal'
   | 'relationships'
   | 'export'
-  | 'data'
   | 'settings'
-  | 'about'
-  | Platform;
+  | 'about';

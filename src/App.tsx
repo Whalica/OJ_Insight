@@ -8,20 +8,16 @@ import DifficultyDrawer from './components/DifficultyDrawer';
 import RelationshipNotice from './components/RelationshipNotice';
 import StudyAssistant from './components/StudyAssistant';
 import DashboardPage from './pages/DashboardPage';
+import ProblemSetsHubPage from './pages/ProblemSetsHubPage';
+import ContestsHubPage from './pages/ContestsHubPage';
 import AboutPage from './pages/AboutPage';
-import DataPage from './pages/DataPage';
 import ExportPage from './pages/ExportPage';
 import SettingsPage from './pages/SettingsPage';
 import RelationshipsPage from './pages/RelationshipsPage';
 import XcpcTrackerPage from './pages/XcpcTrackerPage';
-import ProblemSetsPage from './pages/ProblemSetsPage';
-import CommunityPage from './pages/CommunityPage';
 import FavoritesPage from './pages/FavoritesPage';
 import TrainingPage from './pages/TrainingPage';
 import SolveJournalPage from './pages/SolveJournalPage';
-import ContestsPage from './pages/ContestsPage';
-import VpPage from './pages/VpPage';
-import TrainingReviewPage from './pages/TrainingReviewPage';
 import ExternalTrackerPage, { type ExternalTracker } from './pages/ExternalTrackerPage';
 import { api } from './services/api';
 import { JOURNAL_CHANGED, newSolveRecord, saveSolveRecord, selectSolveDraft } from './services/solveJournal';
@@ -45,8 +41,15 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => {
     const saved = loadPreferences();
     const last = localStorage.getItem('oj-insight.last-page') as Page | null;
-    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'community', 'favorites', 'contests', 'vp', 'training', 'solve-journal', 'relationships', 'export', 'data', 'settings', 'about', ...PLATFORM_ORDER].includes(last || '');
+    const valid = ['overview', 'xcpc', 'tracker-codeforces', 'tracker-atcoder', 'contest-review', 'problem-sets', 'community', 'favorites', 'contests', 'vp', 'training', 'solve-journal', 'relationships', 'export', 'settings', 'about'].includes(last || '');
+    // Platform pages are gone: an old saved platform page becomes the dashboard platform filter.
     return saved.startupPage === 'last' && last && valid ? last : 'overview';
+  });
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(() => {
+    const saved = localStorage.getItem('oj-insight.selected-platform');
+    if (PLATFORM_ORDER.includes(saved as Platform)) return saved as Platform;
+    const last = localStorage.getItem('oj-insight.last-page');
+    return PLATFORM_ORDER.includes(last as Platform) ? last as Platform : null;
   });
   const embeddedTracker = page.startsWith('tracker-') ? page.slice('tracker-'.length) as ExternalTracker : null;
   const [mountedTracker, setMountedTracker] = useState<ExternalTracker | null>(embeddedTracker);
@@ -70,8 +73,14 @@ export default function App() {
     return () => window.removeEventListener('storage', update);
   }, []);
 
-  const selectedPlatform: Platform | null = PLATFORM_ORDER.includes(page as Platform) ? page as Platform : null;
   const range = useMemo(() => selectedPlatform === 'luogu' ? recentHalfYearRange(timeZone) : scopeRange(timeScope, timeZone), [selectedPlatform, timeScope, selectedDay, timeZone]);
+  const switchPlatform = useCallback((platform: Platform | null) => {
+    setSelectedPlatform(platform);
+    localStorage.setItem('oj-insight.selected-platform', platform || '');
+    // The platform filter only renders on the dashboard, so switching it from the
+    // sidebar has to bring the dashboard into view.
+    setPage('overview');
+  }, []);
   const setTimeScope = (value: TimeScope) => { localStorage.setItem('oj-insight.time-scope', String(value)); setTimeScopeState(value); };
   const setMetric = (value: Metric) => { localStorage.setItem('oj-insight.metric', value); setMetricState(value); };
   const setTimeZone = (value: string) => { localStorage.setItem('oj-insight.time-zone', value); setTimeZoneState(value); setSelectedDay(today(value)); };
@@ -156,6 +165,8 @@ export default function App() {
     api.getXcpcContests(false, false).then(() => loadSnapshot()).catch(() => undefined);
   }, [accountsLoaded, accounts.qoj, loadSnapshot]);
   useEffect(() => { setAccountFilter(''); setSourceFilter(''); }, [selectedPlatform]);
+  // Switching the dashboard platform used to be a page change, which scrolled back to the top.
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'auto' }); }, [selectedPlatform]);
   useEffect(() => { if (selectedPlatform === 'luogu' && metric !== 'activity') setMetric('activity'); }, [selectedPlatform, metric]);
   useEffect(() => {
     closeDay(); closeDifficulty(); window.scrollTo({ top: 0, behavior: 'auto' }); localStorage.setItem('oj-insight.last-page', page);
@@ -194,24 +205,20 @@ export default function App() {
     } catch (error) { notify(`启动小助手失败：${error}`); }
   };
   return <LocaleProvider locale={resolveLocale(preferences.language)}><div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} onAssistant={openAssistant} assistantVisible={assistantVisible} />
+    <Sidebar page={page} onChange={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} onAssistant={openAssistant} assistantVisible={assistantVisible} selectedPlatform={selectedPlatform} onPlatform={switchPlatform} />
     <main className={`main ${page.startsWith('tracker-') ? 'main-tracker' : ''}`}>
       {page === 'training' ? <TrainingPage notify={notify} onOpenProblemSets={() => setPage('problem-sets')} onOpenContests={() => setPage('contests')} /> :
        page === 'solve-journal' ? <SolveJournalPage notify={notify} onOpenAssistant={openAssistant} /> :
-       page === 'problem-sets' ? <ProblemSetsPage notify={notify} onSolveProblem={(problem) => void solveFromSet(problem)} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
-       page === 'community' ? <CommunityPage notify={notify} onOpenLocalSets={() => setPage('problem-sets')} /> :
+       page === 'problem-sets' || page === 'community' ? <ProblemSetsHubPage key={page} initialTab={page === 'community' ? 'community' : 'local'} notify={notify} onSolveProblem={(problem) => void solveFromSet(problem)} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
        page === 'favorites' ? <FavoritesPage notify={notify} /> :
-       page === 'contests' ? <ContestsPage notify={notify} onOpenVp={() => setPage('vp')} /> :
-       page === 'vp' ? <VpPage notify={notify} /> :
-       page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
-       page === 'contest-review' ? <TrainingReviewPage accounts={accounts} notify={notify} onOpenSettings={() => setPage('settings')} /> :
+       page === 'contests' || page === 'vp' || page === 'contest-review' ? <ContestsHubPage key={page} initialTab={page === 'vp' ? 'vp' : page === 'contest-review' ? 'review' : 'library'} notify={notify} accounts={accounts} onOpenSettings={() => setPage('settings')} /> :
+       page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} statuses={statuses} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
       page === 'relationships' ? <RelationshipsPage people={watchedPeople} events={watchedEvents.slice(0, preferences.watchedEventRetention)} timeZone={timeZone} syncing={watchedSyncing || !!syncing} autoCheck={autoWatch} onAutoCheck={setAutoWatch} onSync={() => syncWatched()} onSyncPerson={(personId) => syncWatched(personId)} onSave={saveWatched} onEdit={editWatched} onDelete={deleteWatched} onDismiss={dismissWatched} notify={notify} /> :
-       page === 'data' ? <DataPage statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage syncing={syncing} availableUpdate={availableUpdate} installingUpdate={installingUpdate} updateProgress={updateProgress} updateStage={updateStage} checkUpdate={checkUpdate} installUpdate={installUpdate} cancelUpdate={cancelUpdate} /> :
        page === 'xcpc' ? <XcpcTrackerPage syncing={syncing === 'qoj'} onSync={() => syncOne('qoj').then(() => undefined)} onOpenSettings={() => setPage('settings')} notify={notify} /> :
        embeddedTracker ? null :
-      <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} solvedGains={solvedGains} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={(platform) => setPage(platform)} onOpenSettings={() => setPage('settings')} />}
+      <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} solvedGains={solvedGains} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={switchPlatform} onOpenSettings={() => setPage('settings')} />}
       {mountedTracker && <div className={`tracker-keepalive-layer ${embeddedTracker === mountedTracker ? 'active' : ''}`} aria-hidden={embeddedTracker !== mountedTracker}><ExternalTrackerPage tracker={mountedTracker} accounts={accounts[mountedTracker] || []} /></div>}
     </main>
     {!isTauri() && <StudyAssistant visible={assistantVisible} expanded={assistantExpanded} onExpand={setAssistantExpanded} onClose={closeAssistant} />}

@@ -34,7 +34,7 @@ interface Props {
   onSync: () => void;
   onDay: (day: string) => void;
   onDifficulty: (platform: Platform, label: string, sourceOverride?: string) => void;
-  onPlatform: (platform: Platform) => void;
+  onPlatform: (platform: Platform | null) => void;
   onOpenSettings: () => void;
 }
 

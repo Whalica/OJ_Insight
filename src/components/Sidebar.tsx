@@ -1,33 +1,75 @@
-import { useEffect, useState } from 'react';
-import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
-import PlatformIcon from './PlatformIcon';
+import { useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Dumbbell, Download, LayoutDashboard, Layers3, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, Sparkles, TableProperties, Users, LibraryBig } from 'lucide-react';
 import icpcIcon from '../assets/platforms/icpc.ico';
 import ojiLogo from '../assets/branding/oji-logo.png';
-import type { Page } from '../lib/navigation';
+import PlatformIcon from './PlatformIcon';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
 import { useI18n } from '../lib/i18n';
 
 type NavGroup = 'platforms' | 'trackers' | 'training';
 
-export default function Sidebar({ page, onChange, collapsed, onToggle, onAssistant, assistantVisible }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void; onAssistant: () => void; assistantVisible: boolean }) {
+/* Hover intent: open quickly, but keep the flyout alive long enough that a
+   pointer drifting a few pixels away does not close it again. */
+const OPEN_DELAY = 120;
+const CLOSE_DELAY = 320;
+
+export default function Sidebar({ page, onChange, collapsed, onToggle, onAssistant, assistantVisible, selectedPlatform, onPlatform }: {
+  page: Page;
+  onChange: (page: Page) => void;
+  collapsed: boolean;
+  onToggle: () => void;
+  onAssistant: () => void;
+  assistantVisible: boolean;
+  selectedPlatform: Platform | null;
+  onPlatform: (platform: Platform | null) => void;
+}) {
   const { t } = useI18n();
-  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'solve-journal' || page === 'problem-sets' || page === 'community' || page === 'favorites' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
-  const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
-  const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' || savedGroup === 'platforms' || savedGroup === 'training' ? savedGroup : null));
+  const [openGroup, setOpenGroup] = useState<NavGroup | null>(null);
+  const openTimer = useRef(0);
+  const closeTimer = useRef(0);
 
-  useEffect(() => {
-    if (!pageGroup) return;
-    setOpenGroup(pageGroup);
-    localStorage.setItem('oj-insight.sidebar-group', pageGroup);
-  }, [pageGroup]);
+  useEffect(() => () => { window.clearTimeout(openTimer.current); window.clearTimeout(closeTimer.current); }, []);
 
-  const toggleGroup = (group: NavGroup) => {
-    if (collapsed) onToggle();
-    const next = openGroup === group ? null : group;
-    setOpenGroup(next);
-    if (next) localStorage.setItem('oj-insight.sidebar-group', next); else localStorage.removeItem('oj-insight.sidebar-group');
+  const cancelTimers = () => {
+    window.clearTimeout(openTimer.current);
+    window.clearTimeout(closeTimer.current);
   };
+  const scheduleOpen = (group: NavGroup) => {
+    cancelTimers();
+    if (openGroup === group) return;
+    openTimer.current = window.setTimeout(() => setOpenGroup(group), OPEN_DELAY);
+  };
+  const scheduleClose = () => {
+    cancelTimers();
+    closeTimer.current = window.setTimeout(() => setOpenGroup(null), CLOSE_DELAY);
+  };
+  /* A pointer leaving the trigger and entering the flyout crosses the shared
+     edge, so both sides cancel the pending close before it fires. */
+  const flyoutProps = {
+    onMouseEnter: cancelTimers,
+    onMouseLeave: scheduleClose,
+  };
+  const hostProps = (group: NavGroup) => ({
+    onMouseEnter: () => scheduleOpen(group),
+    onMouseLeave: scheduleClose,
+    onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Escape') setOpenGroup(null); },
+    onBlur: (event: ReactFocusEvent) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenGroup(null); },
+  });
+  const trigger = (group: NavGroup, Icon: typeof Layers3, label: string) => (
+    <button
+      className={`nav-flyout-trigger ${openGroup === group ? 'open' : ''}`}
+      aria-expanded={openGroup === group}
+      aria-haspopup="true"
+      title={collapsed ? label : undefined}
+      onClick={() => { cancelTimers(); setOpenGroup(openGroup === group ? null : group); }}
+      onFocus={() => { cancelTimers(); setOpenGroup(group); }}
+    >
+      <Icon size={17} />
+      <span className="nav-label">{label}</span>
+      <ChevronDown className="nav-flyout-chevron" size={14} />
+    </button>
+  );
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -39,47 +81,56 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         <button className="sidebar-toggle" onClick={onToggle} title={collapsed ? t('展开侧栏') : t('收起侧栏')} aria-label={collapsed ? t('展开侧栏') : t('收起侧栏')}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
       </div>
       <nav>
-        <button title={collapsed ? t('总览') : undefined} className={page === 'overview' ? 'active' : ''} onClick={() => onChange('overview')}><LayoutDashboard size={17} /><span className="nav-label">{t('总览')}</span></button>
+        <div className="nav-flyout-host" {...hostProps('platforms')}>
+          {trigger('platforms', LayoutDashboard, t('总览'))}
+          {openGroup === 'platforms' && (
+            <div className="nav-flyout" {...flyoutProps}>
+              <div className="nav-flyout-title">平台</div>
+              <button className={!selectedPlatform ? 'active' : ''} aria-current={!selectedPlatform} onClick={() => { onPlatform(null); setOpenGroup(null); }}><Layers3 size={15} /><span>全部平台</span></button>
+              {PLATFORM_ORDER.map((platform) => (
+                <button key={platform} className={selectedPlatform === platform ? 'active' : ''} aria-current={selectedPlatform === platform} onClick={() => { onPlatform(platform); setOpenGroup(null); }}>
+                  <PlatformIcon platform={platform} className="nav-flyout-icon" /><span>{PLATFORM_META[platform].name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-        <section className={`nav-group ${openGroup === 'platforms' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? t('平台') : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label">{t('平台')}</span><ChevronDown className="nav-group-chevron" size={14} /></button>
-          <div className="nav-group-items">{PLATFORM_ORDER.map((platform) => (
-            <button title={collapsed ? PLATFORM_META[platform].name : undefined} key={platform} className={page === platform ? 'active' : ''} onClick={() => onChange(platform)}>
-              <PlatformIcon platform={platform} className="sidebar-platform-icon" /><span className="nav-label">{PLATFORM_META[platform].name}</span>
-            </button>
-          ))}</div>
-        </section>
+        <div className="nav-flyout-host" {...hostProps('trackers')}>
+          {trigger('trackers', TableProperties, 'Trackers')}
+          {openGroup === 'trackers' && (
+            <div className="nav-flyout" {...flyoutProps}>
+              <div className="nav-flyout-title">Trackers</div>
+              <button className={page === 'xcpc' ? 'active' : ''} aria-current={page === 'xcpc'} onClick={() => { onChange('xcpc'); setOpenGroup(null); }}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span>ICPC / CCPC</span></button>
+              <button className={page === 'tracker-codeforces' ? 'active' : ''} aria-current={page === 'tracker-codeforces'} onClick={() => { onChange('tracker-codeforces'); setOpenGroup(null); }}><PlatformIcon platform="codeforces" className="nav-flyout-icon" /><span>Codeforces</span></button>
+              <button className={page === 'tracker-atcoder' ? 'active' : ''} aria-current={page === 'tracker-atcoder'} onClick={() => { onChange('tracker-atcoder'); setOpenGroup(null); }}><PlatformIcon platform="atcoder" className="nav-flyout-icon" /><span>AtCoder</span></button>
+            </div>
+          )}
+        </div>
 
-        <section className={`nav-group ${openGroup === 'trackers' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label" lang="en">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
-          <div className="nav-group-items tracker-items">
-            <button title={collapsed ? 'ICPC/CCPC' : undefined} className={page === 'xcpc' ? 'active' : ''} onClick={() => onChange('xcpc')}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span className="nav-label">ICPC / CCPC</span></button>
-            <button className={page === 'tracker-codeforces' ? 'active' : ''} onClick={() => onChange('tracker-codeforces')}><PlatformIcon platform="codeforces" className="sidebar-platform-icon" /><span className="nav-label">Codeforces</span></button>
-            <button className={page === 'tracker-atcoder' ? 'active' : ''} onClick={() => onChange('tracker-atcoder')}><PlatformIcon platform="atcoder" className="sidebar-platform-icon" /><span className="nav-label">AtCoder</span></button>
-          </div>
-        </section>
-
-        <section className={`nav-group ${openGroup === 'training' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'training' && !collapsed} title={collapsed ? t('训练中心') : undefined} onClick={() => toggleGroup('training')}><Dumbbell size={17} /><span className="nav-label">{t('训练中心')}</span><ChevronDown className="nav-group-chevron" size={14} /></button>
-          <div className="nav-group-items tracker-items">
-            <button title={collapsed ? t('题单') : undefined} className={page === 'problem-sets' ? 'active' : ''} onClick={() => onChange('problem-sets')}><ListChecks size={14} /><span className="nav-label">{t('题单')}</span></button>
-            <button title={collapsed ? t('推荐题单') : undefined} className={page === 'community' ? 'active' : ''} onClick={() => onChange('community')}><LibraryBig size={14} /><span className="nav-label">{t('推荐题单')}</span></button>
-            <button title={collapsed ? '收藏夹' : undefined} className={page === 'favorites' ? 'active' : ''} onClick={() => onChange('favorites')}><Bookmark size={14} /><span className="nav-label">收藏夹</span></button>
-            <button title={collapsed ? t('模拟赛') : undefined} className={page === 'contests' ? 'active' : ''} onClick={() => onChange('contests')}><TableProperties size={14} /><span className="nav-label">{t('模拟赛')}</span></button>
-            <button title={collapsed ? t('参赛区') : undefined} className={page === 'vp' ? 'active' : ''} onClick={() => onChange('vp')}><Play size={14} /><span className="nav-label">{t('参赛区')}</span></button>
-            <button title={collapsed ? t('个性化组题') : undefined} className={page === 'training' ? 'active' : ''} onClick={() => onChange('training')}><Dumbbell size={14} /><span className="nav-label">{t('个性化组题')}</span></button>
-            <button title={collapsed ? t('解题手记') : undefined} className={page === 'solve-journal' ? 'active' : ''} onClick={() => onChange('solve-journal')}><BookOpenCheck size={14} /><span className="nav-label">{t('解题手记')}</span></button>
-            <button title={collapsed ? t('赛后分析') : undefined} className={page === 'contest-review' ? 'active' : ''} onClick={() => onChange('contest-review')}><BookOpenCheck size={14} /><span className="nav-label">{t('赛后分析')}</span></button>
-          </div>
-        </section>
+        <div className="nav-flyout-host" {...hostProps('training')}>
+          {trigger('training', Dumbbell, t('训练中心'))}
+          {openGroup === 'training' && (
+            <div className="nav-flyout" {...flyoutProps}>
+              <div className="nav-flyout-title">{t('训练中心')}</div>
+              <button className={page === 'problem-sets' ? 'active' : ''} aria-current={page === 'problem-sets'} onClick={() => { onChange('problem-sets'); setOpenGroup(null); }}><ListChecks size={15} /><span>{t('题单')}</span></button>
+              <button className={page === 'community' ? 'active' : ''} aria-current={page === 'community'} onClick={() => { onChange('community'); setOpenGroup(null); }}><LibraryBig size={15} /><span>{t('推荐题单')}</span></button>
+              <button className={page === 'favorites' ? 'active' : ''} aria-current={page === 'favorites'} onClick={() => { onChange('favorites'); setOpenGroup(null); }}><Bookmark size={15} /><span>收藏夹</span></button>
+              <button className={page === 'contests' ? 'active' : ''} aria-current={page === 'contests'} onClick={() => { onChange('contests'); setOpenGroup(null); }}><TableProperties size={15} /><span>{t('模拟赛')}</span></button>
+              <button className={page === 'vp' ? 'active' : ''} aria-current={page === 'vp'} onClick={() => { onChange('vp'); setOpenGroup(null); }}><Play size={15} /><span>{t('参赛区')}</span></button>
+              <button className={page === 'contest-review' ? 'active' : ''} aria-current={page === 'contest-review'} onClick={() => { onChange('contest-review'); setOpenGroup(null); }}><BookOpenCheck size={15} /><span>{t('赛后分析')}</span></button>
+              <button className={page === 'training' ? 'active' : ''} aria-current={page === 'training'} onClick={() => { onChange('training'); setOpenGroup(null); }}><Sparkles size={15} /><span>{t('个性化组题')}</span></button>
+              <button className={page === 'solve-journal' ? 'active' : ''} aria-current={page === 'solve-journal'} onClick={() => { onChange('solve-journal'); setOpenGroup(null); }}><BookOpenCheck size={15} /><span>{t('解题手记')}</span></button>
+            </div>
+          )}
+        </div>
 
         <div className="nav-title">TOOLS</div>
         <button title={collapsed ? t('关注') : undefined} className={page === 'relationships' ? 'active' : ''} onClick={() => onChange('relationships')}><Users size={17} /><span className="nav-label">{t('关注')}</span></button>
         <button title={collapsed ? t('导出') : undefined} className={page === 'export' ? 'active' : ''} onClick={() => onChange('export')}><Download size={17} /><span className="nav-label">{t('导出')}</span></button>
-        <button title={collapsed ? t('数据源') : undefined} className={page === 'data' ? 'active' : ''} onClick={() => onChange('data')}><Database size={17} /><span className="nav-label">{t('数据源')}</span></button>
-        <button title={collapsed ? t('做题小助手') : undefined} className="assistant-tool" aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={17} /><span className="nav-label">{t('做题小助手')}</span></button>
         <button title={collapsed ? t('设置') : undefined} className={page === 'settings' ? 'active' : ''} onClick={() => onChange('settings')}><Settings2 size={17} /><span className="nav-label">{t('设置')}</span></button>
         <button title={collapsed ? t('关于') : undefined} className={page === 'about' ? 'active' : ''} onClick={() => onChange('about')}><CircleHelp size={17} /><span className="nav-label">{t('关于')}</span></button>
+        <button title={collapsed ? t('做题小助手') : undefined} className="assistant-tool" aria-pressed={assistantVisible} onClick={onAssistant}><Clock3 size={17} /><span className="nav-label">{t('做题小助手')}</span></button>
       </nav>
     </aside>
   );

@@ -82,6 +82,10 @@ button:active:not(:disabled), .problem-button:active, .drawer-problem-button:act
 .difficulty-tabs button, .rating-tabs button, .knowledge-tabs button {
   position: relative; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
 }
+/* The platform name in each per-OJ tab reads as a label, not as muted helper text. */
+.difficulty-tabs button>span, .knowledge-tabs button>span {
+  font-weight: 650;
+}
 .source-segments button:not(:last-child), .rating-periods button:not(:last-child) { border-right: 1px solid transparent; }
 .source-segments button:hover:not(.active), .segmented button:hover:not(.active), .rating-periods button:hover:not(.active),
 .settings-tabs button:hover:not(.active), .preference-choices button:hover:not(.active), .difficulty-tabs button:hover:not(.active),

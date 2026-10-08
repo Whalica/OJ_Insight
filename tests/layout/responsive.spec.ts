@@ -3,15 +3,17 @@ import { installTauriMock } from './mock-tauri';
 import type { Snapshot } from '../../src/types';
 
 // Deterministic local data; these tests never sync accounts or contact a tracker.
-async function openPage(page: Page, startup: string, compact = false, difficulty: Snapshot['difficulty'] = []) {
-  await page.addInitScript(({ startup, compact }) => {
+// `startup` stays a Page; `platform` selects the dashboard platform filter (null = 综合).
+async function openPage(page: Page, startup: string, compact = false, difficulty: Snapshot['difficulty'] = [], platform: string | null = null) {
+  await page.addInitScript(({ startup, compact, platform }) => {
     localStorage.setItem('oj-insight.preferences', JSON.stringify({
       theme: 'gray', autoSync: false, autoCheckUpdates: false, startupPage: 'last',
       reduceMotion: true, density: compact ? 'compact' : 'comfortable', fontSize: compact ? 'xlarge' : 'standard',
     }));
     localStorage.setItem('oj-insight.last-page', startup);
+    localStorage.setItem('oj-insight.selected-platform', platform || '');
     localStorage.setItem('oj-insight.time-scope', '2024');
-  }, { startup, compact });
+  }, { startup, compact, platform });
   await installTauriMock(page, {
     snapshot: {
       stats: { solved: 0, accepted_submissions: 0, active_days: 0, longest_streak: 0, current_streak: 0, peak_day: null, peak_count: 0 },
@@ -65,7 +67,7 @@ async function checkHeatmaps(page: Page, fill: boolean) {
 }
 
 test('activity and difficulty heatmaps share empty-cell treatment in light and gray themes', async ({ page }) => {
-  await openPage(page, 'codeforces');
+  await openPage(page, 'overview', false, [], 'codeforces');
   for (const theme of ['light', 'gray']) {
     await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
     const colors = await page.evaluate(() => {
@@ -87,7 +89,7 @@ for (const [width, height, dpr] of [[1920, 1080, 1], [2560, 1440, 1], [3840, 216
 
     test('activity and difficulty fill the panel with square, clickable cells', async ({ page }) => {
       const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-      await openPage(page, 'codeforces');
+      await openPage(page, 'overview', false, [], 'codeforces');
       await checkHeatmaps(page, true);
       if (width === 1920 && dpr === 1) {
         await page.evaluate(() => window.scrollTo(0, 200));
@@ -122,7 +124,7 @@ for (const [width, height, dpr] of [[1920, 1080, 1], [2560, 1440, 1], [3840, 216
 
 test('resizing and folding the sidebar recalculates heatmaps; small windows scroll to the last day', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await openPage(page, 'codeforces', true);
+  await openPage(page, 'overview', true, [], 'codeforces');
   await checkHeatmaps(page, false);
   const last = page.locator('.heatmap').first().getByRole('button', { name: '2024-12-31: 0', exact: true });
   await last.scrollIntoViewIfNeeded();
@@ -139,7 +141,7 @@ test('resizing and folding the sidebar recalculates heatmaps; small windows scro
 });
 
 test('Luogu half-year stays inside its panel after resizing', async ({ page }) => {
-  await openPage(page, 'luogu');
+  await openPage(page, 'overview', false, [], 'luogu');
   await expect(page.locator('.heat-cell')).toHaveCount(183);
   for (const width of [1024, 1920]) {
     await page.setViewportSize({ width, height: 1080 });
@@ -195,8 +197,12 @@ test('daily check-in is saved locally and cannot be repeated on reload', async (
 test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
-  await page.getByRole('button', { name: '平台', exact: true }).click();
-  await page.getByRole('navigation').getByRole('button', { name: 'Luogu', exact: true }).click();
+  // The platform filter lives in the sidebar flyout that hangs off 总览.
+  await expect(page.locator('.platform-switch')).toHaveCount(0);
+  await page.getByRole('button', { name: '总览' }).click();
+  const flyout = page.locator('.nav-flyout');
+  await expect(flyout.getByRole('button', { name: '全部平台' })).toBeVisible();
+  await flyout.getByRole('button', { name: 'Luogu', exact: true }).click();
   await expect(page.locator('.rating-panel')).toBeVisible();
   await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');
   await expect(page.locator('.recent-panel')).toHaveCount(0);
@@ -237,7 +243,7 @@ test('platform difficulty has no platform tabs and LeetCode hides unavailable se
     { platform: 'leetcode', label: 'Easy', count: 4, order: 1 },
     { platform: 'codeforces', label: '1200', count: 3, order: 1200 },
   ];
-  await openPage(page, 'leetcode', false, difficulty);
+  await openPage(page, 'overview', false, difficulty, 'leetcode');
   await expect(page.locator('.career-title')).toBeVisible();
   await expect(page.locator('.leetcode-strip')).toBeVisible();
   await expect(page.locator('.difficulty-panel .histogram-leetcode')).toBeVisible();
