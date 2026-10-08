@@ -195,6 +195,60 @@ test('daily check-in is saved locally and cannot be repeated on reload', async (
   await expect(page.getByRole('button', { name: '撤销', exact: true })).toHaveCount(0);
 });
 
+test('sidebar flyouts are neither clipped by the sidebar nor covered by the main panel', async ({ page }) => {
+  await openPage(page, 'overview');
+  const main = page.locator('.main');
+  for (const [testId, item] of [['nav-platforms', 'Codeforces'], ['nav-trackers', 'AtCoder'], ['nav-training', '题单']] as const) {
+    await page.getByTestId(testId).hover();
+    const flyout = page.locator('.nav-flyout');
+    await expect(flyout).toBeVisible();
+    // The sidebar used to set overflow-y, which forces overflow-x to clip, so the
+    // panel sat outside the sidebar box and was cut off. Assert the real bounds.
+    const box = await flyout.boundingBox();
+    const viewport = page.viewportSize()!;
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+    // The main panel must not paint over the flyout.
+    const covered = await page.evaluate(() => {
+      const panel = document.querySelector('.nav-flyout')!.getBoundingClientRect();
+      const top = document.elementFromPoint(panel.left + panel.width / 2, panel.top + 24);
+      return !!top?.closest('.main');
+    });
+    expect(covered).toBe(false);
+    // And the entry must actually be clickable, not merely present in the DOM.
+    await flyout.getByRole('button', { name: item, exact: true }).click();
+    await expect(flyout).toHaveCount(0);
+    await expect(main).toBeVisible();
+  }
+});
+
+test('each settings tab renders only its own panel', async ({ page }) => {
+  const visitSettings = async () => {
+    await openPage(page, 'overview');
+    await page.locator('aside.sidebar').getByRole('button', { name: '设置', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '设置', exact: true })).toBeVisible();
+  };
+  // The accounts/personalization ternary had no arm for the data tab, so that tab
+  // rendered the personalization panel with the data panel pushed below it.
+  await visitSettings();
+  await page.getByRole('button', { name: '数据源', exact: true }).click();
+  await expect(page.locator('.source-list')).toBeVisible();
+  await expect(page.locator('.data-tab-head')).toBeVisible();
+  await expect(page.locator('.preferences-panel')).toHaveCount(0);
+
+  await visitSettings();
+  await page.getByRole('button', { name: '个性化', exact: true }).click();
+  await expect(page.locator('.preferences-panel')).toBeVisible();
+  await expect(page.locator('.source-list')).toHaveCount(0);
+
+  await visitSettings();
+  await page.getByRole('button', { name: '账号设置', exact: true }).click();
+  await expect(page.locator('.account-panel')).toBeVisible();
+  await expect(page.locator('.preferences-panel, .source-list')).toHaveCount(0);
+});
+
 test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
