@@ -1,0 +1,12 @@
+# Keep every text file in the repository on LF, regardless of the contributor's
+# platform or core.autocrlf setting. Without this, editing on Windows expands
+# every hunk into a whole-file diff because the index is CRLF.
+* text=auto eol=lf
+
+# Binary assets must never be converted.
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.pdf binary
+*.sqlite3 binary
