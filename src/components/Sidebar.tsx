@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react';
-import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
-import PlatformIcon from './PlatformIcon';
+import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
 import icpcIcon from '../assets/platforms/icpc.ico';
 import ojiLogo from '../assets/branding/oji-logo.png';
+import PlatformIcon from './PlatformIcon';
 import type { Page } from '../lib/navigation';
-import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
-import type { Platform } from '../types';
 import { useI18n } from '../lib/i18n';
 
-type NavGroup = 'platforms' | 'trackers' | 'training';
+type NavGroup = 'trackers' | 'training';
 
 export default function Sidebar({ page, onChange, collapsed, onToggle, onAssistant, assistantVisible }: { page: Page; onChange: (page: Page) => void; collapsed: boolean; onToggle: () => void; onAssistant: () => void; assistantVisible: boolean }) {
   const { t } = useI18n();
-  const pageGroup: NavGroup | null = PLATFORM_ORDER.includes(page as Platform) ? 'platforms' : page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'solve-journal' || page === 'problem-sets' || page === 'community' || page === 'favorites' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
+  const pageGroup: NavGroup | null = page === 'xcpc' || page.startsWith('tracker-') ? 'trackers' : page === 'training' || page === 'solve-journal' || page === 'problem-sets' || page === 'community' || page === 'favorites' || page === 'contests' || page === 'vp' || page === 'contest-review' ? 'training' : null;
   const savedGroup = localStorage.getItem('oj-insight.sidebar-group');
-  const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' || savedGroup === 'platforms' || savedGroup === 'training' ? savedGroup : null));
+  const [openGroup, setOpenGroup] = useState<NavGroup | null>(() => pageGroup || (savedGroup === 'trackers' || savedGroup === 'training' ? savedGroup : null));
 
   useEffect(() => {
     if (!pageGroup) return;
@@ -40,15 +38,6 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
       </div>
       <nav>
         <button title={collapsed ? t('总览') : undefined} className={page === 'overview' ? 'active' : ''} onClick={() => onChange('overview')}><LayoutDashboard size={17} /><span className="nav-label">{t('总览')}</span></button>
-
-        <section className={`nav-group ${openGroup === 'platforms' && !collapsed ? 'open' : ''}`}>
-          <button className="nav-group-trigger" aria-expanded={openGroup === 'platforms' && !collapsed} title={collapsed ? t('平台') : undefined} onClick={() => toggleGroup('platforms')}><Layers3 size={17} /><span className="nav-label">{t('平台')}</span><ChevronDown className="nav-group-chevron" size={14} /></button>
-          <div className="nav-group-items">{PLATFORM_ORDER.map((platform) => (
-            <button title={collapsed ? PLATFORM_META[platform].name : undefined} key={platform} className={page === platform ? 'active' : ''} onClick={() => onChange(platform)}>
-              <PlatformIcon platform={platform} className="sidebar-platform-icon" /><span className="nav-label">{PLATFORM_META[platform].name}</span>
-            </button>
-          ))}</div>
-        </section>
 
         <section className={`nav-group ${openGroup === 'trackers' && !collapsed ? 'open' : ''}`}>
           <button className="nav-group-trigger" aria-expanded={openGroup === 'trackers' && !collapsed} title={collapsed ? 'Trackers' : undefined} onClick={() => toggleGroup('trackers')}><TableProperties size={17} /><span className="nav-label" lang="en">Trackers</span><ChevronDown className="nav-group-chevron" size={14} /></button>
