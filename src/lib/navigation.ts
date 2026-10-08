@@ -1,5 +1,3 @@
-import type { Platform } from '../types';
-
 export type Page =
   | 'overview'
   | 'xcpc'
@@ -17,5 +15,4 @@ export type Page =
   | 'export'
   | 'data'
   | 'settings'
-  | 'about'
-  | Platform;
+  | 'about';

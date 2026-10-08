@@ -67,6 +67,17 @@ button:active:not(:disabled), .problem-button:active, .drawer-problem-button:act
 :root[data-theme="gray"] .embedded-tracker-actions button, :root[data-theme="gray"] .embedded-account { background: #383a3c; }
 @media (max-width: 900px) { .embedded-tracker-head { align-items: flex-start; flex-direction: column; } .embedded-tracker-actions { justify-content: flex-start; } }
 
+/* Dashboard platform filter: the same segmented-control language as the rating and difficulty tabs. */
+.platform-switch { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); gap: 6px; overflow: visible; margin-bottom: 14px; }
+.platform-switch button { min-width: 0; min-height: 44px; position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; padding: 7px 5px; line-height: 1.2; }
+.platform-switch-name { font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
+.platform-switch button .platform-icon { flex: 0 0 auto; }
+.platform-switch button:hover:not(.active) { border-color: var(--interactive-border-hover); background: var(--interactive-hover); color: var(--text); }
+.platform-switch button.active { border-color: color-mix(in srgb,var(--accent) 58%,var(--line)); background: color-mix(in srgb,var(--accent) 17%,var(--panel)); color: var(--text); box-shadow: 0 0 0 1px color-mix(in srgb,var(--accent) 14%,transparent), inset 0 -2px color-mix(in srgb,var(--accent) 70%,transparent); }
+:root[data-theme="light"] .platform-switch button.active { background: #e6f3ea; color: #176d38; border-color: #8dbd9d; }
+:root[data-theme="gray"] .platform-switch button.active { background: #3a4b40; color: #c6ebd1; border-color: #5e846a; }
+@media (max-width: 1240px) { .platform-switch { grid-auto-flow: row; grid-template-columns: repeat(4,minmax(0,1fr)); } }
+
 /* Make every switchable choice read as an interactive control, not plain text. */
 .source-segments, .segmented, .rating-periods, .settings-tabs, .preference-choices {
   gap: 4px; padding: 4px; overflow: visible; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb,var(--panel-soft) 88%,var(--bg));
@@ -81,6 +92,10 @@ button:active:not(:disabled), .problem-button:active, .drawer-problem-button:act
 .source-segments button, .segmented button, .rating-periods button, .settings-tabs button, .preference-choices button,
 .difficulty-tabs button, .rating-tabs button, .knowledge-tabs button {
   position: relative; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+}
+/* The platform name in each per-OJ tab reads as a label, not as muted helper text. */
+.difficulty-tabs button>span, .knowledge-tabs button>span {
+  font-weight: 650;
 }
 .source-segments button:not(:last-child), .rating-periods button:not(:last-child) { border-right: 1px solid transparent; }
 .source-segments button:hover:not(.active), .segmented button:hover:not(.active), .rating-periods button:hover:not(.active),
