@@ -1,8 +1,8 @@
 <p align="center"><img src="src/assets/branding/oji-logo.png" alt="OJ Insight Logo" width="144" /></p>
 
-# OJ Insight
+<h1 align="center">OJ Insight</h1>
 
-[![Read in English](docs/assets/read-in-english.svg)](README.md)
+<p align="center"><a href="README.md"><img src="docs/assets/read-in-english.svg" alt="Read in English" /></a></p>
 
 **把跨 OJ 的训练进度、日常练习和比赛复盘放在一个本地应用里。**
 

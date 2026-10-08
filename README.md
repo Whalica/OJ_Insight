@@ -1,8 +1,8 @@
 <p align="center"><img src="src/assets/branding/oji-logo.png" alt="OJ Insight logo" width="144" /></p>
 
-# OJ Insight
+<h1 align="center">OJ Insight</h1>
 
-[![Read in Chinese](docs/assets/read-in-chinese.svg)](README.zh-CN.md)
+<p align="center"><a href="README.zh-CN.md"><img src="docs/assets/read-in-chinese.svg" alt="Read in Chinese" /></a></p>
 
 **A local home for competitive programming progress, practice, and contest review.**
 
