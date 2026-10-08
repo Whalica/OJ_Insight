@@ -52,14 +52,22 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
     onMouseLeave: scheduleClose,
   };
   const hostProps = (group: NavGroup) => ({
-    onMouseEnter: () => scheduleOpen(group),
+    /* Entering any other entry closes the open flyout at once instead of waiting
+       out the grace period, so the panel can never cover the entry being clicked. */
+    onMouseEnter: () => {
+      window.clearTimeout(openTimer.current);
+      window.clearTimeout(closeTimer.current);
+      setOpenGroup((current) => (current && current !== group ? null : current));
+      scheduleOpen(group);
+    },
     onMouseLeave: scheduleClose,
     onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Escape') setOpenGroup(null); },
     onBlur: (event: ReactFocusEvent) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenGroup(null); },
   });
-  const trigger = (group: NavGroup, Icon: typeof Layers3, label: string) => (
+  const trigger = (group: NavGroup, Icon: typeof Layers3, label: string, testId: string) => (
     <button
       className={`nav-flyout-trigger ${openGroup === group ? 'open' : ''}`}
+      data-testid={testId}
       aria-expanded={openGroup === group}
       aria-haspopup="true"
       title={collapsed ? label : undefined}
@@ -83,7 +91,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
       </div>
       <nav>
         <div className="nav-flyout-host" {...hostProps('platforms')}>
-          {trigger('platforms', LayoutDashboard, t('总览'))}
+          {trigger('platforms', LayoutDashboard, t('总览'), 'nav-platforms')}
           {openGroup === 'platforms' && (
             <div className="nav-flyout" {...flyoutProps}>
               <div className="nav-flyout-title">平台</div>
@@ -98,7 +106,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         </div>
 
         <div className="nav-flyout-host" {...hostProps('trackers')}>
-          {trigger('trackers', TableProperties, 'Trackers')}
+          {trigger('trackers', TableProperties, 'Trackers', 'nav-trackers')}
           {openGroup === 'trackers' && (
             <div className="nav-flyout" {...flyoutProps}>
               <div className="nav-flyout-title">Trackers</div>
@@ -110,7 +118,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         </div>
 
         <div className="nav-flyout-host" {...hostProps('training')}>
-          {trigger('training', Dumbbell, t('训练中心'))}
+          {trigger('training', Dumbbell, t('训练中心'), 'nav-training')}
           {openGroup === 'training' && (
             <div className="nav-flyout" {...flyoutProps}>
               <div className="nav-flyout-title">{t('训练中心')}</div>
