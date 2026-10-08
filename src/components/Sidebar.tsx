@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Dumbbell, Download, LayoutDashboard, Layers3, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, Sparkles, TableProperties, Users, LibraryBig } from 'lucide-react';
 import icpcIcon from '../assets/platforms/icpc.ico';
 import ojiLogo from '../assets/branding/oji-logo.png';
@@ -27,10 +28,38 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
 }) {
   const { t } = useI18n();
   const [openGroup, setOpenGroup] = useState<NavGroup | null>(null);
+  const [flyoutPosition, setFlyoutPosition] = useState({ left: 0, top: 0 });
+  const hosts = useRef<Partial<Record<NavGroup, HTMLDivElement | null>>>({});
+  const flyout = useRef<HTMLDivElement>(null);
   const openTimer = useRef(0);
   const closeTimer = useRef(0);
 
   useEffect(() => () => { window.clearTimeout(openTimer.current); window.clearTimeout(closeTimer.current); }, []);
+
+  useLayoutEffect(() => {
+    if (!openGroup) return;
+    const anchor = hosts.current[openGroup];
+    const panel = flyout.current;
+    if (!anchor || !panel) return;
+    const reposition = () => {
+      const rect = anchor.getBoundingClientRect();
+      setFlyoutPosition({
+        left: Math.max(8, Math.min(rect.right, window.innerWidth - panel.offsetWidth - 8)),
+        top: Math.max(8, Math.min(rect.top, window.innerHeight - panel.offsetHeight - 8)),
+      });
+    };
+    reposition();
+    const observer = new ResizeObserver(reposition);
+    observer.observe(anchor);
+    observer.observe(panel);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [openGroup, collapsed]);
 
   const cancelTimers = () => {
     window.clearTimeout(openTimer.current);
@@ -50,8 +79,19 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
   const flyoutProps = {
     onMouseEnter: cancelTimers,
     onMouseLeave: scheduleClose,
+    onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Escape') setOpenGroup(null); },
+    onBlur: (event: ReactFocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (!event.currentTarget.contains(next) && !(openGroup && hosts.current[openGroup]?.contains(next))) setOpenGroup(null);
+    },
   };
+  // The sidebar scroll container clips overflow; render the flyout outside it.
+  const renderFlyout = (children: ReactNode) => createPortal(
+    <div className="nav-flyout" ref={flyout} style={flyoutPosition} {...flyoutProps}>{children}</div>,
+    document.body,
+  );
   const hostProps = (group: NavGroup) => ({
+    ref: (element: HTMLDivElement | null) => { hosts.current[group] = element; },
     /* Entering any other entry closes the open flyout at once instead of waiting
        out the grace period, so the panel can never cover the entry being clicked. */
     onMouseEnter: () => {
@@ -62,7 +102,10 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
     },
     onMouseLeave: scheduleClose,
     onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Escape') setOpenGroup(null); },
-    onBlur: (event: ReactFocusEvent) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenGroup(null); },
+    onBlur: (event: ReactFocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (!event.currentTarget.contains(next) && !flyout.current?.contains(next)) setOpenGroup(null);
+    },
   });
   const trigger = (group: NavGroup, Icon: typeof Layers3, label: string, testId: string) => (
     <button
@@ -92,8 +135,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
       <nav>
         <div className="nav-flyout-host" {...hostProps('platforms')}>
           {trigger('platforms', LayoutDashboard, t('总览'), 'nav-platforms')}
-          {openGroup === 'platforms' && (
-            <div className="nav-flyout" {...flyoutProps}>
+          {openGroup === 'platforms' && renderFlyout(<>
               <div className="nav-flyout-title">平台</div>
               <button className={!selectedPlatform ? 'active' : ''} aria-current={!selectedPlatform} onClick={() => { onPlatform(null); setOpenGroup(null); }}><Layers3 size={15} /><span>全部平台</span></button>
               {PLATFORM_ORDER.map((platform) => (
@@ -101,26 +143,22 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
                   <PlatformIcon platform={platform} className="nav-flyout-icon" /><span>{PLATFORM_META[platform].name}</span>
                 </button>
               ))}
-            </div>
-          )}
+          </>)}
         </div>
 
         <div className="nav-flyout-host" {...hostProps('trackers')}>
           {trigger('trackers', TableProperties, 'Trackers', 'nav-trackers')}
-          {openGroup === 'trackers' && (
-            <div className="nav-flyout" {...flyoutProps}>
+          {openGroup === 'trackers' && renderFlyout(<>
               <div className="nav-flyout-title">Trackers</div>
               <button className={page === 'xcpc' ? 'active' : ''} aria-current={page === 'xcpc'} onClick={() => { onChange('xcpc'); setOpenGroup(null); }}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span>ICPC / CCPC</span></button>
               <button className={page === 'tracker-codeforces' ? 'active' : ''} aria-current={page === 'tracker-codeforces'} onClick={() => { onChange('tracker-codeforces'); setOpenGroup(null); }}><PlatformIcon platform="codeforces" className="nav-flyout-icon" /><span>Codeforces</span></button>
               <button className={page === 'tracker-atcoder' ? 'active' : ''} aria-current={page === 'tracker-atcoder'} onClick={() => { onChange('tracker-atcoder'); setOpenGroup(null); }}><PlatformIcon platform="atcoder" className="nav-flyout-icon" /><span>AtCoder</span></button>
-            </div>
-          )}
+          </>)}
         </div>
 
         <div className="nav-flyout-host" {...hostProps('training')}>
           {trigger('training', Dumbbell, t('训练中心'), 'nav-training')}
-          {openGroup === 'training' && (
-            <div className="nav-flyout" {...flyoutProps}>
+          {openGroup === 'training' && renderFlyout(<>
               <div className="nav-flyout-title">{t('训练中心')}</div>
               <button className={page === 'problem-sets' ? 'active' : ''} aria-current={page === 'problem-sets'} onClick={() => { onChange('problem-sets'); setOpenGroup(null); }}><ListChecks size={15} /><span>{t('题单')}</span></button>
               <button className={page === 'community' ? 'active' : ''} aria-current={page === 'community'} onClick={() => { onChange('community'); setOpenGroup(null); }}><LibraryBig size={15} /><span>{t('推荐题单')}</span></button>
@@ -130,8 +168,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
               <button className={page === 'contest-review' ? 'active' : ''} aria-current={page === 'contest-review'} onClick={() => { onChange('contest-review'); setOpenGroup(null); }}><BookOpenCheck size={15} /><span>{t('赛后分析')}</span></button>
               <button className={page === 'training' ? 'active' : ''} aria-current={page === 'training'} onClick={() => { onChange('training'); setOpenGroup(null); }}><Sparkles size={15} /><span>{t('个性化组题')}</span></button>
               <button className={page === 'solve-journal' ? 'active' : ''} aria-current={page === 'solve-journal'} onClick={() => { onChange('solve-journal'); setOpenGroup(null); }}><BookOpenCheck size={15} /><span>{t('解题手记')}</span></button>
-            </div>
-          )}
+          </>)}
         </div>
 
         <div className="nav-title">TOOLS</div>
