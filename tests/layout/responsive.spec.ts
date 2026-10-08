@@ -195,6 +195,35 @@ test('daily check-in is saved locally and cannot be repeated on reload', async (
   await expect(page.getByRole('button', { name: '撤销', exact: true })).toHaveCount(0);
 });
 
+test('sidebar flyouts are neither clipped by the sidebar nor covered by the main panel', async ({ page }) => {
+  await openPage(page, 'overview');
+  const main = page.locator('.main');
+  for (const [testId, item] of [['nav-platforms', 'Codeforces'], ['nav-trackers', 'AtCoder'], ['nav-training', '题单']] as const) {
+    await page.getByTestId(testId).hover();
+    const flyout = page.locator('.nav-flyout');
+    await expect(flyout).toBeVisible();
+    // The sidebar used to set overflow-y, which forces overflow-x to clip, so the
+    // panel sat outside the sidebar box and was cut off. Assert the real bounds.
+    const box = await flyout.boundingBox();
+    const viewport = page.viewportSize()!;
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+    // The main panel must not paint over the flyout.
+    const covered = await page.evaluate(() => {
+      const panel = document.querySelector('.nav-flyout')!.getBoundingClientRect();
+      const top = document.elementFromPoint(panel.left + panel.width / 2, panel.top + 24);
+      return !!top?.closest('.main');
+    });
+    expect(covered).toBe(false);
+    // And the entry must actually be clickable, not merely present in the DOM.
+    await flyout.getByRole('button', { name: item, exact: true }).click();
+    await expect(flyout).toHaveCount(0);
+    await expect(main).toBeVisible();
+  }
+});
+
 test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
