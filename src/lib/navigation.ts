@@ -13,6 +13,5 @@ export type Page =
   | 'solve-journal'
   | 'relationships'
   | 'export'
-  | 'data'
   | 'settings'
   | 'about';

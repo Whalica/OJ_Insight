@@ -78,10 +78,6 @@ export default function DashboardPage(props: Props) {
   const openCredentialHelp = () => onOpenSettings();
   return <>
     <header className="topbar dashboard-head"><div><small>{platform ? `${PLATFORM_META[platform].name} · PLATFORM` : today(timeZone)}</small><h1>{title}</h1><p>{platform ? luoguLimited ? '洛谷公开活动砖与题库难度概况。' : platform === 'leetcode' ? 'LeetCode 生涯与题库难度概况。' : `${PLATFORM_META[platform].name} 的活动砖、难度足迹和逐题记录。` : welcome.message}</p></div><div className="topbar-actions">{(!platform || credentialPlatform) && <button className="credential-help" onClick={openCredentialHelp}><KeyRound size={15} />{!platform ? '配置 API / Cookie' : platform === 'codeforces' ? '配置 API' : '配置 Cookie'}</button>}<button className="primary sync-button" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncProgress ? `${syncProgress.done}/${syncProgress.total}` : syncing ? '同步中' : platform ? `同步 ${PLATFORM_META[platform].name}` : '同步全部'}</button></div></header>
-    <div className="platform-switch" role="group" aria-label="切换平台">
-      <button className={!platform ? 'active' : ''} aria-pressed={!platform} onClick={() => onPlatform(null)}><span className="platform-switch-name">综合</span></button>
-      {PLATFORM_ORDER.map((item) => <button key={item} className={platform === item ? 'active' : ''} aria-pressed={platform === item} onClick={() => onPlatform(item)}><PlatformIcon platform={item} /><span className="platform-switch-name" lang="en">{PLATFORM_META[item].name}</span></button>)}
-    </div>
     {!!syncing && syncTip && <div className="tip-banner"><span>比赛小贴士</span><strong>{syncTip}</strong></div>}
     {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>部分可用 {syncProgress.partial} · 失败 {syncProgress.failed}；各平台更新数量见“同步与数据”</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
     {!platform && <TodayProgress snapshot={snapshot} timeZone={timeZone} solvedGains={solvedGains} onSelect={onPlatform} onSync={onSync} syncing={!!syncing} />}

@@ -153,7 +153,8 @@ test('all external trackers also fill a compact window with large fonts', async 
   await page.setViewportSize({ width: 1024, height: 768 });
   await openPage(page, 'tracker-codeforces', true);
   for (const name of ['Codeforces', 'AtCoder']) {
-    await page.locator('.tracker-items').getByRole('button', { name, exact: true }).click();
+    await page.getByTestId('nav-trackers').hover();
+    await page.locator('.nav-flyout').getByRole('button', { name, exact: true }).click();
     await expect(page.locator('iframe')).toBeVisible();
     const gap = await page.locator('.embedded-tracker-frame').evaluate(frame => frame.clientHeight - frame.querySelector('iframe')!.getBoundingClientRect().height);
     expect(Math.abs(gap)).toBeLessThan(1);
@@ -197,10 +198,12 @@ test('daily check-in is saved locally and cannot be repeated on reload', async (
 test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
-  // The platform filter moved out of the sidebar into the dashboard.
-  await expect(page.locator('aside.sidebar').getByRole('button', { name: '平台', exact: true })).toHaveCount(0);
-  await expect(page.locator('.platform-switch')).toBeVisible();
-  await page.locator('.platform-switch').getByRole('button', { name: 'Luogu', exact: true }).click();
+  // The platform filter lives in the sidebar flyout that hangs off the first entry.
+  await expect(page.locator('.platform-switch')).toHaveCount(0);
+  await page.getByTestId('nav-platforms').hover();
+  const flyout = page.locator('.nav-flyout');
+  await expect(flyout.getByRole('button', { name: '全部平台' })).toBeVisible();
+  await flyout.getByRole('button', { name: 'Luogu', exact: true }).click();
   await expect(page.locator('.rating-panel')).toBeVisible();
   await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');
   await expect(page.locator('.recent-panel')).toHaveCount(0);
