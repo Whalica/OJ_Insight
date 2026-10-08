@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Database, Download, Dumbbell, Layers3, LayoutDashboard, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, TableProperties, Users, LibraryBig } from 'lucide-react';
 import PlatformIcon from './PlatformIcon';
 import icpcIcon from '../assets/platforms/icpc.ico';
+import ojiLogo from '../assets/branding/oji-logo.png';
 import type { Page } from '../lib/navigation';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { Platform } from '../types';
@@ -32,7 +33,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-head">
         <div className="brand" onClick={() => onChange('overview')} title={collapsed ? 'OJ Insight' : undefined}>
-          <div className="brand-mark"><span /><span /><span /><span /></div>
+          <div className="brand-mark"><img src={ojiLogo} alt="" /></div>
           <div className="brand-copy"><strong lang="en">OJ Insight</strong></div>
         </div>
         <button className="sidebar-toggle" onClick={onToggle} title={collapsed ? t('展开侧栏') : t('收起侧栏')} aria-label={collapsed ? t('展开侧栏') : t('收起侧栏')}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>

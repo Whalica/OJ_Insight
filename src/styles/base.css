@@ -13,8 +13,8 @@ button, input, select { font: inherit; } button { color: inherit; } a { color: i
 .brand-copy { min-width: 0; overflow: hidden; }
 .brand strong { display: block; font-size: 18px; letter-spacing: .2px; }
 .brand small { display: block; color: #68737f; margin-top: 2px; font-size: var(--font-meta); letter-spacing: .35px; }
-.brand-mark { width: 36px; height: 36px; aspect-ratio: 1; flex: 0 0 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 5px; border: 1px solid #2a323c; border-radius: 9px; overflow: hidden; }
-.brand-mark span { background: #28563a; border-radius: 1px; }.brand-mark span:nth-child(2), .brand-mark span:nth-child(3) { background: #61d58a; }
+.brand-mark { width: 42px; height: 42px; aspect-ratio: 1; flex: 0 0 42px; border: 1px solid #2a323c; border-radius: 10px; background: #14201a; overflow: hidden; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .sidebar-toggle { flex: 0 0 27px; width: 27px; height: 27px; margin: 6px 0 0 auto; border: 0; border-radius: 6px; background: transparent; color: #66727d; display: grid; place-items: center; cursor: pointer; }
 .sidebar-toggle:hover { background: #151b22; color: #c7d0d7; }
 .sidebar nav .assistant-tool { margin-top: 16px; border-top: 1px solid var(--line-soft); border-radius: 0 0 8px 8px; padding-top: 14px; }
