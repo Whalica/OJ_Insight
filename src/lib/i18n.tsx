@@ -24,7 +24,7 @@ const english: Record<string, string> = {
   '总览': 'Overview', '训练中心': 'Training Center', '题单': 'Problem Sets', '推荐题单': 'Community Sets',
   '模拟赛': 'Mock Contests', '参赛区': 'Virtual Contests', '个性化组题': 'Personalized Training',
   '解题手记': 'Solve Journal', '做题小助手': 'Study Assistant', '赛后分析': 'Contest Review',
-  '关注': 'Following', '导出': 'Export', '数据源': 'Data Sources', '设置': 'Settings', '关于': 'About',
+  '关注': 'Following', '导出': 'Export', '数据源': 'Data', '设置': 'Settings', '关于': 'About',
   '展开侧栏': 'Expand sidebar', '收起侧栏': 'Collapse sidebar',
   '管理平台账号和本机显示偏好。': 'Manage your platform accounts and display preferences.',
   '保存中': 'Saving', '保存账号': 'Save Accounts', '账号设置': 'Accounts', '个性化': 'Preferences',

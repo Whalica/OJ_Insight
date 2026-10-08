@@ -17,6 +17,9 @@
   --interactive-hover: #171e25; --interactive-hover-strong: #202a33; --interactive-border-hover: #465563;
   --switch-off: var(--panel-soft); --switch-thumb: #68747f; --switch-on: #17261d; --switch-border: #303944;
   --qoj-gold: #ffd15c; --qoj-silver: #dce8f2; --qoj-bronze: #f09a62; --qoj-iron: #7891ad;
+  /* The logo art carries its own pale background, so its frame stays light in
+     every theme instead of following the dark sidebar/panel surfaces. */
+  --brand-mark-bg: #eef4f0; --brand-mark-border: #2a323c;
 }
 
 :root :is(h1, h2, h3, h4, h5, h6, strong, b) {

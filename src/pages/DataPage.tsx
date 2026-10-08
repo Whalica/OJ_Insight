@@ -13,13 +13,15 @@ interface Props {
   onSyncAll: () => void;
   onCleared: () => void | Promise<void>;
   notify: (message: string) => void;
+  /* Rendered as the 数据源 tab inside 设置, which owns the page header. */
+  embedded?: boolean;
 }
 
 function syncStatusLabel(status?: string) {
   return ({ idle: '未同步', syncing: '同步中', ok: '同步成功', warning: '部分成功', error: '同步失败', auth_required: '需要重新登录' } as Record<string, string>)[status || 'idle'] || status || '未同步';
 }
 
-export default function DataPage({ statuses, syncing, timeZone, onSync, onSyncAll, onCleared, notify }: Props) {
+export default function DataPage({ statuses, syncing, timeZone, onSync, onSyncAll, onCleared, notify, embedded = false }: Props) {
   const by = new Map(statuses.map((status) => [status.platform, status]));
   const clearOne = async (platform: Platform) => {
     if (!confirm(`清空 ${PLATFORM_META[platform].name} 的全部本地记录？账号设置会保留。`)) return;
@@ -31,7 +33,8 @@ export default function DataPage({ statuses, syncing, timeZone, onSync, onSyncAl
   };
 
   return <>
-    <header className="topbar"><div><small lang="en">SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p></div><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>
+    {!embedded && <header className="topbar"><div><small lang="en">SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p></div><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>}
+    {embedded && <div className="data-tab-head"><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></div>}
     <section className="panel source-list">{PLATFORM_ORDER.map((platform) => {
       const status = by.get(platform);
       const needsAttention = status?.status === 'warning' || status?.status === 'error' || status?.status === 'auth_required';

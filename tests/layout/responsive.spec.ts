@@ -197,10 +197,12 @@ test('daily check-in is saved locally and cannot be repeated on reload', async (
 test('production UI has no animation test button and Luogu shows Rating without submission details', async ({ page }) => {
   await openPage(page, 'overview');
   await expect(page.getByRole('button', { name: /测试 \+1/ })).toHaveCount(0);
-  // The platform filter moved out of the sidebar into the dashboard.
-  await expect(page.locator('aside.sidebar').getByRole('button', { name: '平台', exact: true })).toHaveCount(0);
-  await expect(page.locator('.platform-switch')).toBeVisible();
-  await page.locator('.platform-switch').getByRole('button', { name: 'Luogu', exact: true }).click();
+  // The platform filter lives in the sidebar flyout that hangs off 总览.
+  await expect(page.locator('.platform-switch')).toHaveCount(0);
+  await page.getByRole('button', { name: '总览' }).click();
+  const flyout = page.locator('.nav-flyout');
+  await expect(flyout.getByRole('button', { name: '全部平台' })).toBeVisible();
+  await flyout.getByRole('button', { name: 'Luogu', exact: true }).click();
   await expect(page.locator('.rating-panel')).toBeVisible();
   await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');
   await expect(page.locator('.recent-panel')).toHaveCount(0);

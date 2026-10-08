@@ -6,11 +6,12 @@ import { TIME_ZONE_OPTIONS, timeZoneLabel } from '../lib/date';
 import { parseCodeforcesCredentials, PLATFORM_META, PLATFORM_ORDER, serializeCodeforcesCredentials, type CodeforcesCredentials } from '../lib/platforms';
 import { emptyAccounts, type AccountMap } from '../lib/ui';
 import { DEFAULT_PREFERENCES, type Preferences } from '../lib/preferences';
-import type { Platform } from '../types';
+import type { Platform, SyncStatus } from '../types';
 import PersonalInfoExport from '../components/PersonalInfoExport';
 import PersonalInfoImport from '../components/PersonalInfoImport';
 import DatabaseBackup from '../components/DatabaseBackup';
 import QojCookieImport from '../components/QojCookieImport';
+import DataPage from './DataPage';
 import { useI18n } from '../lib/i18n';
 
 interface Props {
@@ -22,11 +23,15 @@ interface Props {
   onSaved: () => void | Promise<void>;
   syncing: string | null;
   notify: (message: string) => void;
+  statuses: SyncStatus[];
+  onSync: (platform: Platform, full?: boolean) => void;
+  onSyncAll: () => void;
+  onCleared: () => void | Promise<void>;
 }
 
-export default function SettingsPage({ accounts, timeZone, onTimeZone, preferences, onPreferences, onSaved, syncing, notify }: Props) {
+export default function SettingsPage({ accounts, timeZone, onTimeZone, preferences, onPreferences, onSaved, syncing, notify, statuses, onSync, onSyncAll, onCleared }: Props) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<'accounts' | 'personalization'>('accounts');
+  const [tab, setTab] = useState<'accounts' | 'personalization' | 'data'>('accounts');
   const [form, setForm] = useState<AccountMap>(emptyAccounts);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -58,7 +63,7 @@ export default function SettingsPage({ accounts, timeZone, onTimeZone, preferenc
 
   return <>
     <header className="topbar"><div><small lang="en">SETTINGS</small><h1>{t('设置')}</h1><p>{t('管理平台账号和本机显示偏好。')}</p></div>{tab === 'accounts' && <button className="primary" onClick={save} disabled={saving || !!syncing}><Save size={16} />{saving ? t('保存中') : t('保存账号')}</button>}</header>
-    <div className="settings-tabs"><button className={tab === 'accounts' ? 'active' : ''} onClick={() => setTab('accounts')}>{t('账号设置')}</button><button className={tab === 'personalization' ? 'active' : ''} onClick={() => setTab('personalization')}>{t('个性化')}</button></div>
+    <div className="settings-tabs"><button className={tab === 'accounts' ? 'active' : ''} onClick={() => setTab('accounts')}>{t('账号设置')}</button><button className={tab === 'personalization' ? 'active' : ''} onClick={() => setTab('personalization')}>{t('个性化')}</button><button className={tab === 'data' ? 'active' : ''} onClick={() => setTab('data')}>{t('数据源')}</button></div>
     {tab === 'accounts' && <QojCookieImport accounts={form.qoj} onCookie={(index, cookie) => change('qoj', index, 'secret', cookie)} notify={notify} />}
     {tab === 'accounts' ? <><section className="settings-intro"><strong>{t('怎么填写？')}</strong><span>{t('填写个人主页 URL 中的账号标识，不是显示昵称。Cookie 与 API 凭据仅保存在本机；获取入口位于对应 OJ 页的同步按钮左侧。删除或改名会在保存时清理原 ID 的本地记录。')}</span></section><section className="account-panel">{PLATFORM_ORDER.map((platform) => <article className="account-card" key={platform}><div className="account-card-head"><div><PlatformIcon platform={platform} /><div><strong lang="en">{PLATFORM_META[platform].name}</strong><small>{t(PLATFORM_META[platform].accountHint)}</small></div></div><div className="account-card-actions"><button onClick={() => add(platform)}><Plus size={14} />{t('添加 ID')}</button></div></div><div className="account-inputs">{form[platform]?.map((entry, index) => platform === 'codeforces' ? (() => { const credentials = parseCodeforcesCredentials(entry.secret); return <div className="account-entry account-entry-cf" key={index}><span>{index + 1}</span><input aria-label={`Codeforces ID ${index + 1}`} value={entry.account} onChange={(event) => change(platform, index, 'account', event.target.value)} placeholder={t(PLATFORM_META[platform].accountHint)} /><input aria-label={`Codeforces API Key ${index + 1}`} type="password" value={credentials.apiKey} onChange={(event) => changeCodeforcesCredential(index, 'apiKey', event.target.value)} placeholder={t('API Key（可选）')} autoComplete="off" /><input aria-label={`Codeforces API Secret ${index + 1}`} type="password" value={credentials.apiSecret} onChange={(event) => changeCodeforcesCredential(index, 'apiSecret', event.target.value)} placeholder={t('API Secret（可选）')} autoComplete="off" /><button className="remove-account" onClick={() => remove(platform, index)} aria-label={t('移除账号')}><X size={14} /></button></div>; })() : <div className="account-entry" key={index}><span>{index + 1}</span><input aria-label={`${PLATFORM_META[platform].name} ID ${index + 1}`} value={entry.account} onChange={(event) => change(platform, index, 'account', event.target.value)} placeholder={t(PLATFORM_META[platform].accountHint)} />{PLATFORM_META[platform].secretHint ? <input aria-label={`${PLATFORM_META[platform].name} Cookie ${index + 1}`} type="password" value={entry.secret} onChange={(event) => change(platform, index, 'secret', event.target.value)} placeholder={t(PLATFORM_META[platform].secretHint)} autoComplete="off" /> : <small>{t('公开数据，无需密码')}</small>}<button className="remove-account" onClick={() => remove(platform, index)} aria-label={t('移除账号')}><X size={14} /></button></div>)}</div></article>)}</section><PersonalInfoImport accounts={PLATFORM_ORDER.flatMap((platform) => form[platform]).filter((entry) => entry.account.trim())} onImported={onSaved} notify={notify} /><PersonalInfoExport accounts={PLATFORM_ORDER.flatMap((platform) => form[platform])} notify={notify} /><DatabaseBackup notify={notify} /></> : <section className="preferences-panel">
       <article className="panel preference-card"><div className="preference-heading"><Monitor size={18} /><div><small lang="en">LANGUAGE</small><h2>{t('界面语言')} <span className="language-status">{t('开发中')}</span></h2><p>{t('选择应用界面使用的语言；题目名称、OJ 标签和你的笔记不会翻译。')}</p></div></div></article>
@@ -67,5 +72,6 @@ export default function SettingsPage({ accounts, timeZone, onTimeZone, preferenc
       <article className="panel preference-card"><div className="preference-heading"><Monitor size={18} /><div><small lang="en">GENERAL</small><h2>{t('常规')}</h2><p>{t('统计范围与统计口径仍在总览和各 OJ 页面中切换。')}</p></div></div><div className="preference-row"><div><strong>{t('统计时区')}</strong><span>{t('影响今日进度、活动砖、连续天数和问候语。')}</span></div><label className="preference-select"><select value={timeZone} onChange={(event) => onTimeZone(event.target.value)}>{TIME_ZONE_OPTIONS.map(([value, label]) => <option value={value} key={value}>{t(label)} · {value}</option>)}</select><small>{timeZoneLabel(timeZone)}</small></label></div><div className="preference-row"><div><strong>{t('启动页面')}</strong><span>{t('固定打开总览，或回到上次浏览的位置。')}</span></div>{choices(preferences.startupPage, [['overview', '总览'], ['last', '上次浏览']], (startupPage) => onPreferences({ startupPage }))}</div><div className="preference-row"><div><strong>{t('最近 AC 通知保留条数')}</strong><span>{t('历史通知单独保存；超过上限时自动删除较旧记录，最多 100 条。')}</span></div><label className="preference-number"><input aria-label={t('最近 AC 通知保留条数')} type="number" min={1} max={100} step={1} value={preferences.watchedEventRetention} onChange={(event) => { const value = Number(event.target.value); onPreferences({ watchedEventRetention: Number.isFinite(value) ? Math.min(100, Math.max(1, Math.trunc(value))) : 1 }); }} /><span>{t('条')}</span></label></div><div className="preference-row"><div><strong>{t('启动时检查更新')}</strong><span>{t('后台检查新版本；没有更新或临时断网时不打扰。')}</span></div><button className={`switch ${preferences.autoCheckUpdates ? 'active' : ''}`} role="switch" aria-checked={preferences.autoCheckUpdates} aria-label={t('启动时检查更新')} onClick={() => onPreferences({ autoCheckUpdates: !preferences.autoCheckUpdates })}><i /></button></div><div className="preference-row"><div><strong>{t('启动时同步全部')}</strong><span>{t('先显示本地缓存，再在后台增量同步已配置的平台。')}</span></div><button className={`switch ${preferences.autoSync ? 'active' : ''}`} role="switch" aria-checked={preferences.autoSync} aria-label={t('启动时同步全部')} onClick={() => onPreferences({ autoSync: !preferences.autoSync })}><i /></button></div></article>
       <div className="preferences-foot"><button onClick={() => { onPreferences({ ...DEFAULT_PREFERENCES }); onTimeZone('Asia/Shanghai'); }}><RotateCcw size={14} />{t('恢复个性化默认值')}</button></div>
     </section>}
+    {tab === 'data' && <DataPage embedded statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={onSync} onSyncAll={onSyncAll} onCleared={onCleared} notify={notify} />}
   </>;
 }
