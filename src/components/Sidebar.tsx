@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Dumbbell, Download, LayoutDashboard, Layers3, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, Sparkles, TableProperties, Users, LibraryBig } from 'lucide-react';
+import { BookOpenCheck, Bookmark, ChevronDown, CircleHelp, Clock3, Dumbbell, Download, LayoutDashboard, Layers3, ListChecks, PanelLeftClose, PanelLeftOpen, Play, Settings2, Sparkles, TableProperties, Users } from 'lucide-react';
 import icpcIcon from '../assets/platforms/icpc.ico';
 import ojiLogo from '../assets/branding/oji-logo.png';
 import PlatformIcon from './PlatformIcon';
@@ -140,6 +140,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
         <div className="nav-flyout-host" {...hostProps('platforms')}>
           {trigger('platforms', LayoutDashboard, t('平台'), 'nav-platforms')}
           {openGroup === 'platforms' && renderFlyout(<>
+              <div className="nav-flyout-title">{t('平台')}</div>
               <button className={!selectedPlatform ? 'active' : ''} aria-current={!selectedPlatform} onClick={() => onPlatform(null)}><Layers3 size={18} /><span>{t('综合总览')}</span></button>
               {PLATFORM_ORDER.map((platform) => (
                 <button key={platform} className={selectedPlatform === platform ? 'active' : ''} aria-current={selectedPlatform === platform} onClick={() => { onPlatform(platform); }}>
@@ -163,8 +164,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
           {trigger('training', Dumbbell, t('训练中心'), 'nav-training')}
           {openGroup === 'training' && renderFlyout(<>
               <div className="nav-flyout-title">{t('训练中心')}</div>
-              <button className={page === 'problem-sets' ? 'active' : ''} aria-current={page === 'problem-sets'} onClick={() => { onChange('problem-sets'); }}><ListChecks size={15} /><span>{t('题单')}</span></button>
-              <button className={page === 'community' ? 'active' : ''} aria-current={page === 'community'} onClick={() => { onChange('community'); }}><LibraryBig size={15} /><span>{t('推荐题单')}</span></button>
+              <button className={page === 'problem-sets' || page === 'community' ? 'active' : ''} aria-current={page === 'problem-sets' || page === 'community'} onClick={() => { onChange('problem-sets'); }}><ListChecks size={15} /><span>{t('题单')}</span></button>
               <button className={page === 'training' ? 'active' : ''} aria-current={page === 'training'} onClick={() => { onChange('training'); }}><Sparkles size={15} /><span>{t('个性化组题')}</span></button>
               <div className="nav-flyout-separator" role="separator" />
               <button className={page === 'contests' ? 'active' : ''} aria-current={page === 'contests'} onClick={() => { onChange('contests'); }}><TableProperties size={15} /><span>{t('模拟赛')}</span></button>
