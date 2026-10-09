@@ -2,7 +2,7 @@ use regex::Regex;
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
 
-use super::{browser_headers, get_text, now_epoch, polite_sleep, resolve_qoj_cookie, with_cookie};
+use super::{browser_headers, get_text, now_epoch, polite_sleep, normalize_qoj_cookie, with_cookie};
 use crate::models::{AccountConfig, RatingPoint, RemoteData, Submission, SyncError};
 
 pub async fn fetch(
@@ -17,10 +17,10 @@ pub async fn fetch(
     }
     if account.secret.trim().is_empty() {
         return Err(SyncError::auth(
-            "QOJ 当前要求登录后才能查看完整提交列表；请在设置中填写 Cookie 值或完整 Cookie",
+            "QOJ 当前要求登录后才能查看完整提交列表；请在设置中填写完整 Cookie（cookie_name=cookie_value）",
         ));
     }
-    let cookie = resolve_qoj_cookie(client, &account.secret).await.map_err(SyncError::auth)?;
+    let cookie = normalize_qoj_cookie(&account.secret).map_err(SyncError::auth)?;
     let ratings = fetch_current_rating(client, user, &cookie)
         .await
         .ok();
@@ -44,7 +44,7 @@ pub async fn fetch(
         .await?;
         if looks_like_login(&html) {
             return Err(SyncError::auth(
-                "QOJ 未登录或 Cookie 已过期；请重新登录并复制新的 Cookie 值或完整 Cookie",
+                "QOJ 未登录或 Cookie 已过期；请重新登录并复制新的完整 Cookie（cookie_name=cookie_value）",
             ));
         }
         let rows = parse_rows(&html, user);

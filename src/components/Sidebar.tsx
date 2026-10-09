@@ -28,6 +28,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
 }) {
   const { t } = useI18n();
   const [openGroup, setOpenGroup] = useState<NavGroup | null>(null);
+  const [flyoutInstant, setFlyoutInstant] = useState(false);
   const [flyoutPosition, setFlyoutPosition] = useState({ left: 0, top: 0 });
   const hosts = useRef<Partial<Record<NavGroup, HTMLDivElement | null>>>({});
   const flyout = useRef<HTMLDivElement>(null);
@@ -68,7 +69,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
   const scheduleOpen = (group: NavGroup) => {
     cancelTimers();
     if (openGroup === group) return;
-    openTimer.current = window.setTimeout(() => setOpenGroup(group), OPEN_DELAY);
+    openTimer.current = window.setTimeout(() => { setFlyoutInstant(false); setOpenGroup(group); }, OPEN_DELAY);
   };
   const scheduleClose = () => {
     cancelTimers();
@@ -87,7 +88,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
   };
   // The sidebar scroll container clips overflow; render the flyout outside it.
   const renderFlyout = (children: ReactNode) => createPortal(
-    <div className="nav-flyout" ref={flyout} style={flyoutPosition} {...flyoutProps}>{children}</div>,
+    <div className={`nav-flyout${flyoutInstant ? ' instant' : ''}`} ref={flyout} style={flyoutPosition} {...flyoutProps}>{children}</div>,
     document.body,
   );
   const hostProps = (group: NavGroup) => ({
@@ -114,7 +115,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
       aria-expanded={openGroup === group}
       aria-haspopup="true"
       title={collapsed ? label : undefined}
-      onClick={() => { cancelTimers(); setOpenGroup(openGroup === group ? null : group); }}
+      onClick={() => { cancelTimers(); setFlyoutInstant(true); setOpenGroup(group); }}
       onFocus={() => { cancelTimers(); setOpenGroup(group); }}
     >
       <Icon size={17} />

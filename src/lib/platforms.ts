@@ -8,7 +8,7 @@ export const PLATFORM_META: Record<TrainingPlatform, { name: string; short: stri
   atcoder: { name: 'AtCoder', short: 'ATC', accent: 'var(--atcoder-accent)', accountHint: '用户名' },
   luogu: { name: 'Luogu', short: 'LG', accent: '#2d9cdb', accountHint: '用户名或数字 UID' },
   nowcoder: { name: 'NowCoder', short: 'NC', accent: '#00b96b', accountHint: '个人主页 users/ 后的数字 User ID', secretHint: '可选：牛客网页 Cookie（用于同步每日一题打卡记录）' },
-  qoj: { name: 'QOJ', short: 'QOJ', accent: '#48d0c0', accountHint: '用户名', secretHint: 'Cookie 值或完整 Cookie（名称=值）' },
+  qoj: { name: 'QOJ', short: 'QOJ', accent: '#48d0c0', accountHint: '用户名', secretHint: '完整 Cookie：cookie_name=cookie_value（多个用分号分隔）' },
   leetcode: { name: 'LeetCode', short: 'LC', accent: '#f3b23c', accountHint: '国际站用户名；中国站写 cn:用户名', secretHint: '可选：对应站点 Cookie（中国站活动与最近 AC 兜底）' },
   other: { name: '其他 OJ', short: 'OJ', accent: '#8b96a8', accountHint: '题目链接' },
 };

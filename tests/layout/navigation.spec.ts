@@ -50,6 +50,8 @@ test('settings data sources tab only shows source controls at the top', async ({
   await openApp(page);
   await page.getByRole('navigation').getByRole('button', { name: '设置', exact: true }).click();
   const tabs = page.locator('.settings-tabs');
+  await expect(tabs.getByRole('button').first()).toHaveText('数据源');
+  await expect(page.locator('.account-panel')).toBeVisible();
   await tabs.getByRole('button', { name: '个性化', exact: true }).click();
   await expect(page.locator('.preferences-panel')).toBeVisible();
   await expect(page.locator('.source-list')).toHaveCount(0);
@@ -61,5 +63,29 @@ test('settings data sources tab only shows source controls at the top', async ({
   expect((await page.locator('.data-tab-head').boundingBox())!.y).toBeLessThan(300);
   await tabs.getByRole('button', { name: '账号设置', exact: true }).click();
   await expect(page.locator('.account-panel')).toBeVisible();
+  await expect(page.getByText('怎么填写？', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('在 OJI 中登录 QOJ', { exact: true })).toHaveCount(0);
+  await expect(page.getByPlaceholder('完整 Cookie：cookie_name=cookie_value（多个用分号分隔）')).toBeVisible();
   await expect(page.locator('.source-list')).toHaveCount(0);
+});
+
+test('clicking a flyout trigger opens it immediately and never toggles it closed', async ({ page }) => {
+  await openApp(page);
+  const trigger = page.getByTestId('nav-platforms');
+  const panel = page.locator('.nav-flyout');
+  // Dispatch directly to exercise a click during the entry animation without
+  // Playwright waiting for the target animation to settle first.
+  await trigger.hover();
+  await expect(panel).toBeAttached();
+  await trigger.dispatchEvent('click');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel).toHaveCSS('animation-name', 'none');
+  await expect(panel).toHaveCSS('opacity', '1');
+  await trigger.click();
+  await expect(panel).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await trigger.dispatchEvent('click');
+  await expect(panel).toHaveCSS('animation-name', 'none');
+  await expect(panel).toBeVisible();
 });

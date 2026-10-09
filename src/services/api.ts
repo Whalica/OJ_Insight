@@ -53,8 +53,6 @@ export const api = {
   setCompanionPort: (port: number) => invoke<CompanionStatus>('set_companion_port', { port }),
   storageInfo: () => invoke<StorageInfo>('get_storage_info'),
   getAccounts: () => invoke<AccountConfig[]>('get_accounts'),
-  openQojLogin: () => invoke<void>('open_qoj_login'),
-  readQojLoginCookie: () => invoke<string>('read_qoj_login_cookie'),
   saveAccount: (platform: Platform, account: string, secret: string) =>
     invoke<void>('save_account', { platform, account, secret }),
   saveAccounts: (platform: Platform, accounts: AccountConfig[]) =>

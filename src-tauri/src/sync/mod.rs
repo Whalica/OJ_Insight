@@ -1,5 +1,5 @@
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, REFERER, SET_COOKIE, USER_AGENT},
+    header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, REFERER, USER_AGENT},
     Client,
 };
 use serde_json::Value;
@@ -17,7 +17,6 @@ mod qoj;
 pub(crate) mod service;
 pub(crate) mod relationships;
 
-const QOJ_SESSION_COOKIE_FALLBACK: &str = "__Host-UOJSESSID";
 
 pub async fn fetch_platform(
     client: &Client,
@@ -52,123 +51,59 @@ pub fn browser_headers() -> HeaderMap {
 pub fn with_cookie(mut h: HeaderMap, cookie: &str) -> HeaderMap {
     let cookie = cookie.trim();
     if !cookie.is_empty() {
-        if let Ok(v) = normalize_qoj_cookie(cookie).and_then(|value| HeaderValue::from_str(value).map_err(|_| "QOJ Cookie 格式无效".to_string())) {
+        if let Ok(v) = normalize_qoj_cookie(cookie).and_then(|value| HeaderValue::from_str(&value).map_err(|_| "QOJ Cookie 格式无效".to_string())) {
             h.insert(COOKIE, v);
         }
     }
     h
 }
 
-pub fn normalize_qoj_cookie(cookie: &str) -> Result<&str, String> {
+pub fn normalize_qoj_cookie(cookie: &str) -> Result<String, String> {
+    let invalid = || "QOJ Cookie 格式无效；请填写完整的 cookie_name=cookie_value，多个 Cookie 用分号分隔".to_string();
+    // Reject controls before trimming, so pasted newlines never reach a header.
+    if cookie.bytes().any(|byte| byte.is_ascii_control()) { return Err(invalid()); }
     let cookie = cookie.trim();
     let cookie = if cookie.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("Cookie:")) {
         cookie[7..].trim()
     } else { cookie };
-    if cookie.is_empty() {
-        return Err("请填写从浏览器复制的完整 QOJ Cookie（名称=值）".into());
-    }
-    if HeaderValue::from_str(cookie).is_err()
-        || cookie.split(';').any(|part| {
-            let Some((name, _)) = part.trim().split_once('=') else { return true; };
-            name.is_empty() || name.bytes().any(|byte| byte <= b' ' || byte == b';' || byte == b'=')
-        })
-    {
-        return Err("QOJ Cookie 格式无效；请复制完整的名称=值，多个 Cookie 用分号分隔".into());
-    }
-    Ok(cookie)
-}
-
-fn qoj_cookie_value_only(cookie: &str) -> Result<&str, String> {
-    let value = cookie.trim();
-    if value.is_empty() || value.len() > 4096 || value.bytes().any(|byte| byte <= b' ' || byte == b';')
-        || HeaderValue::from_str(value).is_err()
-    {
-        return Err("QOJ Cookie 值无效；请重新复制浏览器中的 Cookie 值".into());
-    }
-    Ok(value)
-}
-
-fn qoj_session_name(headers: &HeaderMap) -> Option<String> {
-    let names: Vec<String> = headers.get_all(SET_COOKIE).iter()
-        .filter_map(|header| header.to_str().ok()?.split(';').next()?.split_once('=').map(|(name, _)| name.trim().to_string()))
-        .filter(|name| {
-            let lower = name.to_ascii_lowercase();
-            !name.is_empty() && !lower.starts_with("cf_") && !lower.starts_with("__cf")
-                && !lower.starts_with("_ga")
-                && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte))
-        })
-        .collect();
-    let session: Vec<_> = names.iter().filter(|name| {
-        let lower = name.to_ascii_lowercase();
-        lower.contains("sess") || lower.ends_with("sid")
-    }).collect();
-    if session.len() == 1 { return Some((*session[0]).clone()); }
-    None
-}
-
-fn qoj_cookie_is_header(input: &str) -> bool {
-    input.contains(';') || input.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("Cookie:"))
-        || input.split_once('=').is_some_and(|(name, value)| !name.is_empty() && !value.is_empty() && value != "=")
-}
-
-pub async fn resolve_qoj_cookie(client: &Client, cookie: &str) -> Result<String, String> {
-    let input = cookie.trim();
-    if qoj_cookie_is_header(input) {
-        return normalize_qoj_cookie(input).map(str::to_string);
-    }
-    let value = qoj_cookie_value_only(input)?;
-    let mut name = None;
-    for url in ["https://qoj.ac/login", "https://qoj.ac/"] {
-        if let Ok(response) = client.get(url).headers(browser_headers()).send().await {
-            name = qoj_session_name(response.headers());
-            if name.is_some() { break; }
+    let mut pairs = Vec::new();
+    for part in cookie.split(';') {
+        let part = part.trim();
+        if part.is_empty() { continue; }
+        let (name, value) = part.split_once('=').ok_or_else(invalid)?;
+        let name = name.trim();
+        let value = value.trim();
+        if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte))
+            || value.bytes().any(|byte| !byte.is_ascii() || byte < 0x21 || byte == 0x7f) {
+            return Err(invalid());
         }
+        pairs.push(format!("{name}={value}"));
     }
-    let name = name.unwrap_or_else(|| QOJ_SESSION_COOKIE_FALLBACK.to_string());
-    let resolved = format!("{name}={value}");
-    normalize_qoj_cookie(&resolved)?;
-    Ok(resolved)
+    if pairs.is_empty() { return Err(invalid()); }
+    let normalized = pairs.join("; ");
+    HeaderValue::from_str(&normalized).map_err(|_| invalid())?;
+    Ok(normalized)
 }
 
 #[cfg(test)]
 mod qoj_cookie_tests {
-    use super::{browser_headers, normalize_qoj_cookie, qoj_cookie_is_header, qoj_cookie_value_only, qoj_session_name, with_cookie, COOKIE, SET_COOKIE, QOJ_SESSION_COOKIE_FALLBACK};
-    use reqwest::header::{HeaderMap, HeaderValue};
+    use super::{browser_headers, normalize_qoj_cookie, with_cookie, COOKIE};
 
     #[test]
-    fn sends_current_cookie_name_without_rewriting_it() {
-        let cookie = "Cookie: new_session=abc123; preference=dark";
-        assert_eq!(normalize_qoj_cookie(cookie).unwrap(), "new_session=abc123; preference=dark");
-        let headers = with_cookie(browser_headers(), cookie);
-        assert_eq!(headers.get(COOKIE).unwrap().to_str().unwrap(), "new_session=abc123; preference=dark");
+    fn preserves_arbitrary_names_and_padded_values() {
+        for name in ["__Host-UOJSESSID", "future_session_name"] {
+            let input = format!("Cookie: {name} = abc==; preference=dark; ");
+            let expected = format!("{name}=abc==; preference=dark");
+            assert_eq!(normalize_qoj_cookie(&input).unwrap(), expected);
+            assert_eq!(with_cookie(browser_headers(), &input).get(COOKIE).unwrap().to_str().unwrap(), expected);
+        }
     }
 
     #[test]
-    fn rejects_bare_value_and_malformed_pairs() {
-        assert!(normalize_qoj_cookie("abc123").is_err());
-        assert!(normalize_qoj_cookie("session=abc123; missing_pair").is_err());
-        assert!(normalize_qoj_cookie("session=abc123\r\nInjected: yes").is_err());
-    }
-
-    #[test]
-    fn discovers_session_name_without_using_a_fixed_cookie_name() {
-        let mut headers = HeaderMap::new();
-        headers.append(SET_COOKIE, HeaderValue::from_static("cf_clearance=challenge; Path=/"));
-        headers.append(SET_COOKIE, HeaderValue::from_static("QOJ_SESSION=guest; Path=/; HttpOnly"));
-        assert_eq!(qoj_session_name(&headers).as_deref(), Some("QOJ_SESSION"));
-        assert_eq!(qoj_cookie_value_only("abc123").unwrap(), "abc123");
-        assert!(!qoj_cookie_is_header("abc123=="));
-        assert!(qoj_cookie_is_header("QOJ_SESSION=abc123=="));
-        let mut challenge_only = HeaderMap::new();
-        challenge_only.append(SET_COOKIE, HeaderValue::from_static("cf_clearance=challenge; Path=/"));
-        assert!(qoj_session_name(&challenge_only).is_none());
-        let cookie = format!("{QOJ_SESSION_COOKIE_FALLBACK}={}", qoj_cookie_value_only("abc123").unwrap());
-        assert_eq!(normalize_qoj_cookie(&cookie).unwrap(), cookie);
-        let headers = with_cookie(browser_headers(), &cookie);
-        assert_eq!(headers.get(COOKIE).unwrap().to_str().unwrap(), cookie);
-        let mut preference_only = HeaderMap::new();
-        preference_only.append(SET_COOKIE, HeaderValue::from_static("theme=dark; Path=/"));
-        assert!(qoj_session_name(&preference_only).is_none());
+    fn rejects_missing_names_malformed_pairs_and_header_injection() {
+        for input in ["abc123", "=value", "bad name=value", "session=abc; missing_pair", "session=abc\r\nInjected: yes", "session=abc\n", "; ;"] {
+            assert!(normalize_qoj_cookie(input).is_err(), "invalid cookie accepted");
+        }
     }
 }
 
