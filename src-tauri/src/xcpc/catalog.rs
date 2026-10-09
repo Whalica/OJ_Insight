@@ -34,7 +34,7 @@ pub async fn load_catalog(
         if let Some(items) = cached.as_ref() {
             let mut items = items.clone();
             if !cookie.trim().is_empty() && items.iter().any(contest_needs_problem_details) {
-                if let Ok(resolved) = crate::sync::resolve_qoj_cookie(client, cookie).await {
+                if let Ok(resolved) = crate::sync::normalize_qoj_cookie(cookie) {
                     enrich_contest_problems(client, &resolved, &mut items).await;
                     save_catalog(cache_path, &items)?;
                 }
@@ -42,7 +42,7 @@ pub async fn load_catalog(
             return Ok(items);
         }
     }
-    let resolved_cookie = if cookie.trim().is_empty() { String::new() } else { crate::sync::resolve_qoj_cookie(client, cookie).await? };
+    let resolved_cookie = if cookie.trim().is_empty() { String::new() } else { crate::sync::normalize_qoj_cookie(cookie)? };
     let mut items = fetch_catalog(client, &resolved_cookie).await?;
     if let Some(cached) = cached {
         let cached_by_id: HashMap<_, _> = cached

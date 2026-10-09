@@ -24,7 +24,6 @@ use commands::contest_review::{generate_contest_review, inspect_contest_review};
 use commands::export::{create_database_backup, write_export_file};
 use commands::favorites::{delete_favorite_category, delete_favorite_item, list_favorite_categories, list_favorite_items, open_favorite_link, save_favorite_category, save_favorite_item};
 use commands::external::open_external;
-use commands::qoj_login::{open_qoj_login, read_qoj_login_cookie};
 use commands::relationships::{
     delete_watched_person, dismiss_watched_event, get_pending_watched_notifications,
     get_watched_events, get_watched_people,
@@ -94,8 +93,6 @@ pub fn run() {
             save_account,
             save_accounts,
             save_all_accounts,
-            open_qoj_login,
-            read_qoj_login_cookie,
             get_sync_statuses,
             sync_platform,
             sync_all,

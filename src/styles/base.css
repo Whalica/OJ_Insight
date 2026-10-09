@@ -119,3 +119,5 @@ input { padding-right: 10px; }.toolbar select:focus, input:focus { border-color:
 input, select, textarea { color: var(--text); }
 select, option { background: var(--input); color: var(--text); }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: .9; }
+
+.nav-flyout.instant { animation: none; }
