@@ -34,6 +34,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
   const flyout = useRef<HTMLDivElement>(null);
   const openTimer = useRef(0);
   const closeTimer = useRef(0);
+  const pointerInside = useRef(false);
 
   useEffect(() => () => { window.clearTimeout(openTimer.current); window.clearTimeout(closeTimer.current); }, []);
 
@@ -72,18 +73,19 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
     openTimer.current = window.setTimeout(() => { setFlyoutInstant(false); setOpenGroup(group); }, OPEN_DELAY);
   };
   const scheduleClose = () => {
+    pointerInside.current = false;
     cancelTimers();
     closeTimer.current = window.setTimeout(() => setOpenGroup(null), CLOSE_DELAY);
   };
   /* A pointer leaving the trigger and entering the flyout crosses the shared
      edge, so both sides cancel the pending close before it fires. */
   const flyoutProps = {
-    onMouseEnter: cancelTimers,
+    onMouseEnter: () => { pointerInside.current = true; cancelTimers(); },
     onMouseLeave: scheduleClose,
     onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Escape') setOpenGroup(null); },
     onBlur: (event: ReactFocusEvent) => {
       const next = event.relatedTarget as Node | null;
-      if (!event.currentTarget.contains(next) && !(openGroup && hosts.current[openGroup]?.contains(next))) setOpenGroup(null);
+      if (!pointerInside.current && !event.currentTarget.contains(next) && !(openGroup && hosts.current[openGroup]?.contains(next))) setOpenGroup(null);
     },
   };
   // The sidebar scroll container clips overflow; render the flyout outside it.
@@ -96,6 +98,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
     /* Entering any other entry closes the open flyout at once instead of waiting
        out the grace period, so the panel can never cover the entry being clicked. */
     onMouseEnter: () => {
+      pointerInside.current = true;
       window.clearTimeout(openTimer.current);
       window.clearTimeout(closeTimer.current);
       setOpenGroup((current) => (current && current !== group ? null : current));
@@ -105,7 +108,7 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
     onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Escape') setOpenGroup(null); },
     onBlur: (event: ReactFocusEvent) => {
       const next = event.relatedTarget as Node | null;
-      if (!event.currentTarget.contains(next) && !flyout.current?.contains(next)) setOpenGroup(null);
+      if (!pointerInside.current && !event.currentTarget.contains(next) && !flyout.current?.contains(next)) setOpenGroup(null);
     },
   });
   const trigger = (group: NavGroup, Icon: typeof Layers3, label: string, testId: string) => (
@@ -135,12 +138,11 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
       </div>
       <nav>
         <div className="nav-flyout-host" {...hostProps('platforms')}>
-          {trigger('platforms', LayoutDashboard, t('总览'), 'nav-platforms')}
+          {trigger('platforms', LayoutDashboard, t('平台'), 'nav-platforms')}
           {openGroup === 'platforms' && renderFlyout(<>
-              <div className="nav-flyout-title">平台</div>
-              <button className={!selectedPlatform ? 'active' : ''} aria-current={!selectedPlatform} onClick={() => { onPlatform(null); setOpenGroup(null); }}><Layers3 size={15} /><span>全部平台</span></button>
+              <button className={!selectedPlatform ? 'active' : ''} aria-current={!selectedPlatform} onClick={() => onPlatform(null)}><Layers3 size={18} /><span>{t('综合总览')}</span></button>
               {PLATFORM_ORDER.map((platform) => (
-                <button key={platform} className={selectedPlatform === platform ? 'active' : ''} aria-current={selectedPlatform === platform} onClick={() => { onPlatform(platform); setOpenGroup(null); }}>
+                <button key={platform} className={selectedPlatform === platform ? 'active' : ''} aria-current={selectedPlatform === platform} onClick={() => { onPlatform(platform); }}>
                   <PlatformIcon platform={platform} className="nav-flyout-icon" /><span>{PLATFORM_META[platform].name}</span>
                 </button>
               ))}
@@ -151,9 +153,9 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
           {trigger('trackers', TableProperties, 'Trackers', 'nav-trackers')}
           {openGroup === 'trackers' && renderFlyout(<>
               <div className="nav-flyout-title">Trackers</div>
-              <button className={page === 'xcpc' ? 'active' : ''} aria-current={page === 'xcpc'} onClick={() => { onChange('xcpc'); setOpenGroup(null); }}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span>ICPC / CCPC</span></button>
-              <button className={page === 'tracker-codeforces' ? 'active' : ''} aria-current={page === 'tracker-codeforces'} onClick={() => { onChange('tracker-codeforces'); setOpenGroup(null); }}><PlatformIcon platform="codeforces" className="nav-flyout-icon" /><span>Codeforces</span></button>
-              <button className={page === 'tracker-atcoder' ? 'active' : ''} aria-current={page === 'tracker-atcoder'} onClick={() => { onChange('tracker-atcoder'); setOpenGroup(null); }}><PlatformIcon platform="atcoder" className="nav-flyout-icon" /><span>AtCoder</span></button>
+              <button className={page === 'xcpc' ? 'active' : ''} aria-current={page === 'xcpc'} onClick={() => { onChange('xcpc'); }}><span className="icpc-nav-logo" aria-hidden="true"><img src={icpcIcon} alt="" /></span><span>ICPC / CCPC</span></button>
+              <button className={page === 'tracker-codeforces' ? 'active' : ''} aria-current={page === 'tracker-codeforces'} onClick={() => { onChange('tracker-codeforces'); }}><PlatformIcon platform="codeforces" className="nav-flyout-icon" /><span>Codeforces</span></button>
+              <button className={page === 'tracker-atcoder' ? 'active' : ''} aria-current={page === 'tracker-atcoder'} onClick={() => { onChange('tracker-atcoder'); }}><PlatformIcon platform="atcoder" className="nav-flyout-icon" /><span>AtCoder</span></button>
           </>)}
         </div>
 
@@ -161,14 +163,16 @@ export default function Sidebar({ page, onChange, collapsed, onToggle, onAssista
           {trigger('training', Dumbbell, t('训练中心'), 'nav-training')}
           {openGroup === 'training' && renderFlyout(<>
               <div className="nav-flyout-title">{t('训练中心')}</div>
-              <button className={page === 'problem-sets' ? 'active' : ''} aria-current={page === 'problem-sets'} onClick={() => { onChange('problem-sets'); setOpenGroup(null); }}><ListChecks size={15} /><span>{t('题单')}</span></button>
-              <button className={page === 'community' ? 'active' : ''} aria-current={page === 'community'} onClick={() => { onChange('community'); setOpenGroup(null); }}><LibraryBig size={15} /><span>{t('推荐题单')}</span></button>
-              <button className={page === 'favorites' ? 'active' : ''} aria-current={page === 'favorites'} onClick={() => { onChange('favorites'); setOpenGroup(null); }}><Bookmark size={15} /><span>收藏夹</span></button>
-              <button className={page === 'contests' ? 'active' : ''} aria-current={page === 'contests'} onClick={() => { onChange('contests'); setOpenGroup(null); }}><TableProperties size={15} /><span>{t('模拟赛')}</span></button>
-              <button className={page === 'vp' ? 'active' : ''} aria-current={page === 'vp'} onClick={() => { onChange('vp'); setOpenGroup(null); }}><Play size={15} /><span>{t('参赛区')}</span></button>
-              <button className={page === 'contest-review' ? 'active' : ''} aria-current={page === 'contest-review'} onClick={() => { onChange('contest-review'); setOpenGroup(null); }}><BookOpenCheck size={15} /><span>{t('赛后分析')}</span></button>
-              <button className={page === 'training' ? 'active' : ''} aria-current={page === 'training'} onClick={() => { onChange('training'); setOpenGroup(null); }}><Sparkles size={15} /><span>{t('个性化组题')}</span></button>
-              <button className={page === 'solve-journal' ? 'active' : ''} aria-current={page === 'solve-journal'} onClick={() => { onChange('solve-journal'); setOpenGroup(null); }}><BookOpenCheck size={15} /><span>{t('解题手记')}</span></button>
+              <button className={page === 'problem-sets' ? 'active' : ''} aria-current={page === 'problem-sets'} onClick={() => { onChange('problem-sets'); }}><ListChecks size={15} /><span>{t('题单')}</span></button>
+              <button className={page === 'community' ? 'active' : ''} aria-current={page === 'community'} onClick={() => { onChange('community'); }}><LibraryBig size={15} /><span>{t('推荐题单')}</span></button>
+              <button className={page === 'training' ? 'active' : ''} aria-current={page === 'training'} onClick={() => { onChange('training'); }}><Sparkles size={15} /><span>{t('个性化组题')}</span></button>
+              <div className="nav-flyout-separator" role="separator" />
+              <button className={page === 'contests' ? 'active' : ''} aria-current={page === 'contests'} onClick={() => { onChange('contests'); }}><TableProperties size={15} /><span>{t('模拟赛')}</span></button>
+              <button className={page === 'vp' ? 'active' : ''} aria-current={page === 'vp'} onClick={() => { onChange('vp'); }}><Play size={15} /><span>{t('参赛区')}</span></button>
+              <button className={page === 'contest-review' ? 'active' : ''} aria-current={page === 'contest-review'} onClick={() => { onChange('contest-review'); }}><BookOpenCheck size={15} /><span>{t('赛后分析')}</span></button>
+              <div className="nav-flyout-separator" role="separator" />
+              <button className={page === 'solve-journal' ? 'active' : ''} aria-current={page === 'solve-journal'} onClick={() => { onChange('solve-journal'); }}><BookOpenCheck size={15} /><span>{t('解题手记')}</span></button>
+              <button className={page === 'favorites' ? 'active' : ''} aria-current={page === 'favorites'} onClick={() => { onChange('favorites'); }}><Bookmark size={15} /><span>收藏夹</span></button>
           </>)}
         </div>
 

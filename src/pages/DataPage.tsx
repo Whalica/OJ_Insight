@@ -34,7 +34,7 @@ export default function DataPage({ statuses, syncing, timeZone, onSync, onSyncAl
 
   return <>
     {!embedded && <header className="topbar"><div><small lang="en">SYNC & LOCAL DATA</small><h1>同步与数据</h1><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p></div><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></header>}
-    {embedded && <div className="data-tab-head"><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p><button className="primary" onClick={() => onSyncAll()} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />同步全部</button></div>}
+    {embedded && <div className="data-tab-head"><p>“同步最新记录”适合日常使用；数据缺失或升级后显示异常时，再用“重新同步全部记录”。失败不会删除旧记录。</p></div>}
     <section className="panel source-list">{PLATFORM_ORDER.map((platform) => {
       const status = by.get(platform);
       const needsAttention = status?.status === 'warning' || status?.status === 'error' || status?.status === 'auth_required';
