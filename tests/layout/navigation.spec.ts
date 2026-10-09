@@ -79,7 +79,13 @@ test('platform and tracker selections stay open until the pointer leaves', async
   const panel = page.locator('.nav-flyout');
   await expect(page.getByTestId('nav-platforms')).toHaveText('平台');
   await page.getByTestId('nav-platforms').hover();
+  await expect(panel.locator('.nav-flyout-title')).toHaveText('平台');
   await expect(panel.getByRole('button').first()).toHaveText('综合总览');
+  expect(await panel.locator('.platform-icon').evaluateAll((icons) => icons.every((icon) => {
+    const frame = icon.getBoundingClientRect();
+    const image = icon.querySelector('img')?.getBoundingClientRect();
+    return !image || image.width <= frame.width && image.height <= frame.height;
+  }))).toBe(true);
   const luogu = panel.getByRole('button', { name: 'Luogu', exact: true });
   await luogu.click();
   await expect(luogu).toHaveAttribute('aria-current', 'true');
@@ -101,10 +107,40 @@ test('training keeps all shortcuts in three separated groups', async ({ page }) 
   await openApp(page);
   await page.getByTestId('nav-training').hover();
   const panel = page.locator('.nav-flyout');
-  await expect(panel.getByRole('button')).toHaveText(['题单', '推荐题单', '个性化组题', '模拟赛', '参赛区', '赛后分析', '解题手记', '收藏夹']);
+  await expect(panel.getByRole('button')).toHaveText(['题单', '个性化组题', '模拟赛', '参赛区', '赛后分析', '解题手记', '收藏夹']);
   await expect(panel.getByRole('separator')).toHaveCount(2);
   for (const group of ['platforms', 'trackers', 'training']) {
     expect((await page.getByTestId(`nav-${group}`).boundingBox())!.height).toBeGreaterThanOrEqual(48);
+  }
+});
+
+test('problem set sources switch inside the page and keep actions in the header', async ({ page }) => {
+  await openApp(page);
+  await page.getByTestId('nav-training').hover();
+  await page.locator('.nav-flyout').getByRole('button', { name: '题单', exact: true }).click();
+  await page.mouse.move(900, 50);
+  const header = page.locator('.problem-sets-head');
+  const tabs = page.locator('.problem-set-tabs');
+  await expect(header.getByRole('heading', { name: '题单', exact: true })).toBeVisible();
+  await expect(header.getByRole('button', { name: '导入题单', exact: true })).toBeVisible();
+  await tabs.getByRole('button', { name: '推荐题单', exact: true }).click();
+  await expect(header.getByRole('heading', { name: '推荐题单', exact: true })).toBeVisible();
+  await expect(header.getByRole('button', { name: '投稿与审核', exact: true })).toBeVisible();
+  await expect(header.getByRole('button', { name: '刷新', exact: true })).toBeVisible();
+  await expect(page.locator('.data-tab-head')).toHaveCount(0);
+  await tabs.getByRole('button', { name: '本地题单', exact: true }).click();
+  await expect(header.getByRole('button', { name: '新建题单', exact: true })).toBeVisible();
+});
+
+test('contest pages use sidebar navigation without duplicate page switches', async ({ page }) => {
+  await openApp(page);
+  for (const name of ['模拟赛', '参赛区', '赛后分析']) {
+    await page.getByTestId('nav-training').hover();
+    await page.locator('.nav-flyout').getByRole('button', { name, exact: true }).click();
+    await expect(page.locator('.main').getByRole('heading', { name, exact: true })).toBeVisible();
+    for (const duplicate of ['模拟赛', '参赛区', '赛后分析']) {
+      await expect(page.locator('.main').getByRole('button', { name: duplicate, exact: true })).toHaveCount(0);
+    }
   }
 });
 

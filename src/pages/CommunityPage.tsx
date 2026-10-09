@@ -29,7 +29,7 @@ function folderTree(entries: CommunityListing[]): CommunityFolder {
   return root;
 }
 
-export default function CommunityPage({ notify, onOpenLocalSets, embedded = false }: { notify: (message: string) => void; onOpenLocalSets: () => void; embedded?: boolean }) {
+export default function CommunityPage({ notify, onOpenLocalSets, navigation }: { notify: (message: string) => void; onOpenLocalSets: () => void; navigation?: ReactNode }) {
   const [catalog, setCatalog] = useState<CommunityCatalog | null>(null);
   const [entry, setEntry] = useState<CommunityEntry | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,8 +70,8 @@ export default function CommunityPage({ notify, onOpenLocalSets, embedded = fals
   const renderFolder = (folder: CommunityFolder): ReactNode => <details key={folder.path} className="community-folder" open={!!query || openFolders.has(folder.path)}><summary onClick={(event) => { event.preventDefault(); setOpenFolders((current) => { const next = new Set(current); if (next.has(folder.path)) next.delete(folder.path); else next.add(folder.path); return next; }); }}><Folder size={15} /><span>{folder.name}</span><small>{folder.count} 份</small></summary><div className="community-folder-items">{folder.entries.map(renderEntry)}{[...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name)).map(renderFolder)}</div></details>;
 
   return <>
-    {!embedded && <header className="topbar"><div><small lang="en">TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p></div><div className="compact-actions"><button onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>}
-    {embedded && <div className="data-tab-head"><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p><div className="compact-actions"><button onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></div>}
+    <header className="topbar problem-sets-head"><div><small lang="en">TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p></div><div className="compact-actions"><button onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>
+    {navigation}
     {error && <section className="panel community-notice" role="alert">社区目录暂不可用：{error}<button onClick={() => void refresh(true)}>重试</button></section>}
     {catalog?.cached && <section className="panel community-notice" role="status">当前显示上次保存的社区目录，可能不是最新内容。<button onClick={() => void refresh(true)}>重试</button></section>}
     {entry?.cached && <section className="panel community-notice" role="status">当前题单来自本地缓存，保存前请留意内容可能已更新。</section>}

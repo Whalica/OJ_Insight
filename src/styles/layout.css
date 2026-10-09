@@ -273,3 +273,7 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 @media (max-width: 1120px) { .account-entry.account-entry-cf { grid-template-columns: 24px repeat(3,minmax(0,1fr)) 30px; } }
 
 .knowledge-tabs button, .knowledge-tabs button>strong { font-weight: 600; }
+.today-oj-grid small, .platform-table strong, .rating-tabs strong, .difficulty-tabs [lang="en"], .knowledge-tabs strong {
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-synthesis: weight;
+}
