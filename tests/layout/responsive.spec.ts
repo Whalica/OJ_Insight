@@ -202,7 +202,7 @@ test('production UI has no animation test button and Luogu shows Rating without 
   await expect(page.locator('.platform-switch')).toHaveCount(0);
   await page.getByTestId('nav-platforms').hover();
   const flyout = page.locator('.nav-flyout');
-  await expect(flyout.getByRole('button', { name: '全部平台' })).toBeVisible();
+  await expect(flyout.getByRole('button', { name: '综合总览' })).toBeVisible();
   await flyout.getByRole('button', { name: 'Luogu', exact: true }).click();
   await expect(page.locator('.rating-panel')).toBeVisible();
   await expect(page.locator('.rating-empty')).toContainText('Luogu 暂无 Rating 记录');

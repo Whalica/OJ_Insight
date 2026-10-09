@@ -272,4 +272,4 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 .today-problem-meta>b>i { width: 8px; height: 8px; border-radius: 2px; }
 @media (max-width: 1120px) { .account-entry.account-entry-cf { grid-template-columns: 24px repeat(3,minmax(0,1fr)) 30px; } }
 
-.knowledge-tabs button { font-weight: 700; }
+.knowledge-tabs button, .knowledge-tabs button>strong { font-weight: 600; }

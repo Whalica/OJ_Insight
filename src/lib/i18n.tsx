@@ -153,7 +153,7 @@ const english: Record<string, string> = {
   '可选：Codeforces API Key / Secret': 'Optional: Codeforces API Key / Secret',
   '可选：牛客网页 Cookie（用于同步每日一题打卡记录）': 'Optional: NowCoder cookie for daily challenge history',
   '完整 Cookie：cookie_name=cookie_value（多个用分号分隔）': 'Full Cookie: cookie_name=cookie_value (separate multiple cookies with semicolons)',
-  '平台': 'Platforms',
+  '平台': 'Platforms', '综合总览': 'Overview',
   '可选：对应站点 Cookie（中国站活动与最近 AC 兜底）': 'Optional: site cookie for China activity and recent AC fallback',
   'API Key（可选）': 'API Key (optional)', 'API Secret（可选）': 'API Secret (optional)',
   '从未': 'Never',

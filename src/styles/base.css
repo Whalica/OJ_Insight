@@ -36,7 +36,7 @@ button, input, select { font: inherit; } button { color: inherit; } a { color: i
 .sidebar nav { overflow: visible; }
 .nav-flyout-host { position: relative; z-index: 0; }
 .nav-flyout-host:hover, .nav-flyout-host:focus-within { z-index: 30; }
-.sidebar nav .nav-flyout-trigger { position: relative; font-weight: 680; color: var(--text); }
+.sidebar nav .nav-flyout-trigger { position: relative; min-height: 48px; padding-block: 13px; font-weight: 680; color: var(--text); }
 .nav-flyout-chevron { margin-left: auto; transform: rotate(-90deg); transition: transform .16s ease; }
 .sidebar nav .nav-flyout-trigger.open .nav-flyout-chevron { transform: rotate(0deg); }
 .sidebar.collapsed .nav-flyout-chevron { display: none; }
@@ -47,9 +47,13 @@ button, input, select { font: inherit; } button { color: inherit; } a { color: i
   display: grid; gap: 1px; animation: nav-flyout-in .14s ease-out;
 }
 .nav-flyout-title { color: var(--muted); font-size: var(--font-meta); font-weight: 700; letter-spacing: .8px; padding: 5px 9px 6px; }
-.nav-flyout>button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: #9da7b1; padding: 8px 9px; text-align: left; cursor: pointer; font-size: var(--font-small); border-radius: 7px; }
+.nav-flyout>button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; border: 0; background: transparent; color: #9da7b1; padding: 9px; text-align: left; cursor: pointer; font-size: var(--font-small); border-radius: 7px; }
 .nav-flyout>button>svg { flex: none; }
 .nav-flyout-icon { flex: 0 0 auto; }
+.nav-flyout>button>svg, .nav-flyout .nav-flyout-icon, .nav-flyout .icpc-nav-logo { width: 20px; height: 20px; flex: 0 0 20px; }
+.nav-flyout-separator { height: 1px; margin: 5px 9px; background: var(--line-soft); }
+.settings-head { flex-wrap: wrap; }
+.settings-head>.primary { flex: 0 0 auto; margin-left: auto; }
 /* The 数据源 tab inside 设置 carries its own intro row because the page header belongs to 设置. */
 .data-tab-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 2px 0 12px; }
 .data-tab-head p { margin: 0; color: var(--muted); font-size: var(--font-small); max-width: 760px; }

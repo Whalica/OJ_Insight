@@ -38,6 +38,8 @@ for (const collapsed of [false, true]) {
       if (group === 'training') {
         await panel.getByRole('button', { name: '解题手记', exact: true }).click();
         await expect(page.getByRole('heading', { name: '解题手记', exact: true })).toBeVisible();
+        await expect(panel).toBeVisible();
+        await page.mouse.move(900, 50);
       } else {
         await page.keyboard.press('Escape');
       }
@@ -51,7 +53,10 @@ test('settings data sources tab only shows source controls at the top', async ({
   await page.getByRole('navigation').getByRole('button', { name: '设置', exact: true }).click();
   const tabs = page.locator('.settings-tabs');
   await expect(tabs.getByRole('button').first()).toHaveText('数据源');
-  await expect(page.locator('.account-panel')).toBeVisible();
+  await expect(page.locator('.source-list')).toBeVisible();
+  await expect(page.locator('.account-panel')).toHaveCount(0);
+  await expect(page.locator('.settings-head').getByRole('button', { name: '同步全部', exact: true })).toBeVisible();
+  await expect(page.locator('.data-tab-head').getByRole('button')).toHaveCount(0);
   await tabs.getByRole('button', { name: '个性化', exact: true }).click();
   await expect(page.locator('.preferences-panel')).toBeVisible();
   await expect(page.locator('.source-list')).toHaveCount(0);
@@ -67,6 +72,40 @@ test('settings data sources tab only shows source controls at the top', async ({
   await expect(page.getByText('在 OJI 中登录 QOJ', { exact: true })).toHaveCount(0);
   await expect(page.getByPlaceholder('完整 Cookie：cookie_name=cookie_value（多个用分号分隔）')).toBeVisible();
   await expect(page.locator('.source-list')).toHaveCount(0);
+});
+
+test('platform and tracker selections stay open until the pointer leaves', async ({ page }) => {
+  await openApp(page);
+  const panel = page.locator('.nav-flyout');
+  await expect(page.getByTestId('nav-platforms')).toHaveText('平台');
+  await page.getByTestId('nav-platforms').hover();
+  await expect(panel.getByRole('button').first()).toHaveText('综合总览');
+  const luogu = panel.getByRole('button', { name: 'Luogu', exact: true });
+  await luogu.click();
+  await expect(luogu).toHaveAttribute('aria-current', 'true');
+  await expect(panel).toBeVisible();
+  await page.mouse.move(900, 50);
+  await expect(panel).toHaveCount(0);
+  await page.getByTestId('nav-trackers').hover();
+  await expect(panel.getByRole('button')).toHaveText(['ICPC / CCPC', 'Codeforces', 'AtCoder']);
+  await panel.getByRole('button', { name: 'Codeforces', exact: true }).click();
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Codeforces', exact: true })).toHaveAttribute('aria-current', 'true');
+  const sizes = await panel.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+  expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThan(1);
+  await page.mouse.move(900, 50);
+  await expect(panel).toHaveCount(0);
+});
+
+test('training keeps all shortcuts in three separated groups', async ({ page }) => {
+  await openApp(page);
+  await page.getByTestId('nav-training').hover();
+  const panel = page.locator('.nav-flyout');
+  await expect(panel.getByRole('button')).toHaveText(['题单', '推荐题单', '个性化组题', '模拟赛', '参赛区', '赛后分析', '解题手记', '收藏夹']);
+  await expect(panel.getByRole('separator')).toHaveCount(2);
+  for (const group of ['platforms', 'trackers', 'training']) {
+    expect((await page.getByTestId(`nav-${group}`).boundingBox())!.height).toBeGreaterThanOrEqual(48);
+  }
 });
 
 test('clicking a flyout trigger opens it immediately and never toggles it closed', async ({ page }) => {
