@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
-import type { AccountMap } from '../lib/ui';
+import { SYNC_TIPS, type AccountMap } from '../lib/ui';
 import { api } from '../services/api';
 import type { Platform } from '../types';
 
@@ -10,20 +10,23 @@ type UseSyncOptions = {
   accounts: AccountMap;
   accountsLoaded: boolean;
   autoSync: boolean;
-  suppressStartupSync?: boolean;
   loadSnapshot: (showSolvedGains?: boolean) => Promise<void>;
   loadStatuses: () => Promise<void>;
   notify: (message: string) => void;
 };
 
 export function useSync(options: UseSyncOptions) {
-  const { accounts, accountsLoaded, autoSync, suppressStartupSync, loadSnapshot, loadStatuses, notify } = options;
+  const { accounts, accountsLoaded, autoSync, loadSnapshot, loadStatuses, notify } = options;
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncTip, setSyncTip] = useState('');
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const startupSyncStarted = useRef(false);
 
+  const chooseTip = () => setSyncTip(SYNC_TIPS[Math.floor(Math.random() * SYNC_TIPS.length)]);
+
   const syncOne = async (platform: Platform, full = false) => {
     setSyncing(platform);
+    chooseTip();
     try {
       const result = await api.syncPlatform(platform, full);
       notify(`${PLATFORM_META[platform].name}：${result.message}`);
@@ -40,10 +43,12 @@ export function useSync(options: UseSyncOptions) {
     const configured = PLATFORM_ORDER.filter((platform) => sourceAccounts[platform].some((entry) => entry.account.trim()));
     if (!configured.length && automatic) return;
     setSyncing('all');
+    chooseTip();
     let done = 0;
     let partial = 0;
     let failed = 0;
     let changedPlatforms = 0;
+    const problems: string[] = [];
     setSyncProgress({ done, total: configured.length, partial, failed });
     try {
       for (const platform of configured) {
@@ -52,18 +57,21 @@ export function useSync(options: UseSyncOptions) {
           if (result.inserted > 0 || result.updated > 0) changedPlatforms += 1;
           if (result.partial || result.status === 'warning') {
             partial += 1;
+            problems.push(`${PLATFORM_META[platform].name}：${result.message}`);
           } else if (result.status !== 'ok') {
             failed += 1;
+            problems.push(`${PLATFORM_META[platform].name}：${result.message}`);
           }
-        } catch {
+        } catch (error) {
           failed += 1;
+          problems.push(`${PLATFORM_META[platform].name}：${String(error)}`);
         }
         done += 1;
         setSyncProgress({ done, total: configured.length, partial, failed });
         await loadStatuses();
       }
       if (!automatic || changedPlatforms > 0 || partial > 0 || failed > 0) {
-        notify(configured.length ? `同步完成：成功 ${configured.length - partial - failed}，部分成功 ${partial}，失败 ${failed}${partial || failed ? '；详情见「设置 → 数据源」' : ''}` : '还没有配置账号，请先到设置页填写');
+        notify(configured.length ? `同步完成：${configured.length - partial - failed} 个平台成功，${changedPlatforms} 个平台有新增或更新，部分可用 ${partial}，失败 ${failed}${problems.length ? `；${problems.join('；')}` : ''}` : '还没有配置账号，请先到设置页填写');
       }
       await Promise.all([loadSnapshot(true), loadStatuses()]);
     } finally {
@@ -73,11 +81,10 @@ export function useSync(options: UseSyncOptions) {
   };
 
   useEffect(() => {
-    if (suppressStartupSync) startupSyncStarted.current = true;
     if (!accountsLoaded || !autoSync || startupSyncStarted.current) return;
     startupSyncStarted.current = true;
     void syncAll(accounts, true);
-  }, [accountsLoaded, autoSync, suppressStartupSync]);
+  }, [accountsLoaded, autoSync]);
 
-  return { syncing, syncProgress, syncOne, syncAll };
+  return { syncing, syncTip, syncProgress, syncOne, syncAll };
 }

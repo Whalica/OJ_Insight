@@ -58,7 +58,7 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
   };
 
   return <>
-    {!embedded && <header className="topbar"><div><small lang="en">CONTEST REVIEW PACKAGE</small><h1>比赛复盘</h1><p>整理比赛题目、提交和代码，导出复盘包。</p></div></header>}
+    {!embedded && <header className="topbar"><div><small lang="en">CONTEST REVIEW PACKAGE</small><h1>比赛复盘</h1><p>把比赛、提交与代码整理成统一的四文档压缩包，交给大模型后即可直接开始复盘。</p></div></header>}
     <section className="review-builder">
       <div className="panel review-form">
         <header><div><small lang="en">STEP 1</small><h2>选择比赛</h2></div><span><ShieldCheck size={14} />凭据不会写入复盘包</span></header>
@@ -69,16 +69,16 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
           <label><span>比赛 ID 或链接</span><input value={contestInput} onChange={(event) => setContestInput(event.target.value)} placeholder="例如 abc380 或比赛链接" disabled={!supported} /></label>
         </div>
         <div className="review-credential-guide"><div><strong>复盘账号</strong><span>在设置中确认复盘使用的 AtCoder 账号。</span></div><button type="button" onClick={onOpenSettings}><Settings size={14} />前往配置</button></div>
-        <label className="review-post-option"><input type="checkbox" checked={includePostContest} onChange={(event) => setIncludePostContest(event.target.checked)} /><i /><span><strong>包含赛后补题</strong><small>赛后提交会单独标记</small></span></label>
+        <label className="review-post-option"><input type="checkbox" checked={includePostContest} onChange={(event) => setIncludePostContest(event.target.checked)} /><i /><span><strong>包含赛后补题</strong><small>与正式比赛提交分开标记，不影响比赛过程判断</small></span></label>
         <button className="primary review-check" disabled={!canCheck} onClick={() => void inspect()}>{checking ? <LoaderCircle className="spin" size={16} /> : <FileSearch size={16} />}{checking ? '正在检查比赛…' : '检查比赛'}</button>
       </div>
 
       <div className={`panel review-preview ${preview ? 'ready' : ''}`}>
-        {!preview ? <div className="review-empty"><Archive size={30} /><strong>等待检查比赛</strong><span>选择账号和比赛，点击「检查比赛」查看可导出的内容。</span></div> : <>
+        {!preview ? <div className="review-empty"><Archive size={30} /><strong>等待检查比赛</strong><span>确认能取得的题目、提交和代码后，再选择保存位置。</span></div> : <>
           <header><div><small lang="en">STEP 2</small><h2>{preview.contestName}</h2><p>{PLATFORM_META[preview.platform].name} · {preview.account} · {preview.contestId}</p></div><div className="review-preview-actions"><button type="button" onClick={() => void api.openExternal(preview.contestUrl)}>打开比赛<ExternalLink size={13} /></button><span className={preview.completeness === 'complete' ? 'complete' : 'partial'}>{preview.completeness === 'complete' ? '数据可用' : '部分可用'}</span></div></header>
           <div className="review-stats"><div><small>题目</small><strong>{preview.problemCount}</strong></div><div><small>提交</small><strong>{preview.submissionCount}</strong></div><div><small>代码</small><strong>{preview.codeAvailable ? '生成时获取' : '不可用'}</strong></div></div>
           {preview.notes.length > 0 && <div className="review-notes">{preview.notes.map((note) => <p key={note}><AlertTriangle size={13} />{note}</p>)}</div>}
-          <div className="review-package"><strong>复盘包内容</strong><span>00-START-HERE · 01-CONTEST · 02-PROBLEMS · 03-SUBMISSIONS</span><small>解压后先阅读 00-START-HERE；也可将 ZIP 上传给大模型复盘。</small></div>
+          <div className="review-package"><strong>固定四文档</strong><span>00-START-HERE · 01-CONTEST · 02-PROBLEMS · 03-SUBMISSIONS</span><small>上传后无需解释；若聊天平台要求输入文字，只需说“开始复盘”。</small></div>
           <button className="primary" disabled={generating} onClick={() => void generate()}>{generating ? <LoaderCircle className="spin" size={16} /> : <Archive size={16} />}{generating ? '正在获取代码并打包…' : '生成复盘包'}</button>
         </>}
       </div>

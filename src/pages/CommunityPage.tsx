@@ -70,11 +70,11 @@ export default function CommunityPage({ notify, onOpenLocalSets, navigation }: {
   const renderFolder = (folder: CommunityFolder): ReactNode => <details key={folder.path} className="community-folder" open={!!query || openFolders.has(folder.path)}><summary onClick={(event) => { event.preventDefault(); setOpenFolders((current) => { const next = new Set(current); if (next.has(folder.path)) next.delete(folder.path); else next.add(folder.path); return next; }); }}><Folder size={15} /><span>{folder.name}</span><small>{folder.count} 份</small></summary><div className="community-folder-items">{folder.entries.map(renderEntry)}{[...folder.folders.values()].sort((a, b) => a.name.localeCompare(b.name)).map(renderFolder)}</div></details>;
 
   return <>
-    <header className="topbar problem-sets-head"><div><small lang="en">TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>查看社区题单，保存后可在本地编辑。</p></div><div className="compact-actions"><button onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>
+    <header className="topbar problem-sets-head"><div><small lang="en">TRAINING CENTER · COMMUNITY</small><h1>推荐题单</h1><p>浏览经审核的社区题单，预览后保存为可编辑的本地副本。</p></div><div className="compact-actions"><button onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />刷新</button><button onClick={() => void api.openExternal(REPOSITORY)}><ExternalLink size={15} />投稿与审核</button></div></header>
     {navigation}
     {error && <section className="panel community-notice" role="alert">社区目录暂不可用：{error}<button onClick={() => void refresh(true)}>重试</button></section>}
     {catalog?.cached && <section className="panel community-notice" role="status">当前显示上次保存的社区目录，可能不是最新内容。<button onClick={() => void refresh(true)}>重试</button></section>}
-    {entry?.cached && <section className="panel community-notice" role="status">显示的是缓存题单，可能不是最新内容。</section>}
+    {entry?.cached && <section className="panel community-notice" role="status">当前题单来自本地缓存，保存前请留意内容可能已更新。</section>}
     <div className="problem-sets-layout community-layout">
       <aside className="panel set-gallery community-gallery"><header><div><strong>社区题单</strong><small>{loading ? '读取中…' : `${visible.length} 份`}</small></div></header><label className="community-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索题单、作者或分类" /></label>
         {folders.entries.map(renderEntry)}{[...folders.folders.values()].sort((a, b) => a.name.localeCompare(b.name)).map(renderFolder)}
@@ -87,7 +87,7 @@ export default function CommunityPage({ notify, onOpenLocalSets, navigation }: {
           {entry.content.description && <div className="set-description-preview"><MarkdownPreview text={entry.content.description} /></div>}
           <div className="set-problem-list">{entry.content.problems.map((row, index) => { const passed = entry.solvedKeys.includes(`${row.problem.platform}:${row.problem.problemKey}`); return <a key={`${row.problem.platform}:${row.problem.problemKey}`} href={row.problem.url} target="_blank" rel="noreferrer"><PlatformIcon platform={row.problem.platform} /><span className="problem-number">{index + 1}</span><div><strong>{row.problem.name || row.problem.problemId || row.problem.problemKey}</strong><small>{PLATFORM_META[row.problem.platform]?.name || row.problem.platform}{row.note ? ` · ${row.note}` : ''}</small>{(entry.content.tagVisibility === 'before_solving' || entry.content.tagVisibility === 'after_ac' && passed) && row.problem.tags?.length > 0 && <em>{row.problem.tags.join(' · ')}</em>}</div><span className={`set-solve-badge ${passed ? 'passed' : ''}`}>{passed ? '已通过' : '未记录通过'}</span></a>; })}</div>
           <footer><span>保存后可在「题单」编辑；社区更新不会覆盖本地副本。</span><button className="primary" onClick={() => void save()} disabled={saving}><Download size={15} />保存到本地</button></footer>
-        </> : <div className="community-placeholder"><LibraryBig size={32} /><strong>选择一份题单查看</strong><span>点击左侧题单查看内容。</span></div>}
+        </> : <div className="community-placeholder"><LibraryBig size={32} /><strong>选择一份题单查看</strong><span>从左侧打开题单，确认内容后再保存到本地。</span></div>}
       </section>
     </div>
   </>;

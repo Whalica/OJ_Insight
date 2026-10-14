@@ -158,12 +158,8 @@
 .community-draft-dialog>label { display: grid; gap: 5px; color: var(--text-soft); font-size: var(--font-small); }
 .community-draft-dialog input, .community-draft-dialog textarea, .community-draft-dialog select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; background: var(--input); color: var(--text); font: inherit; }
 .community-draft-dialog textarea { min-height: 70px; resize: vertical; }
-.community-draft-dialog .community-confirm { position: relative; display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; cursor: pointer; }
-.community-draft-dialog .community-confirm input { appearance: none; flex: 0 0 18px; width: 18px; height: 18px; margin: 3px 0 0; padding: 0; border: 1px solid var(--interactive-border-hover); border-radius: 4px; background: var(--input); cursor: pointer; }
-.community-draft-dialog .community-confirm input:checked { background: var(--accent); border-color: var(--accent); }
-.community-draft-dialog .community-confirm input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.community-confirm-check { position: absolute; left: 2px; top: 5px; color: var(--bg); opacity: 0; pointer-events: none; }
-.community-confirm input:checked + .community-confirm-check { opacity: 1; }
+.community-draft-dialog .community-confirm { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+.community-confirm input { width: auto; margin: 3px 0 0; }
 .community-draft-dialog button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 7px; padding: 8px 11px; background: var(--panel-soft); color: var(--text); cursor: pointer; }
 .community-draft-dialog button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .problem-set-tabs { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 18px; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-soft); }

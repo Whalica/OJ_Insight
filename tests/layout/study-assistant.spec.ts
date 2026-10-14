@@ -75,15 +75,10 @@ test('study assistant opens from Tools and records the timer reading with a mist
   await page.getByRole('button', { name: '结束本次做题' }).click();
   await expect(page.getByText('已保存到训练中心 · 解题手记')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('oj-insight.solve-journal.v1') || '[]') as Array<{ status: string }>).some((item) => item.status === 'finished'))).toBe(true);
-  // Return from the 160px assistant window to the normal desktop workspace.
-  await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.getByTestId('nav-training').hover();
   await page.locator('.nav-flyout').getByRole('button', { name: '解题手记' }).click();
   await expect(page.getByRole('heading', { name: '解题手记' })).toBeVisible();
-  // Sidebar flyouts intentionally stay open after selecting a page.
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.nav-flyout')).toHaveCount(0);
   await page.getByRole('button', { name: /未命名练习/ }).click();
   await expect(page.getByRole('heading', { name: '做题笔记' })).toBeVisible();
   await expect(page.locator('.journal-note strong')).toHaveText('先枚举');

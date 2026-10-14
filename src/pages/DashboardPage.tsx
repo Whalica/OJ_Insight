@@ -1,13 +1,13 @@
 import PlatformIcon from '../components/PlatformIcon';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, KeyRound, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, KeyRound, RefreshCw, Sparkles } from 'lucide-react';
 import Heatmap from '../components/Heatmap';
 import DifficultyHeatmap from '../components/DifficultyHeatmap';
 import StatCards from '../components/StatCards';
 import RatingOverview from '../components/RatingOverview';
 import KnowledgeRadar from '../components/KnowledgeRadar';
 import { api } from '../services/api';
-import { currentYear, dayAtEpoch, formatDateTime, formatTime, timeZoneLabel, today } from '../lib/date';
+import { currentYear, dayAtEpoch, formatDateTime, formatTime, hourInTimeZone, timeZoneLabel, today } from '../lib/date';
 import { difficultyColor, METRICS, PLATFORM_META, PLATFORM_ORDER } from '../lib/platforms';
 import type { TimeScope } from '../lib/ui';
 import type { AccountConfig, Metric, Platform, Snapshot, SolvedGain } from '../types';
@@ -29,6 +29,7 @@ interface Props {
   solvedGains: SolvedGain[];
   loading: boolean;
   syncing: string | null;
+  syncTip: string;
   syncProgress: { done: number; total: number; partial: number; failed: number } | null;
   onSync: () => void;
   onDay: (day: string) => void;
@@ -37,7 +38,24 @@ interface Props {
   onOpenSettings: () => void;
 }
 
+function greeting(timeZone: string) {
+  const hour = hourInTimeZone(timeZone);
+  if (hour < 5) return { title: '凌晨好', message: '夜深了，保持清醒，也记得给大脑留一点休息。' };
+  if (hour < 11) return { title: '早上好', message: '先从一道手感题开始，把今天的训练节奏带起来。' };
+  if (hour < 14) return { title: '中午好', message: '午间适合补一道短题，或回看上午卡住的关键一步。' };
+  if (hour < 18) return { title: '下午好', message: '今天的轨迹已经在这里了，看看还想补上哪一块。' };
+  return { title: '晚上好', message: '复盘今天的提交，比单纯追求题数更接近真正的进步。' };
+}
+
 const CHECKIN_STORAGE_KEY = 'oj-insight.checkins.v1';
+const CHECKIN_MESSAGES = [
+  '今天也来看看自己啦。',
+  '为今天留下一枚小小记录。',
+  '看到这里，愿你今天也有好心情。',
+  '数据会积累，成长不必着急。',
+  '欢迎回来，慢慢来就很好。',
+  '今天的 OJ 小角落也亮了一下。',
+];
 
 function loadCheckinDays() {
   try {
@@ -50,8 +68,8 @@ function loadCheckinDays() {
 }
 
 export default function DashboardPage(props: Props) {
-  const { platform, platformAccounts, accountFilter, setAccountFilter, sourceFilter, setSourceFilter, timeScope, setTimeScope, range, metric, setMetric, timeZone, snapshot, solvedGains, loading, syncing, syncProgress, onSync, onDay, onDifficulty, onPlatform, onOpenSettings } = props;
-  const title = platform ? PLATFORM_META[platform].name : '总览';
+  const { platform, platformAccounts, accountFilter, setAccountFilter, sourceFilter, setSourceFilter, timeScope, setTimeScope, range, metric, setMetric, timeZone, snapshot, solvedGains, loading, syncing, syncTip, syncProgress, onSync, onDay, onDifficulty, onPlatform, onOpenSettings } = props;
+  const welcome = greeting(timeZone); const title = platform ? PLATFORM_META[platform].name : welcome.title;
   const years = Array.from({ length: currentYear(timeZone) - 2009 }, (_, index) => currentYear(timeZone) - index);
   const luoguLimited = platform === 'luogu';
   const label = luoguLimited ? '近半年' : timeScope === 'until' ? '至今（近一年）' : String(timeScope);
@@ -59,10 +77,11 @@ export default function DashboardPage(props: Props) {
   const credentialPlatform = platform && ['codeforces', 'nowcoder', 'qoj', 'leetcode'].includes(platform) ? platform : null;
   const openCredentialHelp = () => onOpenSettings();
   return <>
-    <header className="topbar dashboard-head"><div><small>{platform ? `${PLATFORM_META[platform].name} · PLATFORM` : today(timeZone)}</small><h1>{title}</h1><p>{platform ? luoguLimited ? '查看洛谷活动记录和难度分布。' : platform === 'leetcode' ? '查看 LeetCode 解题数和难度分布。' : `${PLATFORM_META[platform].name} 的活动、难度和 AC 记录。` : '查看各平台的做题记录与统计。'}</p></div><div className="topbar-actions">{(!platform || credentialPlatform) && <button className="credential-help" onClick={openCredentialHelp}><KeyRound size={15} />{!platform ? '配置 API / Cookie' : platform === 'codeforces' ? '配置 API' : '配置 Cookie'}</button>}<button className="primary sync-button" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncProgress ? `${syncProgress.done}/${syncProgress.total}` : syncing ? '同步中' : platform ? `同步 ${PLATFORM_META[platform].name}` : '同步全部'}</button></div></header>
-    {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>部分成功 {syncProgress.partial} · 失败 {syncProgress.failed}；详情见「设置 → 数据源」</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
+    <header className="topbar dashboard-head"><div><small>{platform ? `${PLATFORM_META[platform].name} · PLATFORM` : today(timeZone)}</small><h1>{title}</h1><p>{platform ? luoguLimited ? '洛谷公开活动砖与题库难度概况。' : platform === 'leetcode' ? 'LeetCode 生涯与题库难度概况。' : `${PLATFORM_META[platform].name} 的活动砖、难度足迹和逐题记录。` : welcome.message}</p></div><div className="topbar-actions">{(!platform || credentialPlatform) && <button className="credential-help" onClick={openCredentialHelp}><KeyRound size={15} />{!platform ? '配置 API / Cookie' : platform === 'codeforces' ? '配置 API' : '配置 Cookie'}</button>}<button className="primary sync-button" onClick={onSync} disabled={!!syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncProgress ? `${syncProgress.done}/${syncProgress.total}` : syncing ? '同步中' : platform ? `同步 ${PLATFORM_META[platform].name}` : '同步全部'}</button></div></header>
+    {!!syncing && syncTip && <div className="tip-banner"><span>比赛小贴士</span><strong>{syncTip}</strong></div>}
+    {syncProgress && <div className="sync-banner"><strong>正在同步 {syncProgress.done} / {syncProgress.total}</strong><span>部分可用 {syncProgress.partial} · 失败 {syncProgress.failed}；各平台更新数量见“同步与数据”</span><i><b style={{ width: `${syncProgress.total ? syncProgress.done / syncProgress.total * 100 : 0}%` }} /></i></div>}
     {!platform && <TodayProgress snapshot={snapshot} timeZone={timeZone} solvedGains={solvedGains} onSelect={onPlatform} onSync={onSync} syncing={!!syncing} />}
-    <div className="section-title career-title"><small lang="en">CAREER</small><h2>生涯累计</h2></div><StatCards stats={snapshot.career} />
+    <div className="section-title career-title"><small>CAREER · 不受下方时间范围影响</small><h2>生涯累计</h2></div><StatCards stats={snapshot.career} />
     {platform !== 'leetcode' && <RatingOverview ratings={snapshot.ratings} timeZone={timeZone} selectedPlatform={platform} />}
     {(!platform || platform === 'codeforces' || platform === 'qoj') && <KnowledgeRadar data={snapshot.knowledge || []} selectedPlatform={platform} />}
     {platform !== 'leetcode' && <div className="toolbar">
@@ -72,17 +91,17 @@ export default function DashboardPage(props: Props) {
       {platform === 'nowcoder' && <label>记录来源<div className="source-segments"><button className={!sourceFilter ? 'active' : ''} onClick={() => setSourceFilter('')}>总计</button><button className={sourceFilter === 'oj' ? 'active' : ''} onClick={() => setSourceFilter('oj')}>普通 OJ</button><button className={sourceFilter === 'daily' ? 'active' : ''} onClick={() => setSourceFilter('daily')}>每日一题</button></div></label>}
       <span className="toolbar-note">按 {timeZoneLabel(timeZone)} 统计</span>
     </div>}
-    {luoguLimited && <div className="warning"><AlertTriangle size={16} />洛谷仅显示近半年的公开活动记录，暂无逐题明细。比赛等级分来自公开个人页。</div>}
+    {luoguLimited && <div className="warning"><AlertTriangle size={16} />洛谷活动使用公开个人页 dailyCounts，固定展示近半年；比赛等级分来自同页记录。不抓取提交记录，因此没有当天逐题明细。</div>}
     {platform !== 'leetcode' && !snapshot.metric_available && <div className="warning"><AlertTriangle size={16} />当前平台没有这一口径的逐日数据。</div>}
     {snapshot.warnings.map((warning) => <div className="warning" key={warning}><AlertTriangle size={16} />{warning}</div>)}
     {platform !== 'leetcode' && <><div className="section-title"><small lang="en">CURRENT RANGE</small><h2>{label}的训练状态</h2></div><StatCards stats={snapshot.stats} />
     <section className={`panel heat-panel ${platform === 'luogu' ? 'luogu-heat-panel' : ''}`}><div className="panel-head"><div><small>ACTIVITY · {range.start} — {range.end}</small><h2>{platform ? `${PLATFORM_META[platform].name} 活动砖` : '全部 OJ 活动砖'}</h2></div>{loading && <span className="muted">读取中…</span>}</div><Heatmap startDay={range.start} endDay={range.end} daily={snapshot.daily} onDay={onDay} /></section></>}
-    {platform && platform !== 'luogu' && platform !== 'leetcode' && <section className="panel heat-panel difficulty-footprint"><div className="panel-head"><div><small lang="en">DAILY PEAK DIFFICULTY</small><h2>难度足迹</h2><p>颜色表示当天 AC 题目的最高难度。</p></div></div><DifficultyHeatmap platform={platform} startDay={range.start} endDay={range.end} daily={snapshot.difficulty_daily} onDay={onDay} colorFor={difficultyColor} />{!snapshot.difficulty_daily.length && <div className="inline-empty">暂无逐题难度数据。</div>}</section>}
+    {platform && platform !== 'luogu' && platform !== 'leetcode' && <section className="panel heat-panel difficulty-footprint"><div className="panel-head"><div><small lang="en">DAILY PEAK DIFFICULTY</small><h2>难度足迹</h2><p>用当天 AC 题目的最高难度，为这一天留下颜色。</p></div></div><DifficultyHeatmap platform={platform} startDay={range.start} endDay={range.end} daily={snapshot.difficulty_daily} onDay={onDay} colorFor={difficultyColor} />{!snapshot.difficulty_daily.length && <div className="inline-empty">当前数据源没有逐题难度，活动砖仍可正常使用。</div>}</section>}
     {!platform && <section className="panel overview-platforms"><div className="panel-head"><div><small lang="en">PLATFORMS</small><h2>各 OJ 训练概况</h2></div></div><PlatformTable rows={snapshot.platforms} onSelect={onPlatform} /></section>}
     {platform === 'leetcode' && <LeetCodeSummary data={snapshot.difficulty} />}
     <section className="panel difficulty-panel"><div className="panel-head"><div><small lang="en">DIFFICULTY DISTRIBUTION</small><h2>{platform === 'nowcoder' ? sourceFilter === 'daily' ? '每日一题难度' : 'Tracker 题目 Rating' : '难度分布'}</h2></div><span className="muted">点击柱形查看该难度的全部题目</span></div><DifficultyProfile data={platform ? snapshot.difficulty.filter((item) => item.platform === platform) : snapshot.difficulty} preferred={platform || undefined} hideTabs={!!platform} onDifficulty={(item, label) => onDifficulty(item, label, item === 'nowcoder' ? sourceFilter || 'oj' : undefined)} /></section>
     {platform === 'nowcoder' && !sourceFilter && <section className="panel difficulty-panel nowcoder-daily-difficulty"><div className="panel-head"><div><small>DAILY PROBLEM DIFFICULTY · 独立 1–5 级</small><h2>每日一题难度</h2><p>每日一题使用独立难度等级，不与 Tracker 题目 Rating 混合。</p></div><span className="muted">点击柱形查看对应每日题</span></div><DifficultyProfile data={snapshot.nowcoder_daily_difficulty} preferred="nowcoder" hideTabs onDifficulty={(item, label) => onDifficulty(item, label, 'daily')} /></section>}
-    {platform !== 'luogu' && platform !== 'leetcode' && <section className="panel recent-panel"><div className="panel-head"><div><small lang="en">RECENT ACCEPTED</small><h2>最近 AC</h2></div></div><RecentList items={snapshot.recent} timeZone={timeZone} /></section>}
+    {platform !== 'luogu' && platform !== 'leetcode' && <section className="panel recent-panel"><div className="panel-head"><div><small>RECENT ACCEPTED · 不受时间范围影响</small><h2>最近 AC</h2></div></div><RecentList items={snapshot.recent} timeZone={timeZone} /></section>}
   </>;
 }
 
@@ -104,6 +123,11 @@ function TodayProgress({ snapshot, timeZone, solvedGains, onSelect, onSync, sync
     return row?.today_count ?? uniqueByPlatform.get(platform) ?? 0;
   };
   const total = PLATFORM_ORDER.reduce((sum, platform) => sum + displayTodayCount(platform), 0);
+  const solvedTotal = rows.reduce((sum, row) => sum + (row.solved || 0), 0);
+  const milestone = solvedTotal < 10 ? 10 : Math.ceil((solvedTotal + 1) / 25) * 25;
+  const encouragement = total > 0
+    ? `今天新增的 ${total} 项进度已经留下来了。逐题平台的重复 AC 只会计作同一道题。`
+    : solvedTotal > 0 ? `各平台已经累计 ${solvedTotal.toLocaleString()} 题，距离下一个小里程碑还有 ${milestone - solvedTotal} 题。今天休息也不会抹掉这些积累。` : '第一题不需要很难，也不必很快。只要开始，它就会成为以后回头能看见的一小步。';
   const todayRatings = snapshot.ratings.flatMap((summary) => summary.history
     .filter((point) => dayAtEpoch(point.epoch_second, timeZone) === currentDay)
     .map((point) => ({ ...point, platform: summary.platform, account: summary.display_name || summary.account })));
@@ -123,7 +147,8 @@ function TodayProgress({ snapshot, timeZone, solvedGains, onSelect, onSync, sync
   const [error, setError] = useState('');
   const [justChecked, setJustChecked] = useState(false);
   const checkedToday = checkinDays.includes(currentDay);
-  const feedback = checkedToday ? '打卡已记录。' : '';
+  const checkinIndex = checkinDays.indexOf(currentDay);
+  const feedback = checkedToday ? CHECKIN_MESSAGES[Math.max(0, checkinIndex) % CHECKIN_MESSAGES.length] : '';
   useEffect(() => { setError(''); setJustChecked(false); }, [currentDay]);
 
   const checkIn = () => {
@@ -135,23 +160,24 @@ function TodayProgress({ snapshot, timeZone, solvedGains, onSelect, onSync, sync
       setJustChecked(true);
       window.setTimeout(() => setJustChecked(false), 900);
     } catch {
-      setError('打卡保存失败，请重试。');
+      setError('这次打卡没有保存成功，请稍后再试。');
     }
   };
 
   return <section className="today-block">
-    <div className="today-copy"><small>TODAY · {currentDay}</small><h2>今日进度</h2><p>{total ? `今天新增 ${total} 条活动记录。` : '今天暂无活动记录。'}</p>
+    <div className="today-copy"><small>TODAY · {currentDay}</small><h2>今日进度</h2><p>{total ? `今天六个平台共留下 ${total} 条活动记录。` : '今天还没有活动记录，第一块砖会从哪里亮起？'}</p>
       <div className={`today-checkin ${justChecked ? 'celebrate' : ''}`}>
         <div className="today-checkin-actions"><button className={checkedToday ? 'checked' : ''} onClick={checkIn} disabled={checkedToday} aria-pressed={checkedToday}><Check size={16} />{checkedToday ? '今天已打卡' : '今日打卡'}</button></div>
-        <span className="today-checkin-count">累计打卡 <strong>{checkinDays.length}</strong> 天</span>{feedback && <span className="today-checkin-feedback" role="status"><Check size={14} />{feedback}</span>}{error && <span className="today-checkin-error" role="alert">{error}</span>}
+        <span className="today-checkin-count">累计打卡 <strong>{checkinDays.length}</strong> 天</span>{feedback && <span className="today-checkin-feedback" role="status"><Sparkles size={14} />{feedback}</span>}{error && <span className="today-checkin-error" role="alert">{error}</span>}
       </div>
+      <div className="today-encouragement"><Sparkles size={15} /><span>{encouragement}</span></div>
     </div>
     <div className="today-oj-grid">{PLATFORM_ORDER.map((platform) => { const gain = solvedGains.find((item) => item.platform === platform); return <button key={platform} onClick={() => onSelect(platform)}><PlatformIcon platform={platform} /><strong className="today-progress-count">{displayTodayCount(platform)}{gain && <GainBubble gain={gain} />}</strong><small lang="en">{PLATFORM_META[platform].name}</small></button>; })}</div>
     <div className="today-detail">
-      <header><div><small lang="en">TODAY'S ACTIVITY</small><strong>今日题目与比赛</strong></div><button onClick={onSync} disabled={syncing}><RefreshCw size={14} className={syncing ? 'spin' : ''} />{syncing ? '刷新中' : '刷新记录'}</button></header>
+      <header><div><small lang="en">TODAY'S ACTIVITY</small><strong>今日题目与比赛</strong></div><button onClick={onSync} disabled={syncing}><RefreshCw size={14} className={syncing ? 'spin' : ''} />{syncing ? '刷新中' : '比赛结束后刷新'}</button></header>
       <div className="today-detail-grid">
         <div className="today-problems"><span>题目 / AC</span>{todayProblems.length ? todayProblems.slice(0, 6).map((item) => <button key={`${item.platform}-${item.account}-${item.submission_id}`} onClick={() => item.problem_url && void api.openExternal(item.problem_url)}><i style={{ background: PLATFORM_META[item.platform].accent }} /><div><strong>{item.problem_id || item.problem_name}</strong><small>{item.problem_name} · {item.language || '语言未知'}</small></div><span className="today-problem-meta">{item.difficulty && <b><i style={{ background: difficultyColor(item.platform, item.difficulty) }} />{item.difficulty}</b>}<time>{item.source_day ? '每日一题' : formatTime(item.epoch_second, timeZone)}</time></span></button>) : <em>同步后会在这里显示今天完成的题目。</em>}</div>
-        <div className="today-contests"><span>今日已结束比赛</span>{finishedContests.map((contest) => <button key={`${contest.platform}-${contest.contestId}`} onClick={() => void api.openExternal(contest.url)}><PlatformIcon platform={contest.platform} /><div><strong>{contest.rating.contest_name}</strong><small>{contest.count} 道 AC{contest.rating.rank == null ? '' : ` · 排名 ${contest.rating.rank}`}</small></div><b className={contest.rating.new_rating < contest.rating.old_rating ? 'negative' : 'positive'}>{contest.rating.old_rating} → {contest.rating.new_rating}</b></button>)}{!finishedContests.length && <em>暂无今日比赛记录，赛后同步可更新 AC 和 Rating。</em>}</div>
+        <div className="today-contests"><span>今日已结束比赛</span>{finishedContests.map((contest) => <button key={`${contest.platform}-${contest.contestId}`} onClick={() => void api.openExternal(contest.url)}><PlatformIcon platform={contest.platform} /><div><strong>{contest.rating.contest_name}</strong><small>{contest.count} 道 AC{contest.rating.rank == null ? '' : ` · 排名 ${contest.rating.rank}`}</small></div><b className={contest.rating.new_rating < contest.rating.old_rating ? 'negative' : 'positive'}>{contest.rating.old_rating} → {contest.rating.new_rating}</b></button>)}{!finishedContests.length && <em>今天没有已结束且确认参赛的比赛；赛后同步即可更新过题与 Rating。</em>}</div>
       </div>
     </div>
   </section>;
@@ -177,7 +203,7 @@ function DifficultyProfile({ data, preferred, onDifficulty, hideTabs = false }: 
   const [selected, setSelected] = useState<Platform | undefined>(preferred || available[0]);
   useEffect(() => { if (preferred && available.includes(preferred)) setSelected(preferred); else if (!selected || !available.includes(selected)) setSelected(available[0]); }, [preferred, available.join('|')]);
   const active = selected && available.includes(selected) ? selected : available[0];
-  if (!active) return <div className="empty">暂无难度数据。</div>;
+  if (!active) return <div className="empty">生涯记录中暂时没有可靠的难度数据；同步源可用后会自动补齐。</div>;
   const shown = filledDifficulty(data, active); const max = Math.max(1, ...shown.map((item) => item.count));
   const gap = shown.length >= 14 ? 5 : shown.length >= 8 ? 9 : 12;
   const barFill = shown.length >= 14 ? 78 : shown.length >= 8 ? 72 : shown.length >= 5 ? 68 : 58;

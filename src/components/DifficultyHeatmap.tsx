@@ -45,6 +45,7 @@ export default function DifficultyHeatmap({ platform, startDay, endDay, daily, o
         return <button key={item.day} className={`heat-cell difficulty-cell ${item.point ? 'is-rated' : 'is-empty'} ${item.point?.label === '未评级' ? 'unrated' : ''}`} style={{ left: item.week * STEP, top: item.dow * STEP, width: CELL, height: CELL, '--difficulty-cell-color': color || 'var(--brick-empty)' } as CSSProperties} aria-label={`${item.day}: ${item.point?.label || '无难度记录'}`} onClick={() => onDay?.(item.day)} onMouseEnter={(event) => setHover({ day: item.day, label: item.point?.label || '无难度记录', x: event.clientX, y: event.clientY })} onMouseMove={(event) => setHover((value) => value ? { ...value, x: event.clientX, y: event.clientY } : value)} onMouseLeave={() => setHover(null)} />;
       })}</div>
     </div></div>
+    <div className="difficulty-map-note">每格显示当天 AC 题目的最高难度；点击可查看当天全部题目</div>
     {hover && <div className="heat-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}><strong>{hover.day}</strong><span>{hover.label}</span></div>}
   </div>;
 }

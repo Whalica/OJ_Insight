@@ -18,9 +18,6 @@ const EMPTY_SNAPSHOT: Snapshot = {
 };
 
 interface TauriFixtures {
-  onboarding?: boolean;
-  syncErrors?: Record<string, string>;
-  syncDelay?: number;
   snapshot?: Snapshot;
   afterSyncSnapshot?: Snapshot;
   accounts?: AccountConfig[];
@@ -32,16 +29,10 @@ interface TauriFixtures {
 }
 
 export async function installTauriMock(page: Page, fixtures: TauriFixtures = {}) {
-  await page.addInitScript(({ snapshot, afterSyncSnapshot, accounts, contests, contestReview, watchedPeople, watchedEvents, watchedAvatars, onboarding, syncErrors, syncDelay }) => {
-    if (!onboarding && !localStorage.getItem('oj-insight.onboarding')) localStorage.setItem('oj-insight.onboarding', JSON.stringify({ status: 'completed', step: 0 }));
-    let currentAccounts = JSON.parse(localStorage.getItem('__test_accounts__') || 'null') || accounts;
-    const syncStatuses: Array<Record<string, unknown>> = [];
-    const calls: Array<{ command: string; args: Record<string, unknown> }> = [];
-    (window as unknown as { __TAURI_CALLS__: typeof calls }).__TAURI_CALLS__ = calls;
+  await page.addInitScript(({ snapshot, afterSyncSnapshot, accounts, contests, contestReview, watchedPeople, watchedEvents, watchedAvatars }) => {
     let currentSnapshot = snapshot;
     let companionPort = 10046;
     const invoke = async (command: string, args: Record<string, unknown> = {}) => {
-      calls.push({ command, args });
       switch (command) {
         case 'can_install_updates':
           return false;
@@ -57,7 +48,6 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
         case 'check_for_updates':
           return { currentVersion: '0.10.6', latestVersion: '0.10.6', releaseUrl: '', updateAvailable: false };
         case 'list_problem_sets':
-          return JSON.parse(localStorage.getItem('__test_problem_sets__') || '[]');
         case 'list_training_matches':
           return [];
         case 'list_solve_records':
@@ -73,15 +63,9 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
           return undefined;
         }
         case 'get_accounts':
-          if (currentAccounts.length && (window as unknown as { __TEST_REFRESH_FAIL__?: boolean }).__TEST_REFRESH_FAIL__) throw new Error('账号刷新失败，请重试');
-          return currentAccounts;
-        case 'save_all_accounts':
-          if ((window as unknown as { __TEST_SAVE_FAIL__?: boolean }).__TEST_SAVE_FAIL__) throw new Error('保存失败，请重试');
-          currentAccounts = args.accounts;
-          localStorage.setItem('__test_accounts__', JSON.stringify(currentAccounts));
-          return undefined;
+          return accounts;
         case 'get_sync_statuses':
-          return [...syncStatuses];
+          return [];
         case 'get_watched_people':
           return watchedPeople.map((person: WatchedPerson) => ({ ...person }));
         case 'get_watched_avatar':
@@ -96,15 +80,9 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
           return watchedEvents.filter((event: WatchedAcEvent) => !event.dismissed);
         case 'get_snapshot':
           return currentSnapshot;
-        case 'sync_platform': {
-          if (syncDelay) await new Promise((resolve) => setTimeout(resolve, syncDelay));
-          const failure = syncErrors[String(args.platform)];
-          const entries = (currentAccounts as AccountConfig[]).filter((entry) => entry.platform === args.platform);
-          syncStatuses.splice(0, syncStatuses.length, ...syncStatuses.filter((entry) => entry.platform !== args.platform), ...entries.map((entry) => ({ platform: entry.platform, account: entry.account, status: failure ? 'error' : 'ok', message: failure || '同步成功', last_success: failure ? null : 1, last_attempt: 1, cached_records: failure ? 0 : 1 })));
-          if (failure) throw new Error(failure);
+        case 'sync_platform':
           currentSnapshot = afterSyncSnapshot || currentSnapshot;
           return { platform: args.platform, inserted: 1, updated: 0, message: '同步成功', status: 'ok', partial: false };
-        }
         case 'get_xcpc_contests':
           return contests;
         case 'inspect_contest_review':
@@ -153,9 +131,6 @@ export async function installTauriMock(page: Page, fixtures: TauriFixtures = {})
     snapshot: fixtures.snapshot || EMPTY_SNAPSHOT,
     afterSyncSnapshot: fixtures.afterSyncSnapshot,
     accounts: fixtures.accounts || [],
-    onboarding: fixtures.onboarding || false,
-    syncErrors: fixtures.syncErrors || {},
-    syncDelay: fixtures.syncDelay || 0,
     contests: fixtures.contests || [],
     contestReview: fixtures.contestReview,
     watchedPeople: fixtures.watchedPeople || [],

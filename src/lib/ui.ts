@@ -11,6 +11,16 @@ export const emptySnapshot: Snapshot = {
   daily: [], platforms: [], difficulty: [], nowcoder_daily_difficulty: [], difficulty_daily: [], knowledge: [], ratings: [], recent: [], metric_available: true, warnings: [],
 };
 
+export const SYNC_TIPS = [
+  '卡题时先写下已经确认的性质，常常比继续盯代码更快找到突破口。',
+  '比赛前十分钟先扫完题面，把“会做但实现长”的题留到节奏稳定之后。',
+  '同一道题的第二种解法，往往比再刷一道同标签题更能暴露理解盲区。',
+  '提交前用极小值、极大值、全相等和单调数据各走一遍边界。',
+  '补题时记录真正卡住你的那一步：建模、性质、算法选择，还是实现。',
+  '连续 WA 后先离开代码，用一句话重新描述不变量，再回来检查实现。',
+  '把复杂度写在草稿最上方；它会不断提醒你哪些状态和转移不能出现。',
+];
+
 export function emptyAccounts(): AccountMap {
   return Object.fromEntries(PLATFORM_ORDER.map((platform) => [platform, []])) as unknown as AccountMap;
 }

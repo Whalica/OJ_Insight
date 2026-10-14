@@ -5,7 +5,7 @@
 body { font-size: var(--font-body); }
 small { font-size: var(--font-meta) !important; line-height: 1.4; }
 .sidebar nav button, .primary, select, input, .source-segments button, .segmented button, .problem-button, .drawer-problem-button, .about-links button, .source-actions button, .danger-zone button { font-size: var(--font-label); }
-.topbar p, .today-copy p, .toolbar label, .toolbar-note, .warning, .panel-head p, .muted, .empty, .settings-intro, .danger-zone p, .storage-card>p, .timezone-card p, .timezone-card label, .difficulty-summary, .inline-empty, .loading-block, .toast { font-size: var(--font-small); }
+.topbar p, .today-copy p, .toolbar label, .toolbar-note, .warning, .panel-head p, .muted, .empty, .settings-intro, .danger-zone p, .storage-card>p, .timezone-card p, .timezone-card label, .difficulty-summary, .difficulty-map-note, .inline-empty, .loading-block, .toast { font-size: var(--font-small); }
 .topbar small, .panel-head small, .today-copy small, .storage-card>small, .leetcode-strip>div>small, .section-title small, .nav-title { font-size: var(--font-meta); }
 .topbar h1 { font-size: var(--font-page); }.panel-head h2, .section-title h2, .timezone-card h2 { font-size: var(--font-section); }
 .brand small, .today-oj-grid small, .stat-card span, .stat-card small, .platform-table>button>div small, .platform-table>button>small, .recent-title small, .recent-meta>span, .recent-meta small, .source-id small, .source-state small, .account-card-head small, .account-entry>span, .account-entry>small, .drawer-head small, .aggregate-note, .submission-main span, .submission-main small, .submission-main em { font-size: var(--font-meta); }

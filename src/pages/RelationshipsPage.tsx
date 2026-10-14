@@ -222,7 +222,7 @@ export default function RelationshipsPage({ people, events, timeZone, syncing, a
             </div>)}{group.people.length < PLATFORM_ORDER.length && <button type="button" className="relationship-add-platform-button relationship-add-platform-in-list" onClick={() => openAddPlatform(group.people)} disabled={syncing}><Plus size={15} />添加平台</button>}</div>}
           </article>;
           })}
-          {!people.length && <div className="empty relationship-empty"><Users size={20} /><span>添加账号后，首次检查保存已有记录，之后提醒新增 AC。</span></div>}
+          {!people.length && <div className="empty relationship-empty"><Users size={20} /><span>添加一个账号后，第一次检查会先建立历史基线。</span></div>}
         </div>
       </section>
     </div>

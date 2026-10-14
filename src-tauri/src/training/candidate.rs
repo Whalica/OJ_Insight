@@ -127,10 +127,10 @@ pub(crate) async fn build_candidate_pool(
     }
     for platform in ["luogu", "nowcoder", "leetcode"] {
         if selected.contains(platform) {
-            sources.push(CandidateSourceStatus { platform: platform.into(), available: false, problem_count: 0, message: "暂不支持此平台自动组题".into() });
+            sources.push(CandidateSourceStatus { platform: platform.into(), available: false, problem_count: 0, message: "暂时没有足够可靠的完整题目目录，未参与自动筛题".into() });
         }
     }
-    if all.is_empty() { return Err("所选平台暂无可用题目目录".into()); }
+    if all.is_empty() { return Err("所选平台当前没有可用的可靠候选目录".into()); }
 
     Ok(CandidatePool { generated_at: chrono::Utc::now().timestamp(), mode: mode.into(), requested_count, excluded_solved: 0, selection_basis: String::new(), candidates: all, sources })
 }
@@ -176,14 +176,14 @@ pub(crate) fn finalize_candidate_pool(conn: &Connection, mut pool: CandidatePool
         if !added { break; }
     }
     if candidates.is_empty() { return Err("候选目录中的题目均已完成或不适合本次训练".into()); }
-    pool.selection_basis = format!("已按平台分配候选题，并排除已做题。{}。{}。", if targets.is_empty() {
-        "难度记录不足，按目录顺序选题".to_string()
+    pool.selection_basis = format!("按平台均衡取样并排除已做题；{}。{}。", if targets.is_empty() {
+        "难度记录不足，按目录稳定顺序取样".to_string()
     } else {
-        format!("已按 {} 个平台的做题记录选择难度", targets.len())
+        format!("依据 {} 个平台的已通过题目难度估计训练区间", targets.len())
     }, if active_abilities == 0 {
-        "标签记录不足，未按知识方向调整".to_string()
+        "知识方向证据不足，未启用画像调整".to_string()
     } else {
-        format!("已按 {} 个平台的标签记录搭配熟悉和薄弱题型", active_abilities)
+        format!("依据 {} 个平台的知识画像，在排序靠前的候选中适度兼顾熟悉与薄弱方向", active_abilities)
     });
     pool.candidates = candidates;
     pool.excluded_solved = excluded_solved;
@@ -238,7 +238,7 @@ fn profile_targets(conn: &Connection, mode: &str, catalog: &[CanonicalProblem]) 
 }
 
 fn source_ok(platform: &str, count: usize) -> CandidateSourceStatus {
-    CandidateSourceStatus { platform: platform.into(), available: true, problem_count: count, message: "题目目录已加载".into() }
+    CandidateSourceStatus { platform: platform.into(), available: true, problem_count: count, message: "可靠题目目录已加载".into() }
 }
 
 fn source_error(platform: &str, message: String) -> CandidateSourceStatus {

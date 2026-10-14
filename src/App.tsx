@@ -7,7 +7,6 @@ import DayDrawer from './components/DayDrawer';
 import DifficultyDrawer from './components/DifficultyDrawer';
 import RelationshipNotice from './components/RelationshipNotice';
 import StudyAssistant from './components/StudyAssistant';
-import OnboardingWizard from './components/OnboardingWizard';
 import DashboardPage from './pages/DashboardPage';
 import ProblemSetsHubPage from './pages/ProblemSetsHubPage';
 import ContestsHubPage from './pages/ContestsHubPage';
@@ -29,7 +28,6 @@ import { initialMetric, initialScope, recentHalfYearRange, scopeRange, type Time
 import { applyPreferences, loadPreferences, savePreferences, type Preferences } from './lib/preferences';
 import { LocaleProvider, resolveLocale } from './lib/i18n';
 import { useAccounts } from './hooks/useAccounts';
-import { useOnboarding } from './hooks/useOnboarding';
 import { useFollowing } from './hooks/useFollowing';
 import { useSnapshot } from './hooks/useSnapshot';
 import { useSync } from './hooks/useSync';
@@ -106,17 +104,15 @@ export default function App() {
     return () => { active = false; unlisten?.(); };
   }, [notify]);
   const { accounts, statuses, accountsLoaded, loadAccounts, loadStatuses } = useAccounts();
-  const onboarding = useOnboarding(accounts, accountsLoaded);
   const {
     snapshot, solvedGains, loading,
     dayDetail, dayLoading, difficultyDetail, difficultyLoading,
     loadSnapshot, openDay, closeDay, openDifficulty, closeDifficulty,
   } = useSnapshot({ selectedPlatform, range, metric, accountFilter, sourceFilter, timeZone, notify });
-  const { syncing, syncProgress, syncOne, syncAll } = useSync({
+  const { syncing, syncTip, syncProgress, syncOne, syncAll } = useSync({
     accounts,
     accountsLoaded,
-    suppressStartupSync: onboarding.open,
-    autoSync: preferences.autoSync && onboarding.ready && !onboarding.open,
+    autoSync: preferences.autoSync,
     loadSnapshot,
     loadStatuses,
     notify,
@@ -126,7 +122,7 @@ export default function App() {
     syncWatched, saveWatched, editWatched, deleteWatched, dismissWatched, setAutoWatch,
   } = useFollowing({
     retention: preferences.watchedEventRetention,
-    autoSync: preferences.autoSync && onboarding.ready && !onboarding.open,
+    autoSync: preferences.autoSync,
     syncing,
     notify,
   });
@@ -216,13 +212,13 @@ export default function App() {
        page === 'problem-sets' || page === 'community' ? <ProblemSetsHubPage key={page} initialTab={page === 'community' ? 'community' : 'local'} notify={notify} onSolveProblem={(problem) => void solveFromSet(problem)} onTrain={(setId) => { void api.contestFromSet(setId, 'balanced', 120).then((contest) => { notify(`已从题单创建比赛“${contest.title}”`); setPage('contests'); }).catch((error) => notify(String(error))); }} /> :
        page === 'favorites' ? <FavoritesPage notify={notify} /> :
        page === 'contests' || page === 'vp' || page === 'contest-review' ? <ContestsHubPage onOpenVp={() => setPage('vp')} key={page} initialTab={page === 'vp' ? 'vp' : page === 'contest-review' ? 'review' : 'library'} notify={notify} accounts={accounts} onOpenSettings={() => setPage('settings')} /> :
-       page === 'settings' ? <SettingsPage onOpenOnboarding={onboarding.restart} syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} statuses={statuses} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
+       page === 'settings' ? <SettingsPage syncing={syncing} notify={notify} accounts={accounts} timeZone={timeZone} onTimeZone={setTimeZone} preferences={preferences} onPreferences={updatePreferences} statuses={statuses} onSync={syncOne} onSyncAll={syncAll} onCleared={async () => { closeDay(); await Promise.all([loadSnapshot(), loadStatuses()]); }} onSaved={async () => { closeDay(); setAccountFilter(''); setSourceFilter(''); await Promise.all([loadAccounts(), loadSnapshot(), loadStatuses()]); notify('账号已保存，移除 ID 的本地记录已清理'); }} /> :
       page === 'relationships' ? <RelationshipsPage people={watchedPeople} events={watchedEvents.slice(0, preferences.watchedEventRetention)} timeZone={timeZone} syncing={watchedSyncing || !!syncing} autoCheck={autoWatch} onAutoCheck={setAutoWatch} onSync={() => syncWatched()} onSyncPerson={(personId) => syncWatched(personId)} onSave={saveWatched} onEdit={editWatched} onDelete={deleteWatched} onDismiss={dismissWatched} notify={notify} /> :
        page === 'export' ? <ExportPage accounts={accounts} metric={metric} timeZone={timeZone} /> :
        page === 'about' ? <AboutPage syncing={syncing} availableUpdate={availableUpdate} installingUpdate={installingUpdate} updateProgress={updateProgress} updateStage={updateStage} checkUpdate={checkUpdate} installUpdate={installUpdate} cancelUpdate={cancelUpdate} /> :
        page === 'xcpc' ? <XcpcTrackerPage syncing={syncing === 'qoj'} onSync={() => syncOne('qoj').then(() => undefined)} onOpenSettings={() => setPage('settings')} notify={notify} /> :
        embeddedTracker ? null :
-      <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} solvedGains={solvedGains} loading={loading} syncing={syncing} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={switchPlatform} onOpenSettings={() => setPage('settings')} />}
+      <DashboardPage platform={selectedPlatform} platformAccounts={selectedPlatform ? accounts[selectedPlatform] : []} accountFilter={accountFilter} setAccountFilter={setAccountFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} timeScope={timeScope} setTimeScope={setTimeScope} range={range} metric={metric} setMetric={setMetric} timeZone={timeZone} snapshot={snapshot} solvedGains={solvedGains} loading={loading} syncing={syncing} syncTip={syncTip} syncProgress={syncProgress} onSync={() => selectedPlatform ? syncOne(selectedPlatform) : syncAll()} onDay={openDay} onDifficulty={openDifficulty} onPlatform={switchPlatform} onOpenSettings={() => setPage('settings')} />}
       {mountedTracker && <div className={`tracker-keepalive-layer ${embeddedTracker === mountedTracker ? 'active' : ''}`} aria-hidden={embeddedTracker !== mountedTracker}><ExternalTrackerPage tracker={mountedTracker} accounts={accounts[mountedTracker] || []} /></div>}
     </main>
     {!isTauri() && <StudyAssistant visible={assistantVisible} expanded={assistantExpanded} onExpand={setAssistantExpanded} onClose={closeAssistant} />}
@@ -230,7 +226,6 @@ export default function App() {
     <DifficultyDrawer detail={difficultyDetail} loading={difficultyLoading} timeZone={timeZone} onClose={closeDifficulty} />
     <RelationshipNotice events={watchedNotifications} timeZone={timeZone} onDismiss={(eventId) => { void dismissWatched(eventId); }} />
     {availableUpdate && page !== 'about' && <aside className={`update-notice ${updateNoticeMinimized ? 'minimized' : ''}`} aria-live="polite">{updateNoticeMinimized ? <div className="update-compact"><strong>更新 v{availableUpdate.latestVersion}</strong><span>{installingUpdate ? updateStage === 'installing' ? '安装中' : updateProgress == null ? '下载中' : `${updateProgress}%` : '待安装'}</span>{installingUpdate && updateStage !== 'installing' && <button onClick={() => void cancelUpdate()}>取消下载</button>}<button aria-label="展开更新窗口" onClick={() => setUpdateNoticeMinimized(false)}><Maximize2 size={15} /></button></div> : <><button className="update-minimize" aria-label="最小化更新窗口" onClick={() => setUpdateNoticeMinimized(true)}><Minus size={16} /></button><button className="update-dismiss" aria-label="稍后提醒" disabled={installingUpdate} onClick={dismissUpdate}><X size={15} /></button><small lang="en">UPDATE AVAILABLE</small><strong>OJ Insight v{availableUpdate.latestVersion}</strong><span>{installingUpdate ? updateStage === 'installing' ? '正在安装更新…' : updateStage === 'verifying' ? '下载完成，正在校验…' : `正在下载${updateProgress == null ? '…' : ` · ${updateProgress}%`}` : availableUpdate.installable === false ? '这个版本暂时需要从 Release 页面下载安装。' : syncing ? '当前正在同步数据，完成后即可安装更新。' : '新版本已经准备好，可以直接在应用内完成更新。'}</span>{installingUpdate && <i><b style={{ width: `${updateProgress || 4}%` }} /></i>}<div>{installingUpdate && updateStage !== 'installing' ? <button onClick={() => void cancelUpdate()}>取消下载</button> : <button disabled={installingUpdate} onClick={skipUpdate}>跳过此版本</button>}<button className="primary" disabled={installingUpdate || (availableUpdate.installable !== false && !!syncing)} onClick={() => availableUpdate.installable === false ? openRelease() : void installUpdate()}><Download size={14} />{availableUpdate.installable === false ? '手动下载' : installingUpdate ? '更新中' : syncing ? '等待同步' : '立即更新'}</button></div></>}</aside>}
-    {onboarding.open && <OnboardingWizard step={onboarding.step} onStep={onboarding.setStep} accounts={accounts} statuses={statuses} syncing={syncing} progress={syncProgress} onSaved={async () => { await loadAccounts(); }} onSync={() => syncAll()} onFinish={(skipped, destination) => { onboarding.finish(skipped); if (destination) setPage(destination); }} />}
     {toast && <div className="toast">{toast}</div>}
   </div></LocaleProvider>;
 }

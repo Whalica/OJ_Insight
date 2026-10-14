@@ -1,7 +1,5 @@
 /* Shared interaction language: one contrast and motion system across all themes. */
-/* Keep brightness immediate: repeated filter transitions can crash Linux WebKit.
-   https://github.com/microsoft/playwright/issues/42637 */
-button, input, select, a[href], .brand, .xcpc-filter-group label, .switch, .problem-button, .drawer-problem-button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .12s ease; }
+button, input, select, a[href], .brand, .xcpc-filter-group label, .switch, .problem-button, .drawer-problem-button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, filter .15s ease, transform .12s ease; }
 :where(button:not(:disabled), a[href], .brand, .xcpc-filter-group label, .switch):hover { transform: translateY(-1px); filter: brightness(1.06); }
 :where(input:not(:disabled), select:not(:disabled)):hover { border-color: var(--interactive-border-hover); box-shadow: 0 0 0 2px color-mix(in srgb,var(--interactive-border-hover) 14%,transparent); }
 .settings-tabs button:hover:not(.active), .preference-choices button:hover:not(.active), .source-segments button:hover:not(.active), .difficulty-tabs button:hover:not(.active), .segmented button:hover:not(.active), .rating-tabs button:hover:not(.active), .rating-periods button:hover:not(.active),
@@ -206,6 +204,7 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
   background: #dff2e5; border-color: #56a871; color: #124f29; box-shadow: inset 0 -2px #329154;
 }
 :root[data-theme="light"] .export-type-picker button.active { background: #e3f4e8; border-color: #3d9a5e; box-shadow: inset 0 -3px #329154; }
+.today-encouragement { margin-top: 12px; max-width: 560px; display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb,var(--accent) 22%,var(--line)); border-radius: 9px; background: color-mix(in srgb,var(--accent) 6%,var(--panel-soft)); color: color-mix(in srgb,var(--text) 82%,var(--muted)); font-size: var(--font-meta); line-height: 1.55; }.today-encouragement svg { flex: none; margin-top: 2px; color: var(--accent); }
 
 /* 0.9.2 dashboard and review refinements. */
 .rating-layout { grid-template-columns: 380px minmax(0,1fr); }
