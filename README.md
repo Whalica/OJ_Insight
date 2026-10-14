@@ -10,7 +10,7 @@ OJ Insight brings records from Codeforces, AtCoder, Luogu, NowCoder, QOJ, and Le
 
 [Download the latest release](https://github.com/Whalica/OJ_Insight/releases/latest) · [User manual](docs/manual/user-manual.pdf) · [Release notes](docs/UPDATEINFO.md) · [Report an issue](https://github.com/Whalica/OJ_Insight/issues)
 
-Current version: **v0.10.5** · Windows, macOS, and Linux.
+Current version: **v0.10.6** · Windows, macOS, and Linux.
 
 ## Getting started
 

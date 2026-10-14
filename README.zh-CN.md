@@ -10,7 +10,7 @@ OJ Insight 面向算法竞赛选手，汇集 Codeforces、AtCoder、洛谷、牛
 
 [下载最新版本](https://github.com/Whalica/OJ_Insight/releases/latest) · [用户手册](docs/manual/user-manual.pdf) · [更新记录](docs/UPDATEINFO.md) · [反馈问题](https://github.com/Whalica/OJ_Insight/issues)
 
-当前版本：**v0.10.5** · 支持 Windows、macOS 和 Linux。
+当前版本：**v0.10.6** · 支持 Windows、macOS 和 Linux。
 
 ## 初次使用
 
