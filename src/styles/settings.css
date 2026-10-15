@@ -103,5 +103,5 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 :root[data-theme="gray"] .update-state.available { color: #eadb9c; background: #47422f; }
 @media (max-width: 1200px) {
   :root[data-font-size="xlarge"] .rating-layout { grid-template-columns: 1fr; }
-  .recent-list article { grid-template-columns: 42px minmax(0,1fr) 165px 8em; }
+  .recent-list article { grid-template-columns: 42px minmax(0,1fr) 165px max-content; }
 }
