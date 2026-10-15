@@ -173,19 +173,6 @@ pub struct MatchManifest {
     pub problems: Vec<ProblemSetProblem>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TrainingTemplate {
-    pub id: Option<i64>,
-    pub title: String,
-    pub mode: String,
-    pub target_solve_rate_min: f64,
-    pub target_solve_rate_max: f64,
-    pub duration_minutes: i64,
-    #[serde(default)]
-    pub roles: Vec<String>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrainingPackFile {

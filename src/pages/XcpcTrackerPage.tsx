@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Filter, Github, KeyRound, RefreshCw, Search, X } from 'lucide-react';
 import { api } from '../services/api';
 import { contestTags, type XcpcContest, type XcpcTier } from '../lib/xcpc';
@@ -11,6 +12,19 @@ type Progress = 'all' | 'todo' | 'doing' | 'done';
 
 const tierLabels: Record<XcpcTier, string> = { gold: '金牌题', silver: '银牌题', bronze: '铜牌题', iron: '铁牌题' };
 const tiers: XcpcTier[] = ['gold', 'silver', 'bronze', 'iron'];
+type TrackerHover = {
+  context: string;
+  label: string;
+  title: string;
+  detail: string;
+  tags: string[];
+  left: number;
+  top?: number;
+  bottom?: number;
+  maxHeight: number;
+};
+type HoverContent = Omit<TrackerHover, 'left' | 'top' | 'bottom' | 'maxHeight'>;
+
 function contestProgress(contest: XcpcContest): Progress {
   const solved = contest.problems.filter((problem) => problem.solved).length;
   return solved === 0 ? 'todo' : contest.problems.length > 0 && solved === contest.problems.length ? 'done' : 'doing';
@@ -33,8 +47,11 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
   const [showTags, setShowTags] = useState(() => localStorage.getItem('oj-insight.xcpc.show-tags') === 'true');
   const [shortContestNames, setShortContestNames] = useState(() => localStorage.getItem('oj-insight.xcpc.short-contest-names') === 'true');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [trackerHover, setTrackerHover] = useState<TrackerHover | null>(null);
   const [page, setPage] = useState(1);
   const filterRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipCloseTimer = useRef<number | null>(null);
   const catalogRequest = useRef(0);
   const pageSize = 15;
 
@@ -69,6 +86,36 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
     document.addEventListener('mousedown', close); document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
   }, []);
+
+  useEffect(() => {
+    if (!trackerHover) return;
+    const close = () => setTrackerHover(null);
+    const closeOnScroll = (event: Event) => { if (!tooltipRef.current?.contains(event.target as Node)) close(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    window.addEventListener('resize', close);
+    document.addEventListener('scroll', closeOnScroll, true);
+    document.addEventListener('keydown', escape);
+    return () => {
+      window.removeEventListener('resize', close);
+      document.removeEventListener('scroll', closeOnScroll, true);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [trackerHover]);
+
+  useEffect(() => {
+    const card = tooltipRef.current;
+    if (!trackerHover || !card) return;
+    const scrollPage = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      event.preventDefault();
+      const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+      window.scrollBy(event.deltaX * scale, event.deltaY * scale);
+    };
+    card.addEventListener('wheel', scrollPage, { passive: false });
+    return () => card.removeEventListener('wheel', scrollPage);
+  }, [trackerHover]);
+
+  useEffect(() => () => { if (tooltipCloseTimer.current != null) window.clearTimeout(tooltipCloseTimer.current); }, []);
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -124,6 +171,25 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
       notify(`赛事数据更新完成：${next.length} 场，榜单覆盖 ${after} 场${after > before ? `（新增 ${after - before} 场）` : ''}`);
     } catch (error) { if (request === catalogRequest.current) { setCatalogError(String(error)); notify(`赛事数据更新失败：${String(error)}`); } }
     finally { if (request === catalogRequest.current) setCatalogLoading(false); }
+  };
+
+  const showTrackerHover = (button: HTMLButtonElement, content: HoverContent) => {
+    if (tooltipCloseTimer.current != null) window.clearTimeout(tooltipCloseTimer.current);
+    const rect = button.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom;
+    const above = rect.top;
+    const placeAbove = below < 220 && above > below;
+    setTrackerHover({
+      ...content,
+      left: Math.max(12, Math.min(rect.left + rect.width / 2 - 160, window.innerWidth - 332)),
+      top: placeAbove ? undefined : rect.bottom + 8,
+      bottom: placeAbove ? window.innerHeight - rect.top + 8 : undefined,
+      maxHeight: Math.max(80, Math.min(340, (placeAbove ? above : below) - 20)),
+    });
+  };
+  const scheduleTrackerHoverClose = () => {
+    if (tooltipCloseTimer.current != null) window.clearTimeout(tooltipCloseTimer.current);
+    tooltipCloseTimer.current = window.setTimeout(() => setTrackerHover(null), 120);
   };
 
   return <>
@@ -185,18 +251,36 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
             const problems = displayedProblems(contest);
             const solved = problems.filter((problem) => problem.solved).length;
             const percentage = problems.length ? Math.round(solved / problems.length * 100) : 0;
+            const contestHover: HoverContent = {
+              context: 'ICPC / CCPC Tracker', label: '', title: contest.name,
+              detail: [contest.date, contest.site].filter(Boolean).join(' · '), tags: [],
+            };
             return <tr key={contest.id} className={problems.length > 0 && solved === problems.length ? 'complete' : ''}>
-              <td className="xcpc-contest-column"><button title={`${contest.name} · 在 QOJ 打开`} onClick={() => void api.openExternal(contest.url)}>{shortContestNames ? contest.shortName : contest.name}</button><div>{contestTags(contest).map(({ label, className }) => <span className={className} key={label}>{label}</span>)}</div></td>
+              <td className="xcpc-contest-column"><button aria-label={contest.name}
+                onMouseEnter={(event) => showTrackerHover(event.currentTarget, contestHover)} onMouseLeave={scheduleTrackerHoverClose}
+                onFocus={(event) => showTrackerHover(event.currentTarget, contestHover)} onBlur={() => setTrackerHover(null)}
+                onClick={() => { setTrackerHover(null); void api.openExternal(contest.url); }}>{shortContestNames ? contest.shortName : contest.name}</button><div>{contestTags(contest).map(({ label, className }) => <span className={className} key={label}>{label}</span>)}</div></td>
               <td className="xcpc-date-column"><strong>{contest.date ? contest.date.slice(5) : '—'}</strong><small>{contest.year}</small></td>
               <td className="xcpc-progress-column"><strong>{solved} / {problems.length}</strong><i><b style={{ width: `${percentage}%` }} /></i></td>
               <td className="xcpc-problems-cell"><div className="xcpc-problem-list">{problems.map((problem) => {
-                const rating = problem.tier ? ` · ${tierLabels[problem.tier]}` : '';
+                const rating = showDifficulty ? ` · ${problem.tier ? tierLabels[problem.tier] : '未评级'}` : '';
                 const accepted = problem.acceptedTeams == null ? '' : ` · ${problem.acceptedTeams}${problem.totalTeams == null ? '' : `/${problem.totalTeams}`} 队通过`;
                 const knowledge = [...(problem.tagAxes || []), ...(problem.tags || [])].filter((value, index, values) => value && values.indexOf(value) === index);
                 const tagText = showTags && knowledge.length ? ` · 标签：${knowledge.join(' / ')}` : '';
                 const displayName = problem.name || '题目';
-                return <div key={`${problem.index}-${problem.problemId}`} className={`xcpc-problem ${problem.solved ? 'solved' : ''} ${problem.tier ? `tier-${problem.tier}` : 'tier-unrated'}`} title={`${problem.index}. ${displayName}${rating}${accepted}${tagText} · 点击打开 QOJ`}>
-                  <button onClick={() => void api.openExternal(problem.url)}>
+                const problemHover: HoverContent = {
+                  context: contest.shortName, label: showDifficulty ? (problem.tier ? tierLabels[problem.tier] : '未评级') : '',
+                  title: `${problem.index}. ${displayName}`,
+                  detail: problem.acceptedTeams == null ? '暂无通过队数' : `${problem.acceptedTeams}${problem.totalTeams == null ? '' : ` / ${problem.totalTeams}`} 队通过`,
+                  tags: showTags ? knowledge : [],
+                };
+                return <div key={`${problem.index}-${problem.problemId}`} className={`xcpc-problem ${problem.solved ? 'solved' : ''} ${problem.tier ? `tier-${problem.tier}` : 'tier-unrated'}`}>
+                  <button aria-label={`${problem.index}. ${displayName}${rating}${accepted}${tagText}`}
+                    onMouseEnter={(event) => showTrackerHover(event.currentTarget, problemHover)}
+                    onMouseLeave={scheduleTrackerHoverClose}
+                    onFocus={(event) => showTrackerHover(event.currentTarget, problemHover)}
+                    onBlur={() => setTrackerHover(null)}
+                    onClick={() => { setTrackerHover(null); void api.openExternal(problem.url); }}>
                     <strong>{showProblemNames ? `${problem.index}. ${displayName}` : problem.index}</strong>
                     {showProblemNames && showTags && knowledge.length > 0 && <small className="xcpc-problem-tags">{knowledge.slice(0, 2).map((tag) => <i key={tag}>{tag}</i>)}</small>}
                     {showProblemNames && <small className="xcpc-problem-accepted">{problem.acceptedTeams == null ? `QOJ #${problem.problemId}` : `${problem.acceptedTeams}${problem.totalTeams == null ? '' : ` / ${problem.totalTeams}`} 队通过`}</small>}
@@ -209,8 +293,14 @@ export default function XcpcTrackerPage({ syncing, onSync, onOpenSettings, notif
         {!visible.length && <div className="empty">没有符合当前条件的比赛。</div>}
       </div>
 
-      <footer className="xcpc-footer"><div className="xcpc-legend"><span className="gold"><i />金 ≤10%</span><span className="silver"><i />银 ≤30%</span><span className="bronze"><i />铜 ≤60%</span><span className="iron"><i />铁 &gt;60%</span><em /><span className="solved"><i />已 AC</span>{!showProblemNames && <small>悬浮题目可查看题名与通过队数{showTags ? '，当前会同时显示知识标签' : ''}</small>}</div><div className="xcpc-pagination"><label>第 <select aria-label="跳转页码" value={Math.min(page, pageCount)} onChange={(event) => setPage(Number(event.target.value))}>{Array.from({ length: pageCount }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select> / {pageCount} 页</label><button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={14} /></button><button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}><ChevronRight size={14} /></button></div></footer>
+      <footer className="xcpc-footer"><div className="xcpc-legend"><span className="gold"><i />金 ≤10%</span><span className="silver"><i />银 ≤30%</span><span className="bronze"><i />铜 ≤60%</span><span className="iron"><i />铁 &gt;60%</span><em /><span className="solved"><i />已 AC</span></div><div className="xcpc-pagination"><label>第 <select aria-label="跳转页码" value={Math.min(page, pageCount)} onChange={(event) => setPage(Number(event.target.value))}>{Array.from({ length: pageCount }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select> / {pageCount} 页</label><button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={14} /></button><button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}><ChevronRight size={14} /></button></div></footer>
     </section>
+    {trackerHover && createPortal(<div ref={tooltipRef} className="xcpc-hover-card" role="tooltip" onMouseEnter={() => { if (tooltipCloseTimer.current != null) window.clearTimeout(tooltipCloseTimer.current); }} onMouseLeave={scheduleTrackerHoverClose} style={{ left: trackerHover.left, top: trackerHover.top, bottom: trackerHover.bottom, maxHeight: trackerHover.maxHeight }}>
+      <div className="xcpc-hover-card-head"><span>{trackerHover.context}</span>{trackerHover.label && <span>{trackerHover.label}</span>}</div>
+      <strong>{trackerHover.title}</strong>
+      {trackerHover.detail && <p>{trackerHover.detail}</p>}
+      {trackerHover.tags.length > 0 && <div className="xcpc-hover-card-tags">{trackerHover.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+    </div>, document.body)}
   </>;
 }
 

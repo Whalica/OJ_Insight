@@ -112,6 +112,13 @@
 .xcpc-problem.solved>button::after { content: "✓"; position: absolute; top: 4px; right: 5px; color: #6ddd91; font-size: 9px; font-weight: 900; }
 .xcpc-problem>button { position: relative; }
 .xcpc-problem>button:focus-visible { outline: 2px solid var(--interactive-border-hover); outline-offset: -2px; }
+.xcpc-hover-card { position: fixed; z-index: 90; width: min(320px,calc(100vw - 24px)); display: grid; gap: 7px; padding: 12px 13px; overflow-y: auto; border: 1px solid var(--interactive-border-hover); border-radius: 10px; background: var(--panel); color: var(--text); box-shadow: 0 18px 44px rgb(0 0 0 / .36); }
+.xcpc-hover-card-head { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: var(--font-meta); }
+.xcpc-hover-card-head span:last-child { flex: none; color: var(--accent); }
+.xcpc-hover-card>strong { font-size: var(--font-small); line-height: 1.45; overflow-wrap: anywhere; }
+.xcpc-hover-card>p { margin: 0; color: var(--muted); font-size: var(--font-meta); }
+.xcpc-hover-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.xcpc-hover-card-tags span { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-soft); color: var(--muted); font-size: var(--font-meta); overflow-wrap: anywhere; }
 .xcpc-no-problems { display: flex; align-items: center; padding-left: 12px; color: #4f5b66; font-size: var(--font-meta); }
 .xcpc-problem.tier-gold { --tier-color: #ffd15c; }
 .xcpc-problem.tier-silver { --tier-color: #dce8f2; }
