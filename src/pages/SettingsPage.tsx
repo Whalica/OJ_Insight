@@ -1,6 +1,6 @@
 import PlatformIcon from '../components/PlatformIcon';
 import { useEffect, useState } from 'react';
-import { Monitor, Palette, Plus, RefreshCw, RotateCcw, Save, Type, X } from 'lucide-react';
+import { BookOpen, Monitor, Palette, Plus, RefreshCw, RotateCcw, Save, Type, X } from 'lucide-react';
 import { api } from '../services/api';
 import { TIME_ZONE_OPTIONS, timeZoneLabel } from '../lib/date';
 import { parseCodeforcesCredentials, PLATFORM_META, PLATFORM_ORDER, serializeCodeforcesCredentials, type CodeforcesCredentials } from '../lib/platforms';
@@ -14,6 +14,7 @@ import DataPage from './DataPage';
 import { useI18n } from '../lib/i18n';
 
 interface Props {
+  onOpenOnboarding: () => void;
   accounts: AccountMap;
   timeZone: string;
   onTimeZone: (value: string) => void;
@@ -28,7 +29,7 @@ interface Props {
   onCleared: () => void | Promise<void>;
 }
 
-export default function SettingsPage({ accounts, timeZone, onTimeZone, preferences, onPreferences, onSaved, syncing, notify, statuses, onSync, onSyncAll, onCleared }: Props) {
+export default function SettingsPage({ accounts, timeZone, onTimeZone, preferences, onPreferences, onSaved, syncing, notify, statuses, onSync, onSyncAll, onCleared, onOpenOnboarding }: Props) {
   const { t } = useI18n();
   const [tab, setTab] = useState<'accounts' | 'personalization' | 'data'>('data');
   const [form, setForm] = useState<AccountMap>(emptyAccounts);
@@ -71,5 +72,6 @@ export default function SettingsPage({ accounts, timeZone, onTimeZone, preferenc
       <div className="preferences-foot"><button onClick={() => { onPreferences({ ...DEFAULT_PREFERENCES }); onTimeZone('Asia/Shanghai'); }}><RotateCcw size={14} />{t('恢复个性化默认值')}</button></div>
     </section> : null}
     {tab === 'data' && <DataPage embedded statuses={statuses} syncing={syncing} timeZone={timeZone} onSync={onSync} onSyncAll={onSyncAll} onCleared={onCleared} notify={notify} />}
+    <section className="panel onboarding-settings"><div><strong>{t('用户向导')}</strong><p>{t('重新了解账号连接、数据同步和训练工具。')}</p></div><button onClick={onOpenOnboarding} disabled={saving || !!syncing}><BookOpen size={16} />{t('重新打开向导')}</button></section>
   </>;
 }

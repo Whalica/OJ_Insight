@@ -10,13 +10,14 @@ type UseSyncOptions = {
   accounts: AccountMap;
   accountsLoaded: boolean;
   autoSync: boolean;
+  suppressStartupSync?: boolean;
   loadSnapshot: (showSolvedGains?: boolean) => Promise<void>;
   loadStatuses: () => Promise<void>;
   notify: (message: string) => void;
 };
 
 export function useSync(options: UseSyncOptions) {
-  const { accounts, accountsLoaded, autoSync, loadSnapshot, loadStatuses, notify } = options;
+  const { accounts, accountsLoaded, autoSync, suppressStartupSync, loadSnapshot, loadStatuses, notify } = options;
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncTip, setSyncTip] = useState('');
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
@@ -81,10 +82,11 @@ export function useSync(options: UseSyncOptions) {
   };
 
   useEffect(() => {
+    if (suppressStartupSync) startupSyncStarted.current = true;
     if (!accountsLoaded || !autoSync || startupSyncStarted.current) return;
     startupSyncStarted.current = true;
     void syncAll(accounts, true);
-  }, [accountsLoaded, autoSync]);
+  }, [accountsLoaded, autoSync, suppressStartupSync]);
 
   return { syncing, syncTip, syncProgress, syncOne, syncAll };
 }

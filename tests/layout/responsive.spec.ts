@@ -68,6 +68,9 @@ async function checkHeatmaps(page: Page, fill: boolean) {
 
 test('activity and difficulty heatmaps share empty-cell treatment in light and gray themes', async ({ page }) => {
   await openPage(page, 'overview', false, [], 'codeforces');
+  await expect(page.locator('.heatmap-shell:not(.difficulty-map) .level-0').first()).toBeVisible();
+  await expect(page.locator('.difficulty-map .difficulty-cell.is-empty').first()).toBeVisible();
+  await expect(page.locator('.difficulty-map .difficulty-cell.is-rated').first()).toBeVisible();
   for (const theme of ['light', 'gray']) {
     await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
     const colors = await page.evaluate(() => {

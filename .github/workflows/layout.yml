@@ -30,7 +30,7 @@ jobs:
       - name: Chromium layout tests
         run: pnpm exec playwright test --config config/playwright.config.ts --project=chromium
       - name: WebKit layout tests
-        run: pnpm exec playwright test --config config/playwright.config.ts tests/layout/relationships.spec.ts tests/layout/responsive.spec.ts --project=webkit
+        run: pnpm exec playwright test --config config/playwright.config.ts tests/layout/relationships.spec.ts tests/layout/responsive.spec.ts tests/layout/onboarding.spec.ts tests/layout/community-draft.spec.ts --project=webkit
       - name: WebKit XCPC tests
         run: pnpm exec playwright test --config config/playwright.config.ts tests/layout/xcpc-tags.spec.ts --project=webkit --retries=2
       - uses: actions/upload-artifact@v4

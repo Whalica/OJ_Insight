@@ -12,6 +12,12 @@ OJ Insight brings records from Codeforces, AtCoder, Luogu, NowCoder, QOJ, and Le
 
 Current version: **v0.10.6** · Windows, macOS, and Linux.
 
+## Getting started
+
+A fresh installation opens a four-step guide: discover the app, connect judge accounts, choose your first sync, and explore. Enter the account ID from your profile; optional cookies can be added later. Connect multiple judges in the guide and add more accounts for each judge in Settings.
+
+Sync starts when you request it. You can connect or sync later, and failed syncs show per-judge results with a retry option. Completing or skipping the guide stops automatic prompts. Unfinished steps resume after restarting; unsaved account inputs are not retained. Reopen it from **Settings → Getting started guide → Reopen guide**. Existing accounts and credentials are kept, and upgrades do not interrupt established users.
+
 ## See your progress across judges
 
 The dashboard brings together solved problems, accepted submissions, active days, streaks, rating history, recent ACs, and difficulty distribution. Activity heatmaps cover a calendar year or the most recent 365 days, with First AC, Unique AC, AC Submissions, and the judge's own Activity metric kept distinct. Charts can be exported as PNG or SVG.

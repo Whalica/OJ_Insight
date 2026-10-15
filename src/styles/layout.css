@@ -1,5 +1,7 @@
 /* Shared interaction language: one contrast and motion system across all themes. */
-button, input, select, a[href], .brand, .xcpc-filter-group label, .switch, .problem-button, .drawer-problem-button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, filter .15s ease, transform .12s ease; }
+/* Keep brightness immediate: repeated filter transitions can crash Linux WebKit.
+   https://github.com/microsoft/playwright/issues/42637 */
+button, input, select, a[href], .brand, .xcpc-filter-group label, .switch, .problem-button, .drawer-problem-button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .12s ease; }
 :where(button:not(:disabled), a[href], .brand, .xcpc-filter-group label, .switch):hover { transform: translateY(-1px); filter: brightness(1.06); }
 :where(input:not(:disabled), select:not(:disabled)):hover { border-color: var(--interactive-border-hover); box-shadow: 0 0 0 2px color-mix(in srgb,var(--interactive-border-hover) 14%,transparent); }
 .settings-tabs button:hover:not(.active), .preference-choices button:hover:not(.active), .source-segments button:hover:not(.active), .difficulty-tabs button:hover:not(.active), .segmented button:hover:not(.active), .rating-tabs button:hover:not(.active), .rating-periods button:hover:not(.active),
