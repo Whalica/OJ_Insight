@@ -4,7 +4,7 @@
 
 <p align="center"><a href="README.md"><img src="docs/assets/read-in-english.svg" alt="Read in English" /></a></p>
 
-**把跨 OJ 的训练进度、日常练习和比赛复盘放在一个本地应用里。**
+**以跨 OJ 数据整合为基础，以训练辅助为补充。**
 
 OJ Insight 面向算法竞赛选手，汇集 Codeforces、AtCoder、洛谷、牛客、QOJ 和 LeetCode 的训练记录，并提供独立的 ICPC / CCPC Tracker。它保留各平台原有的 Rating 与难度体系，明确区分可核实的逐题记录、公开汇总和暂时无法取得的数据。
 
@@ -54,3 +54,5 @@ OJ Insight 面向算法竞赛选手，汇集 Codeforces、AtCoder、洛谷、牛
 英文界面仍在**开发中**：导航和部分训练工具已有英文内容，其他页面仍为中文，语言切换入口暂时隐藏。题目原名、平台标签和个人笔记保留原文。
 
 安装配置、账号凭据、备份和故障排查请参阅[用户手册](docs/manual/user-manual.pdf)。项目架构和源码构建另见[架构文档](docs/ARCHITECTURE.md)与[构建文档](docs/BUILDING.md)。
+
+参与开发请先阅读[贡献指南](CONTRIBUTING.md)与[产品原则](docs/PRODUCT_PRINCIPLES.md)；界面和文案调整另见[界面与文案规范](docs/UI_AND_COPY.md)。

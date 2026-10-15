@@ -1,6 +1,8 @@
-# 项目结构
+# 架构与数据流
 
 OJ Insight 是一个 Tauri 2 桌面应用。React 前端负责界面与交互，Rust 后端负责外部数据同步、SQLite 存储、领域逻辑和系统能力。
+
+先阅读 [产品原则](PRODUCT_PRINCIPLES.md) 和 [贡献指南](../CONTRIBUTING.md)。本文件说明实现位置，不授权新增功能或修改产品行为。
 
 ## 根目录
 
@@ -64,7 +66,11 @@ styles/
 ├─ settings.css         设置页
 ├─ xcpc.css             ICPC / CCPC Tracker
 ├─ layout.css           共享布局、响应式、导出和比赛复盘
-└─ training.css         题单与训练比赛页面
+├─ training.css         题单与训练比赛页面
+├─ favorites.css        链接收藏
+├─ study-assistant.css  独立做题小助手
+├─ solve-journal.css    解题手记
+└─ kickers.css          小标题字体与主题颜色
 ```
 
 ## Rust 后端
@@ -77,6 +83,7 @@ src-tauri/src/
 ├─ infrastructure/      路径、日志等基础能力
 ├─ sync/                外部 OJ 数据抓取、标准化和同步编排
 ├─ xcpc/                ICPC / CCPC 目录、匹配、标签和 Rating
+├─ training/            题单、候选池、比赛与训练导出
 ├─ fetch_queue.rs       外部请求并发控制
 ├─ models.rs            当前共享领域模型
 ├─ operation.rs         长操作并发保护
@@ -98,7 +105,7 @@ db
 SQLite
 ```
 
-命令层接收参数、进行边界校验并调用领域代码。`lib.rs` 只负责应用组装和命令注册。
+新增逻辑优先让命令层接收参数、进行边界校验并调用领域代码。当前社区目录、手记等部分实现仍集中于命令文件，修改时应识别这一现状，不把目录示意当成已完成的全面分层。`lib.rs` 只负责应用组装和命令注册。
 
 ### 数据库
 
@@ -113,7 +120,8 @@ db/
 ├─ ratings.rs           Rating、难度和知识画像
 ├─ analytics.rs         快照、日期和详情统计
 ├─ relationships.rs     关注账号、事件和通知
-└─ training.rs          Problem Set、Match 与训练画像持久化
+├─ training.rs          Problem Set、Match 与训练画像持久化
+└─ favorites.rs         链接收藏与分类持久化
 ```
 
 现有数据库实现采用渐进式拆分：各职责已分文件，入口继续导出原有 `db::*` 调用，避免在一次重构中改变所有调用方。
@@ -180,6 +188,43 @@ training/
 1. 先确定功能属于页面、应用 hook、领域逻辑、外部同步还是持久化。
 2. 前后端交互结构需要在 TypeScript 和 Rust 两侧保持一致。
 3. 领域逻辑通过 `commands` 暴露，再在 `services` 中集中添加 Tauri 调用。
-4. 外部 OJ 抓取只放入 `sync`；数据库查询和写入放入 `db`。
+4. 个人 OJ 记录同步放入 `sync`；XCPC 公共目录和榜单适配位于 `xcpc/sources`。社区目录和训练候选池按各自领域处理，不混入个人同步。新增持久化优先放入 `db`。
 5. 页面局部状态留在页面中，跨页面或应用级逻辑抽到 hooks。
-6. 提交前运行 `pnpm check`、`pnpm build`、Rust 测试和必要的布局回归测试。
+6. 按 [构建文档](BUILDING.md#按改动选择验证) 选择必要验证；改动数据口径或产品行为时同步相关说明。
+
+## 数据整合主链路
+
+```text
+用户发起同步 → useSync / services/api → commands/sync
+    → sync/service → 对应 OJ 适配器 → 标准化记录
+    → db 持久化与统计 → commands/analytics → useSnapshot → 图表与详情
+```
+
+`app/state.rs` 维护数据库连接、HTTP 客户端、操作门和数据路径；`fetch_queue.rs` 控制请求并发。`sync/metadata_cache.rs` 处理公共元数据缓存。不要在 React 页面中另外建立一套真实账号同步流程。
+
+统计口径定义可从 `src/lib/platforms.ts` 的 `METRICS`、`src/lib/date.ts`、`db/analytics.rs` 和 `db/submissions.rs` 追踪。改动时核对账号维度、题目唯一标识、去重粒度、时区、日期范围、缓存和缺失状态。输入、落库、查询及图表必须保持一致。
+
+前后端结构主要见 `src/types.ts`、`src-tauri/src/models.rs`，部分领域在各自模块内定义类型。新增或修改字段需检查实际命令返回值、序列化命名、前端消费点、测试模拟值和旧数据兼容，不能只改一侧声明。
+
+## 辅助能力的实际入口
+
+| 能力 | 前端入口 | 后端及存储 |
+| --- | --- | --- |
+| 本地与推荐题单 | `ProblemSetsHubPage`、`ProblemSetsPage`、`CommunityPage` | `commands/training.rs`、`commands/community.rs`、`training/`、`db/training.rs` |
+| 模拟赛、参赛区、赛后分析 | `ContestsHubPage` 分发到对应页面 | `commands/training.rs`、`commands/contest_review.rs`、`training/` |
+| 收藏夹 | `FavoritesPage` | `commands/favorites.rs`、`db/favorites.rs` |
+| 小助手与手记 | `StudyAssistant`、`SolveJournalPage`、`services/solveJournal.ts` | `commands/assistant.rs`、`commands/solve_journal.rs`；`solve_records` 表由数据库初始化创建 |
+| Competitive Companion | 手记中的接入状态与草稿入口 | `commands/companion.rs` 的本地监听，草稿写入使用手记能力 |
+| 关注 | `RelationshipsPage`、`useFollowing` | `commands/relationships.rs`、`sync/relationships.rs`、`db/relationships.rs` |
+| 更新 | `useUpdater`、`services/updater.ts` | `commands/update.rs` 与 Tauri updater |
+
+小助手包含独立窗口；普通浏览器预览与桌面 IPC 的能力不同，修改时同时检查服务层和测试 mock，不能用 mock 成功推断桌面保存已成功。
+
+`ProblemSetsHubPage` 承担本地/推荐切换；`ContestsHubPage` 按侧栏选择分发页面，不重复显示模拟赛/参赛区/赛后分析的内部导航。当前结构与入口调整的产品边界见 [界面规范](UI_AND_COPY.md)。
+
+## 兼容与验证边界
+
+- 数据库新增或变更字段需检查 `schema.rs`、`migrations.rs`、`connection.rs` 和使用该字段的领域初始化，验证已有数据可继续读取。
+- 测试使用临时数据库和模拟账号；不同 OJ 的空数据、部分成功与失败状态分别覆盖。
+- 布局测试使用 Tauri mock，能发现布局和交互问题，但不能代替桌面窗口、真实文件系统、数据库或网络适配验证。
+- 架构改动与产品改动可以相互关联，但应分别说明原因。不要借重构删除反馈或改变统计含义。

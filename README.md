@@ -4,7 +4,7 @@
 
 <p align="center"><a href="README.zh-CN.md"><img src="docs/assets/read-in-chinese.svg" alt="Read in Chinese" /></a></p>
 
-**A local home for competitive programming progress, practice, and contest review.**
+**Cross-OJ data integration at the core, with tools to support your training.**
 
 OJ Insight brings records from Codeforces, AtCoder, Luogu, NowCoder, QOJ, and LeetCode into one desktop app. It also includes an ICPC / CCPC Tracker. Instead of flattening every judge into a single score, it keeps each platform's rating and difficulty scale and shows which data is verified, aggregated, or unavailable.
 
@@ -54,3 +54,5 @@ Accounts, synced records, training history, and exports stay in the app's local 
 The English interface is **in development**. Navigation and some training tools have English text; other screens remain in Chinese. The language selector is temporarily hidden. Problem titles, judge tags, and personal notes keep their original language.
 
 For setup, account credentials, backup, and troubleshooting, see the [user manual](docs/manual/user-manual.pdf). Technical architecture and source builds are documented separately in [Architecture](docs/ARCHITECTURE.md) and [Building](docs/BUILDING.md).
+
+Before contributing, read the [contribution guide](CONTRIBUTING.md), [product principles](docs/PRODUCT_PRINCIPLES.md), and [UI and copy guidelines](docs/UI_AND_COPY.md). These contributor documents are currently maintained in Chinese.

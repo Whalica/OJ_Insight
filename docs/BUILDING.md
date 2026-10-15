@@ -15,9 +15,49 @@ pnpm build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-`.github/workflows/build.yml` 是唯一的三平台构建入口。Pull Request 只运行前端检查和 Windows 上的完整 Rust 单元测试；独立的 `.github/workflows/layout.yml` 使用与项目 Playwright 版本一致的官方预装镜像，并行运行布局测试。两个工作流分开保留，避免更改已有检查项名称，合并文件也不会缩短三平台打包时间。`v*` 标签和手动触发会构建三平台安装包。在 Actions 页面手动运行时，`release_tag` 留空表示普通测试构建；填写与源码一致的版本号（如 `v0.10.6`）会生成签名更新包和 `latest.json`，并创建等待人工确认的 Draft Release。
+`.github/workflows/build.yml` 是唯一的三平台构建入口。Pull Request 只运行前端检查和 Windows 上的完整 Rust 单元测试；独立的 `.github/workflows/layout.yml` 使用与项目 Playwright 版本一致的官方预装镜像，在同一个 job 中顺序运行 Chromium 全套布局测试、WebKit 的 relationships/responsive 用例和 XCPC 用例（XCPC 允许两次重试）。两个工作流分开保留，避免更改已有检查项名称，合并文件也不会缩短三平台打包时间。`v*` 标签和手动触发会构建三平台安装包。在 Actions 页面手动运行时，`release_tag` 留空表示普通测试构建；填写与源码一致的版本号（如 `v0.10.6`）会生成签名更新包和 `latest.json`，并创建等待人工确认的 Draft Release。
 
 三端打包开始前会先执行前端类型与版本检查，及完整 Rust 单元测试。Pull Request 有新提交时，尚未完成的旧检查会自动取消，避免重复占用资源。需要在合并前检查三平台安装包时，可手动触发普通测试构建。
+
+## 日常开发
+
+先阅读 [贡献指南](../CONTRIBUTING.md)。本地仓库可放在任意目录；以下命令均在仓库根目录执行。
+
+```bash
+pnpm install --frozen-lockfile
+pnpm tauri dev
+```
+
+`pnpm tauri dev` 启动前端和桌面应用，需先满足对应系统依赖。只查看前端可运行 `pnpm dev`，但普通浏览器没有真实 Tauri IPC；涉及本地文件、数据库、独立窗口和更新时应在桌面验证，或明确使用测试 mock。
+
+Windows 若出现 Git dubious ownership，应核对仓库属于你并仅信任该目录；不要设置全局通配符。PowerShell 示例：
+
+```powershell
+$repo = 'C:\OJ_Insight'
+$safe = $repo.Replace('\', '/')
+git -c "safe.directory=$safe" -C $repo status
+```
+
+## 按改动选择验证
+
+| 改动 | 必要验证 |
+| --- | --- |
+| 纯文档 | 内容与当前实现一致、相对链接有效、`git diff --check`；无需为文档重新打包三端 |
+| 前端逻辑或类型 | `pnpm check`；影响生产构建时运行 `pnpm build`；补充或运行受影响的交互测试 |
+| 布局、导航和反馈 | 受影响的 Playwright 用例及截图核对；覆盖主题、字号、窗口和键盘交互，关注正反馈是否仍触发 |
+| Rust、同步、统计与持久化 | `cargo test --locked --manifest-path src-tauri/Cargo.toml`，检查旧数据兼容、失败和缓存路径 |
+| 桌面窗口、文件或更新 | 除相关测试外，在受影响平台验证实际桌面行为，不能只依赖浏览器 mock |
+| 发布 | 执行下文完整发布检查，生成并验证三平台产物 |
+
+针对性布局测试示例：
+
+```bash
+pnpm exec playwright test --config config/playwright.config.ts tests/layout/navigation.spec.ts --project=chromium
+```
+
+Rust 本地编译若提示缺少 Tauri 前端资源，先运行 `pnpm build` 生成 `dist/`。CI 的 Rust 测试使用最小前端占位文件，不代表完成了前端生产构建。
+
+如果本机缺少工具链或无法运行浏览器，应记录实际限制，并在 PR 中明确未完成的验证。不要把列出测试用例、类型检查或 mock 结果写成真实桌面流程通过。CI 仍按工作流运行其配置的检查；本表不改变 CI 门禁。
 
 ## Windows
 
@@ -55,7 +95,7 @@ pnpm tauri build --target universal-apple-darwin
 lipo -archs "src-tauri/target/universal-apple-darwin/release/bundle/macos/OJ Insight.app/Contents/MacOS/oj-insight"
 ```
 
-输出必须同时包含 `x86_64` 与 `arm64`。v0.7.1 的最低目标系统为 MacOS 11。
+输出必须同时包含 `x86_64` 与 `arm64`。当前 `tauri.conf.json` 中的最低目标系统为 macOS 11。
 
 MacOS 数据保存在：
 
@@ -106,15 +146,15 @@ OJ_INSIGHT_GDK_BACKEND=x11 ./OJ\ Insight_*.AppImage
 
 仍然失败时，请记录显卡、Mesa/驱动、WebKitGTK、GTK 与 niri 版本，并对比系统原生构建和 AppImage；不要上传 Cookie 或完整数据库。
 
-## Tool configuration
+## 工具配置
 
-Frontend tool configuration is stored in `config/`:
+前端工具配置集中在 `config/`：
 
 - `config/vite.config.ts`
 - `config/tsconfig.json`
 - `config/playwright.config.ts`
 
-Use the scripts in `package.json` to run development, checks, builds, and layout tests. These scripts pass the required configuration paths automatically.
+通过 `package.json` 中的脚本执行开发、检查、构建和布局测试；脚本已传入相应配置路径。
 
 ## 发布检查
 
@@ -134,7 +174,7 @@ Linux 首次安装浏览器时可使用 `pnpm exec playwright install --with-dep
 cargo test --locked --manifest-path src-tauri/Cargo.toml live_public_metadata_cache_reuses_downloads -- --ignored --nocapture
 ```
 
-1. `package.json`、`src/lib/version.ts`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 版本一致。
+1. `package.json`、`src/lib/version.ts`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock` 中 OJI 自身的条目与 `src-tauri/tauri.conf.json` 版本一致；同步更新中英文 README、发布文档示例、更新记录及测试中的当前版本。历史版本和第三方依赖版本不批量替换。`pnpm check:version` 当前只核对四个主要配置文件，锁文件与文档需另外核对。
 2. `pnpm check`、前端生产构建及 Rust 测试通过。
 3. Windows、MacOS Universal 和 Linux 三个平台产物均已生成。
 4. MacOS `lipo` 检查包含两个架构。
