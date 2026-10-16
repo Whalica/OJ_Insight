@@ -286,6 +286,7 @@ pub fn mark_watched_failed(conn: &Connection, person_id: i64, message: &str) -> 
     Ok(())
 }
 
+#[cfg(test)]
 pub fn apply_watched_remote(
     conn: &mut Connection,
     person_id: i64,

@@ -30,7 +30,7 @@ const english: Record<string, string> = {
   '保存中': 'Saving', '保存账号': 'Save Accounts', '账号设置': 'Accounts', '个性化': 'Preferences',
   '怎么填写？': 'How to fill this in?',
   '填写个人主页 URL 中的账号标识，不是显示昵称。Cookie 与 API 凭据仅保存在本机；获取入口位于对应 OJ 页的同步按钮左侧。删除或改名会在保存时清理原 ID 的本地记录。': 'Enter the account ID from your profile URL, not your display name. Cookies and API credentials stay on this device. Find credential settings beside the sync button on each OJ page. Removing or renaming an ID clears its local records when you save.',
-  '添加 ID': 'Add ID', '移除账号': 'Remove account', '公开数据，无需密码': 'Public data; no password needed',
+  '添加 ID': 'Add ID', '移除账号': 'Remove account',
   '外观': 'Appearance', '修改后立即生效，并保存在当前设备。': 'Changes take effect immediately and are saved on this device.',
   '主题': 'Theme', '灰色介于亮色与暗色之间；跟随系统仍响应操作系统的亮暗模式。': 'Gray sits between light and dark. System follows your OS appearance.',
   '跟随系统': 'System', '亮色': 'Light', '灰色': 'Gray', '暗色': 'Dark',

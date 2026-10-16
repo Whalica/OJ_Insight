@@ -36,6 +36,7 @@
 .topbar p, .panel-head p, .today-copy p, .stat-card small { overflow-wrap: anywhere; }
 .sidebar nav button>svg, .primary>svg, .source-actions button>svg, .problem-button>svg, .drawer-problem-button>svg, .about-links button>svg { flex: 0 0 auto; }
 .account-entry input, .rating-account strong, .rating-account .select-wrap { min-width: 0; }
+.account-entry-public { grid-template-columns: 24px minmax(250px,1fr) 30px; }
 .rating-account select { max-width: 100%; }
 .rating-facts strong { overflow-wrap: anywhere; }
 .platform-monogram { min-width: 31px; width: auto; padding-inline: 4px; }
@@ -102,5 +103,5 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 :root[data-theme="gray"] .update-state.available { color: #eadb9c; background: #47422f; }
 @media (max-width: 1200px) {
   :root[data-font-size="xlarge"] .rating-layout { grid-template-columns: 1fr; }
-  .recent-list article { grid-template-columns: 42px minmax(0,1fr) 165px 8em; }
+  .recent-list article { grid-template-columns: 42px minmax(0,1fr) 165px max-content; }
 }
