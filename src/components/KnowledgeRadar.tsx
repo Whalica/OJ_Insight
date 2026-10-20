@@ -58,7 +58,7 @@ function KnowledgeHelp({ label, description }: { label: string; description: str
 }
 
 function KnowledgeHeader({ label, description }: { label: string; description: string }) {
-  return <div className="panel-head"><div><small>ABILITY EVIDENCE · 生涯累计</small><div className="knowledge-title-row"><h2>能力画像</h2><KnowledgeHelp label={label} description={description} /></div></div></div>;
+  return <div className="panel-head"><div><small lang="en" title="全部历史记录">ABILITY EVIDENCE</small><div className="knowledge-title-row"><h2>能力画像</h2><KnowledgeHelp label={label} description={description} /></div></div></div>;
 }
 
 export default function KnowledgeRadar({ data, selectedPlatform }: { data: KnowledgeBucket[]; selectedPlatform?: Platform | null }) {

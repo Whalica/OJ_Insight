@@ -130,7 +130,7 @@ export default function RatingOverview({ ratings, timeZone, selectedPlatform }: 
     setHover({ point, x: mouse ? event.clientX : rect.left + rect.width / 2, y: mouse ? event.clientY : rect.top });
   };
   return <>
-    <div className="section-title rating-title"><small>RATING OVERVIEW · 独立于训练时间范围</small><h2>竞赛 Rating 总览</h2></div>
+    <div className="section-title rating-title"><small lang="en" title="竞赛记录，按面板内的时间范围筛选">RATING OVERVIEW</small><h2>竞赛 Rating 总览</h2></div>
     <section className="panel rating-panel" style={{ '--rating-color': color } as CSSProperties}>
       {!selectedPlatform && <div className="rating-tabs">
         {RATING_PLATFORMS.map((item) => <button className={item === platform ? 'active' : ''} onClick={() => setPlatform(item)} key={item}>
