@@ -50,6 +50,16 @@ use commands::update::{can_install_updates, check_for_updates, install_app_updat
 use commands::xcpc::get_xcpc_contests;
 use infrastructure::paths::portable_root_dir;
 
+fn app_context() -> tauri::Context<tauri::Wry> {
+    #[allow(unused_mut)]
+    let mut context = tauri::generate_context!();
+    // Tauri decodes only the first ICO frame (16x16). Use the full-resolution
+    // PNG for every Windows window, including the study assistant.
+    #[cfg(target_os = "windows")]
+    context.set_default_window_icon(Some(tauri::include_image!("icons/icon.png")));
+    context
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -154,6 +164,18 @@ pub fn run() {
              ,list_vp_code_files
              ,lookup_problem_metadata
         ])
-        .run(tauri::generate_context!())
+        .run(app_context())
         .expect("error while running OJ Insight");
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod icon_tests {
+    #[test]
+    fn default_window_icon_supports_high_dpi_taskbars() {
+        let context = super::app_context();
+        let icon = context.default_window_icon().expect("window icon");
+        assert!(icon.width() >= 256 && icon.height() >= 256,
+            "window icon is only {}x{}; taskbars would upscale it",
+            icon.width(), icon.height());
+    }
 }
