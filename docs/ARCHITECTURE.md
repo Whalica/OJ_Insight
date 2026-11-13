@@ -220,6 +220,8 @@ training/
 
 小助手包含独立窗口；普通浏览器预览与桌面 IPC 的能力不同，修改时同时检查服务层和测试 mock，不能用 mock 成功推断桌面保存已成功。
 
+Windows 窗口图标在 `src-tauri/src/lib.rs` 的 `app_context` 中统一使用 `icons/icon.png`（512×512），主窗口和小助手均继承该设置。安装包和可执行文件仍使用多尺寸 ICO；不要依赖 Tauri 默认解码 ICO 的行为，它只取第一帧，可能将 16×16 图像放大到任务栏尺寸。
+
 `ProblemSetsHubPage` 承担本地/推荐切换；`ContestsHubPage` 按侧栏选择分发页面，不重复显示模拟赛/参赛区/赛后分析的内部导航。当前结构与入口调整的产品边界见 [界面规范](UI_AND_COPY.md)。
 
 ## 兼容与验证边界
