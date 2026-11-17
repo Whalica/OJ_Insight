@@ -2693,11 +2693,13 @@ dependencies = [
 name = "oj-insight"
 version = "0.10.6"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "chrono-tz",
  "html-escape",
  "regex",
  "reqwest 0.12.28",
+ "ring",
  "rusqlite",
  "scraper",
  "serde",
