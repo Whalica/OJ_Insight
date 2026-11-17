@@ -76,10 +76,10 @@ export const api = {
   dismissWatchedEvent: (eventId: number) => invoke<void>('dismiss_watched_event', { eventId }),
   getXcpcContests: (forceRefresh = false, refreshRatings = false) =>
     invoke<XcpcContest[]>('get_xcpc_contests', { forceRefresh, refreshRatings }),
-  inspectContestReview: (platform: Platform, account: string, contestInput: string, includePostContest: boolean) =>
-    invoke<ContestReviewPreview>('inspect_contest_review', { platform, account, contestInput, includePostContest }),
-  generateContestReview: (platform: Platform, account: string, contestInput: string, includePostContest: boolean, path: string) =>
-    invoke<ContestReviewExportResult>('generate_contest_review', { platform, account, contestInput, includePostContest, path }),
+  inspectContestReview: (platform: Platform, account: string, contestInput: string, includePostContest: boolean, cfCredentials?: { apiKey: string; apiSecret: string }) =>
+    invoke<ContestReviewPreview>('inspect_contest_review', { platform, account, contestInput, includePostContest, cfCredentials }),
+  generateContestReview: (platform: Platform, account: string, contestInput: string, includePostContest: boolean, path: string, cfCredentials?: { apiKey: string; apiSecret: string }) =>
+    invoke<ContestReviewExportResult>('generate_contest_review', { platform, account, contestInput, includePostContest, path, cfCredentials }),
   syncPlatform: (platform: Platform, full = false) =>
     invoke<SyncResult>('sync_platform', { platform, full }),
   syncAll: () => invoke<SyncResult[]>('sync_all'),

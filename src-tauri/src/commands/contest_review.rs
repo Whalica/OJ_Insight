@@ -12,6 +12,9 @@ use crate::app::state::AppState;
 use crate::db;
 use crate::sync::browser_headers;
 
+#[path = "contest_review_codeforces.rs"]
+mod codeforces;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReviewPreview {
@@ -98,13 +101,17 @@ fn normalize_contest_id(platform: &str, input: &str) -> Result<String, String> {
     if value.is_empty() {
         return Err("请输入比赛 ID 或链接".into());
     }
-    if platform != "atcoder" {
-        return Err("当前版本比赛复盘仅支持 AtCoder".into());
-    }
-    let (path_pattern, id_pattern) = (
-        r"/contests/([A-Za-z0-9_-]+)(?:[/#?]|$)",
-        r"^[A-Za-z0-9_-]+$",
-    );
+    let (path_pattern, id_pattern) = match platform {
+        "codeforces" => (
+            r"^https?://(?:www\.)?codeforces\.com/(?:contest|problemset/problem)/([1-9][0-9]*)(?:[/#?]|$)",
+            r"^[1-9][0-9]*$",
+        ),
+        "atcoder" => (
+            r"/contests/([A-Za-z0-9_-]+)(?:[/#?]|$)",
+            r"^[A-Za-z0-9_-]+$",
+        ),
+        _ => return Err("当前版本比赛复盘支持 AtCoder 和 Codeforces".into()),
+    };
     if let Some(id) = Regex::new(path_pattern)
         .map_err(|e| e.to_string())?
         .captures(value)
@@ -170,6 +177,7 @@ async fn load_contest(
     input: &str,
     include_post_contest: bool,
     with_source: bool,
+    cf_credentials: Option<codeforces::Credentials>,
 ) -> Result<ReviewContest, String> {
     let contest_id = normalize_contest_id(platform, input)?;
     let secret = account_secret(state, platform, account)?;
@@ -185,7 +193,10 @@ async fn load_contest(
             )
             .await
         }
-        _ => Err("当前版本比赛复盘仅支持 AtCoder".into()),
+        "codeforces" => {
+            codeforces::load(&state.client, account, &contest_id, include_post_contest, cf_credentials).await
+        }
+        _ => unreachable!(),
     }
 }
 
@@ -196,6 +207,7 @@ pub(crate) async fn inspect_contest_review(
     account: String,
     contest_input: String,
     include_post_contest: Option<bool>,
+    cf_credentials: Option<codeforces::Credentials>,
 ) -> Result<ReviewPreview, String> {
     let mut contest = load_contest(
         &state,
@@ -204,11 +216,12 @@ pub(crate) async fn inspect_contest_review(
         &contest_input,
         include_post_contest.unwrap_or(false),
         false,
+        cf_credentials,
     )
     .await?;
     let code_available = if contest.submissions.iter().any(|item| item.source.is_some()) {
         true
-    } else if let Some(submission) = contest.submissions.first() {
+    } else if let Some(submission) = contest.submissions.first().filter(|_| platform == "atcoder") {
         let secret = account_secret(&state, &platform, &account)?;
         get_source(&state.client, &submission.url, &secret)
             .await
@@ -216,7 +229,7 @@ pub(crate) async fn inspect_contest_review(
     } else {
         false
     };
-    if !contest.submissions.is_empty() && !code_available {
+    if platform == "atcoder" && !contest.submissions.is_empty() && !code_available {
         contest
             .notes
             .push("当前访问方式未能读取提交代码；生成时仍会逐条重试".into());
@@ -249,6 +262,7 @@ pub(crate) async fn generate_contest_review(
     contest_input: String,
     include_post_contest: Option<bool>,
     path: String,
+    cf_credentials: Option<codeforces::Credentials>,
 ) -> Result<ReviewExportResult, String> {
     let include_post_contest = include_post_contest.unwrap_or(false);
     let contest = load_contest(
@@ -258,6 +272,7 @@ pub(crate) async fn generate_contest_review(
         &contest_input,
         include_post_contest,
         true,
+        cf_credentials,
     )
     .await?;
     let code_count = contest
@@ -991,7 +1006,12 @@ mod tests {
             normalize_contest_id("atcoder", "https://atcoder.jp/contests/abc380/tasks").unwrap(),
             "abc380"
         );
-        assert!(normalize_contest_id("codeforces", "2030").is_err());
+        assert_eq!(normalize_contest_id("codeforces", "2030").unwrap(), "2030");
+        assert_eq!(
+            normalize_contest_id("codeforces", "https://codeforces.com/contest/2030/problem/A").unwrap(),
+            "2030"
+        );
+        assert!(normalize_contest_id("codeforces", "https://example.com/contest/2030").is_err());
         assert!(normalize_contest_id("nowcoder", "11244").is_err());
         assert!(normalize_contest_id("qoj", "123").is_err());
     }
