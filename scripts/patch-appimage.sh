@@ -26,6 +26,10 @@ curl --fail --location --retry 3 \
   --output appimagetool.AppImage \
   https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
 chmod +x appimagetool.AppImage
+# Extraction can leave the AppDir readable only by the build user.
+# Preserve executable files and make the packaged tree readable and traversable.
+chmod -R a+rX squashfs-root
+chmod a+rx squashfs-root/AppRun
 ARCH=x86_64 ./appimagetool.AppImage --appimage-extract-and-run squashfs-root patched.AppImage
 chmod +x patched.AppImage
 mv patched.AppImage "$original"
