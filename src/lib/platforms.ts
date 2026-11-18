@@ -5,7 +5,7 @@ export const TRAINING_PLATFORM_ORDER: TrainingPlatform[] = [...PLATFORM_ORDER, '
 
 export const PLATFORM_META: Record<TrainingPlatform, { name: string; short: string; accent: string; accountHint: string; secretHint?: string }> = {
   codeforces: { name: 'Codeforces', short: 'CF', accent: '#5aa6e8', accountHint: 'Handle', secretHint: '可选：Codeforces API Key / Secret' },
-  atcoder: { name: 'AtCoder', short: 'ATC', accent: 'var(--atcoder-accent)', accountHint: '用户名' },
+  atcoder: { name: 'AtCoder', short: 'ATC', accent: 'var(--atcoder-accent)', accountHint: '用户名', secretHint: '可选：AtCoder Cookie（复盘）' },
   luogu: { name: 'Luogu', short: 'LG', accent: '#2d9cdb', accountHint: '用户名或数字 UID' },
   nowcoder: { name: 'NowCoder', short: 'NC', accent: '#00b96b', accountHint: '个人主页 users/ 后的数字 User ID', secretHint: '可选：牛客网页 Cookie（用于同步每日一题打卡记录）' },
   qoj: { name: 'QOJ', short: 'QOJ', accent: '#48d0c0', accountHint: '用户名', secretHint: '完整 Cookie：cookie_name=cookie_value（多个用分号分隔）' },

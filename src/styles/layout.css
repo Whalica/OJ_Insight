@@ -162,10 +162,11 @@ select:focus-visible { outline: 2px solid color-mix(in srgb,var(--accent) 45%,tr
 .review-form>header small, .review-preview>header small { color: var(--accent); font-size: 9px; letter-spacing: 1.5px; }
 .review-form>header h2, .review-preview>header h2 { margin: 4px 0 0; font-size: 18px; }
 .review-form>header>span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--font-meta); }
-.review-form>label>span, .review-fields label>span { display: block; margin-bottom: 7px; color: var(--muted); font-size: var(--font-small); }
+.review-form>label>span, .review-platform-picker>span, .review-fields label>span { display: block; margin-bottom: 7px; color: var(--muted); font-size: var(--font-small); }
 .review-platforms { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
 .review-platforms button { min-width: 0; min-height: 40px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; background: var(--panel-soft); color: var(--muted); cursor: pointer; font-size: var(--font-small); }
 .review-platforms button.active { border-color: var(--interactive-border-hover); background: color-mix(in srgb,var(--accent) 11%,var(--panel-soft)); color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 8%,transparent); }
+.review-platforms button:active:not(:disabled) { transform: none; }
 .review-platforms button i { width: 8px; height: 8px; flex: none; border-radius: 2px; }
 .review-platforms button small { margin-left: auto; color: var(--muted-faint); font-size: 9px; white-space: nowrap; }
 .review-capability { min-height: 20px; display: flex; align-items: center; gap: 6px; margin: 10px 0 16px; color: var(--positive); font-size: var(--font-meta); }
