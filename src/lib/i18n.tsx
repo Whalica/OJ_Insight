@@ -151,6 +151,7 @@ const english: Record<string, string> = {
   '个人主页 users/ 后的数字 User ID': 'Numeric user ID after users/ in your profile URL',
   '国际站用户名；中国站写 cn:用户名': 'Global username; use cn:username for China',
   '可选：Codeforces API Key / Secret': 'Optional: Codeforces API Key / Secret',
+  '可选：AtCoder Cookie（复盘）': 'Optional: AtCoder Cookie for contest reviews',
   '可选：牛客网页 Cookie（用于同步每日一题打卡记录）': 'Optional: NowCoder cookie for daily challenge history',
   '完整 Cookie：cookie_name=cookie_value（多个用分号分隔）': 'Full Cookie: cookie_name=cookie_value (separate multiple cookies with semicolons)',
   '平台': 'Platforms', '综合总览': 'Overview',

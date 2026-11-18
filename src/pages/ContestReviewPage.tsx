@@ -22,25 +22,22 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
   const [preview, setPreview] = useState<ContestReviewPreview | null>(null);
   const [checking, setChecking] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
   const platformAccounts = accounts[platform] || NO_ACCOUNTS;
   const isCodeforces = platform === 'codeforces';
   const busy = checking || generating;
-  const cfCredentials = isCodeforces && apiKey.trim() && apiSecret.trim() ? { apiKey, apiSecret } : undefined;
   const canCheck = !!account.trim() && !!contestInput.trim() && !busy;
 
   useEffect(() => {
     setAccount((current) => platformAccounts.some((entry) => entry.account === current) ? current : platformAccounts[0]?.account || '');
     setPreview(null);
   }, [platform, platformAccounts]);
-  useEffect(() => { setPreview(null); }, [account, contestInput, includePostContest, apiKey, apiSecret]);
+  useEffect(() => { setPreview(null); }, [account, contestInput, includePostContest]);
 
   const inspect = async () => {
     if (!canCheck) return;
     setChecking(true);
     try {
-      const result = await api.inspectContestReview(platform, account, contestInput.trim(), includePostContest, cfCredentials);
+      const result = await api.inspectContestReview(platform, account, contestInput.trim(), includePostContest);
       setPreview(result);
       notify(`已识别 ${result.contestName}`);
     } catch (error) { notify(String(error)); }
@@ -54,7 +51,7 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
     try {
       const path = await save({ defaultPath: filename, filters: [{ name: 'ZIP 复盘包', extensions: ['zip'] }] });
       if (!path) return;
-      const result = await api.generateContestReview(platform, account, contestInput.trim(), includePostContest, path, cfCredentials);
+      const result = await api.generateContestReview(platform, account, contestInput.trim(), includePostContest, path);
       notify(`复盘包已生成：${result.submissionCount} 次提交，${result.codeCount} 份代码`);
       setPreview((current) => current ? { ...current, completeness: result.completeness, notes: result.notes } : current);
     } catch (error) { notify(String(error)); }
@@ -66,20 +63,18 @@ export default function ContestReviewPage({ accounts, notify, onOpenSettings, em
     <section className="review-builder">
       <div className="panel review-form">
         <header><div><small lang="en">STEP 1</small><h2>选择比赛</h2></div><span><ShieldCheck size={14} />凭据不会写入复盘包</span></header>
-        <label><span>OJ</span><div className="review-platforms">{SUPPORTED.map((item) => <button key={item} type="button" className={platform === item ? 'active' : ''} disabled={busy} onClick={() => { setPlatform(item); setApiKey(''); setApiSecret(''); }}><i style={{ background: PLATFORM_META[item].accent }} />{PLATFORM_META[item].name}</button>)}</div></label>
+        <div className="review-platform-picker">
+          <span id="review-platform-label">OJ</span>
+          <div className="review-platforms" role="group" aria-labelledby="review-platform-label">
+            {SUPPORTED.map((item) => <button key={item} type="button" className={platform === item ? 'active' : ''} aria-pressed={platform === item} disabled={busy} onClick={() => setPlatform(item)}><i style={{ background: PLATFORM_META[item].accent }} />{PLATFORM_META[item].name}</button>)}
+          </div>
+        </div>
         <p className="review-capability"><CheckCircle2 size={14} />整理题目、提交与可获取的源代码</p>
         <div className="review-fields">
-          <label><span>账号</span><select value={account} onChange={(event) => { setAccount(event.target.value); setApiKey(''); setApiSecret(''); }} disabled={busy || !platformAccounts.length}><option value="">{platformAccounts.length ? '选择账号' : '请先在设置中配置账号'}</option>{platformAccounts.map((entry) => <option key={entry.account} value={entry.account}>{entry.account}</option>)}</select></label>
+          <label><span>账号</span><select value={account} onChange={(event) => setAccount(event.target.value)} disabled={busy || !platformAccounts.length}><option value="">{platformAccounts.length ? '选择账号' : '请先在设置中配置账号'}</option>{platformAccounts.map((entry) => <option key={entry.account} value={entry.account}>{entry.account}</option>)}</select></label>
           <label><span>比赛 ID 或链接</span><input value={contestInput} onChange={(event) => setContestInput(event.target.value)} placeholder={isCodeforces ? '例如 2248 或比赛链接' : '例如 abc380 或比赛链接'} disabled={busy} /></label>
         </div>
-        <div className="review-credential-guide"><div><strong>复盘账号</strong><span>在设置中确认复盘使用的 {PLATFORM_META[platform].name} 账号。</span></div><button type="button" onClick={onOpenSettings}><Settings size={14} />前往配置</button></div>
-        {isCodeforces && <>
-          <div className="review-fields">
-            <label><span>API Key（可选）</span><input type="password" autoComplete="off" value={apiKey} disabled={busy} onChange={(event) => setApiKey(event.target.value)} /></label>
-            <label><span>API Secret（可选）</span><input type="password" autoComplete="off" value={apiSecret} disabled={busy} onChange={(event) => setApiSecret(event.target.value)} /></label>
-          </div>
-          <p className="review-capability">填写所选账号的 API Key 和 Secret 获取源码。凭据仅在当前页面使用。</p>
-        </>}
+        <div className="review-credential-guide"><div><strong>复盘账号</strong><span>使用个人信息中保存的{isCodeforces ? ' API Key 和 Secret。' : ' AtCoder Cookie（可选）。'}</span></div><button type="button" onClick={onOpenSettings}><Settings size={14} />前往配置</button></div>
         <label className="review-post-option"><input type="checkbox" disabled={busy} checked={includePostContest} onChange={(event) => setIncludePostContest(event.target.checked)} /><i /><span><strong>包含赛后补题</strong><small>与正式比赛提交分开标记，不影响比赛过程判断</small></span></label>
         <button className="primary review-check" disabled={!canCheck} onClick={() => void inspect()}>{checking ? <LoaderCircle className="spin" size={16} /> : <FileSearch size={16} />}{checking ? '正在检查比赛…' : '检查比赛'}</button>
       </div>

@@ -151,7 +151,7 @@ pub(super) async fn load(
                     notes.push(format!("部分源码不可用，已最多扫描最近 {SCAN_LIMIT} 次提交。"));
                 }
             }
-            _ => notes.push("填写本人 Codeforces API Key 和 Secret 后可获取提交源码。".into()),
+            _ => notes.push("所选账号未保存完整的 API Key 和 Secret。可通过「前往配置」补齐后获取源码。".into()),
         }
     }
 

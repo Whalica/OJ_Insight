@@ -130,8 +130,11 @@ fn normalize_contest_id(platform: &str, input: &str) -> Result<String, String> {
 
 fn cookie_headers(secret: &str, referer: &str) -> HeaderMap {
     let mut headers = browser_headers();
-    if !secret.trim().is_empty() {
-        if let Ok(value) = HeaderValue::from_str(secret.trim()) {
+    let secret = secret.trim();
+    let secret = secret.strip_prefix("Cookie:").unwrap_or(secret).trim();
+    if !secret.is_empty() {
+        if let Ok(mut value) = HeaderValue::from_str(secret) {
+            value.set_sensitive(true);
             headers.insert(COOKIE, value);
         }
     }
@@ -148,6 +151,9 @@ async fn get_text(client: &reqwest::Client, url: &str, secret: &str) -> Result<S
         .send()
         .await
         .map_err(|e| format!("请求失败：{e}"))?;
+    if response.url().host_str() == Some("atcoder.jp") && response.url().path() == "/login" {
+        return Err("AtCoder 要求登录，请在「前往配置」中填写或更新所选账号的 Cookie。".into());
+    }
     if !response.status().is_success() {
         return Err(format!("请求 {url} 失败：HTTP {}", response.status()));
     }
@@ -177,7 +183,6 @@ async fn load_contest(
     input: &str,
     include_post_contest: bool,
     with_source: bool,
-    cf_credentials: Option<codeforces::Credentials>,
 ) -> Result<ReviewContest, String> {
     let contest_id = normalize_contest_id(platform, input)?;
     let secret = account_secret(state, platform, account)?;
@@ -194,7 +199,8 @@ async fn load_contest(
             .await
         }
         "codeforces" => {
-            codeforces::load(&state.client, account, &contest_id, include_post_contest, cf_credentials).await
+            let credentials = serde_json::from_str(&secret).ok();
+            codeforces::load(&state.client, account, &contest_id, include_post_contest, credentials).await
         }
         _ => unreachable!(),
     }
@@ -207,7 +213,6 @@ pub(crate) async fn inspect_contest_review(
     account: String,
     contest_input: String,
     include_post_contest: Option<bool>,
-    cf_credentials: Option<codeforces::Credentials>,
 ) -> Result<ReviewPreview, String> {
     let mut contest = load_contest(
         &state,
@@ -216,23 +221,22 @@ pub(crate) async fn inspect_contest_review(
         &contest_input,
         include_post_contest.unwrap_or(false),
         false,
-        cf_credentials,
     )
     .await?;
-    let code_available = if contest.submissions.iter().any(|item| item.source.is_some()) {
-        true
-    } else if let Some(submission) = contest.submissions.first().filter(|_| platform == "atcoder") {
+    let mut code_available = contest.submissions.iter().any(|item| item.source.is_some());
+    if platform == "atcoder" && !code_available && !contest.submissions.is_empty() {
         let secret = account_secret(&state, &platform, &account)?;
-        get_source(&state.client, &submission.url, &secret)
-            .await
-            .is_some()
-    } else {
-        false
-    };
+        for submission in contest.submissions.iter().take(3) {
+            if get_source(&state.client, &submission.url, &secret).await.is_some() {
+                code_available = true;
+                break;
+            }
+        }
+    }
     if platform == "atcoder" && !contest.submissions.is_empty() && !code_available {
         contest
             .notes
-            .push("当前访问方式未能读取提交代码；生成时仍会逐条重试".into());
+            .push("抽查未读到提交源码。可在「前往配置」中检查 AtCoder Cookie，生成时会逐条尝试。".into());
     }
     Ok(ReviewPreview {
         platform: contest.platform,
@@ -262,7 +266,6 @@ pub(crate) async fn generate_contest_review(
     contest_input: String,
     include_post_contest: Option<bool>,
     path: String,
-    cf_credentials: Option<codeforces::Credentials>,
 ) -> Result<ReviewExportResult, String> {
     let include_post_contest = include_post_contest.unwrap_or(false);
     let contest = load_contest(
@@ -272,7 +275,6 @@ pub(crate) async fn generate_contest_review(
         &contest_input,
         include_post_contest,
         true,
-        cf_credentials,
     )
     .await?;
     let code_count = contest
@@ -319,7 +321,7 @@ fn extract_source(html: &str) -> Option<String> {
             if let Some(element) = document.select(&selector).next() {
                 let value = element.text().collect::<String>();
                 if !value.trim().is_empty() {
-                    return Some(html_escape::decode_html_entities(&value).into_owned());
+                    return Some(value);
                 }
             }
         }
@@ -416,13 +418,20 @@ async fn load_atcoder(
         })
         .collect::<HashMap<_, _>>();
     let mut submissions = Vec::new();
+    let mut notes = Vec::new();
     let mut page = 1;
     loop {
         let url = format!(
             "{base}/submissions?f.User={}&page={page}",
             urlencoding::encode(account)
         );
-        let html = get_text(client, &url, secret).await?;
+        let html = match get_text(client, &url, secret).await {
+            Ok(html) => html,
+            Err(error) => {
+                notes.push(format!("未能完整读取 AtCoder 提交列表。{error}"));
+                break;
+            }
+        };
         let parsed = parse_atcoder_submissions(&html, start_epoch, duration_seconds);
         if parsed.is_empty() {
             break;
@@ -459,11 +468,10 @@ async fn load_atcoder(
         }
     }
     submissions.sort_by_key(|item| item.epoch_second);
-    let mut notes = Vec::new();
     if problems.iter().any(|item| item.statement.is_empty()) {
         notes.push("部分 AtCoder 题面未能获取，请使用题目链接补充查看".into());
     }
-    if submissions.is_empty() {
+    if submissions.is_empty() && notes.is_empty() {
         notes.push("未找到该账号在本场比赛的提交；请检查 AtCoder 用户名大小写和比赛 ID".into());
     }
     Ok(ReviewContest {
@@ -1018,8 +1026,8 @@ mod tests {
 
     #[test]
     fn source_extractor_decodes_html() {
-        let html = r#"<pre id="program-source-text">if (a &lt; b) return 1;</pre>"#;
-        assert_eq!(extract_source(html).unwrap(), "if (a < b) return 1;");
+        let html = r#"<pre id="submission-code">if (a &lt; b) return "&amp;lt;";</pre>"#;
+        assert_eq!(extract_source(html).as_deref(), Some(r#"if (a < b) return "&lt;";"#));
     }
 
     #[test]
